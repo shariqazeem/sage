@@ -84,7 +84,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function withTransientRetry<T>(
   fn: (attempt: number) => Promise<T>,
-  opts: { attempts?: number; budgetMs?: number; now?: () => number } = {},
+  opts: { attempts?: number; budgetMs?: number; now?: () => number; /** a transient-looking failure the caller knows waiting cannot fix */ giveUp?: (e: unknown) => boolean } = {},
 ): Promise<T> {
   const attempts = Math.max(1, opts.attempts ?? 3);
   const budget = opts.budgetMs ?? RETRY_BUDGET_MS;
@@ -96,7 +96,10 @@ export async function withTransientRetry<T>(
       return await fn(i);
     } catch (e) {
       last = e;
-      if (!isTransientLlmError(e) || i === attempts - 1) throw e;
+      // A model the wire is passing over (wire.ts, 4b) answers 503 without a network call: asking it again
+      // is asking nobody. The caller's fallback is the only thing that can help.
+      const broken = (e as { modelBroken?: unknown } | null)?.modelBroken === true;
+      if (!isTransientLlmError(e) || broken || opts.giveUp?.(e) || i === attempts - 1) throw e;
       const wait = backoffMs(i, e);
       if (now() - started + wait > budget) throw e;
       await sleep(wait);

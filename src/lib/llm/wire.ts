@@ -36,6 +36,8 @@ import { overBudget, recordSpend, usd, type BudgetEvent } from "./spend";
  *  5. SPEND: every answer's own `usage` is priced and booked per account per day (spend.ts). With
  *     LLM_DAILY_BUDGET_USD set, a day's ceiling refuses background design first and judgment last, and is
  *     answered like an empty account (402, never retried).
+ *  6. A BROKEN MODEL: a model that answers 5xx to call after call is passed over for a cooling period
+ *     (503 at once, no network), the operator hears it once, and a probe closes it (section 4b).
  *
  * It never logs a key, a prompt or a provider's response body. It reads a 400's body only to classify
  * which parameter was refused, and throws the text away.
@@ -77,10 +79,15 @@ interface WireStore {
   listeners: Set<(e: CreditEvent) => void>;
   /** when each key last came back after being out of credit (ms). Read by the sweep's re-judge window. */
   reopenedAt: Map<string, number>;
+  /** models answering 5xx to every call (section 4b), by provider key AND model. */
+  broken?: Map<string, Broken>;
+  modelListeners?: Set<(e: ModelEvent) => void>;
 }
 const g0 = globalThis as typeof globalThis & { __sageWire?: WireStore };
 const store: WireStore = (g0.__sageWire ??= { refused: new Map(), gates: new Map(), closed: new Map(), listeners: new Set(), reopenedAt: new Map() });
 const refused = store.refused;
+const brokenModels: Map<string, Broken> = (store.broken ??= new Map());
+const modelListeners: Set<(e: ModelEvent) => void> = (store.modelListeners ??= new Set());
 const shapeKey = (p: Pick<WireProvider, "host" | "model">) => `${p.host}|${p.model}`;
 
 /**
@@ -186,6 +193,7 @@ export function resetWireMemory(): void {
   gates.clear();
   store.closed.clear();
   store.reopenedAt.clear();
+  brokenModels.clear();
 }
 
 // ─────────────────────────── 2 + 3. CONCURRENCY + PRIORITY ───────────────────────────
@@ -415,6 +423,133 @@ function budgetResponse(e: BudgetEvent): WireResponse {
   };
 }
 
+
+// ───────────────────────────── 4b. A MODEL THAT IS BROKEN ─────────────────────────────
+
+/**
+ * A MODEL THAT ANSWERS 5xx TO EVERY CALL IS BROKEN, NOT UNLUCKY (22 Nov 2026).
+ *
+ * Measured 21 Nov 2026: DeepSeek V4 Flash on CommonStack answered HTTP 500 to 8 of 8 real calls, at any size
+ * and in any mode, each after about 24 s. Nothing remembered it. Every job paid the full retry ladder (three
+ * tries with backoff, about 75 s) before reaching its fallback, and staging's first look kept its plain
+ * wording about 13 times in a row.
+ *
+ * So the wire counts consecutive 5xx answers per provider key AND model (another model on the same key is
+ * not touched). At BROKEN_AFTER in a row with no answer between them, the model is OPEN:
+ *  - every call on it is answered 503 at once, with `modelBroken` set and no network call, so callers go
+ *    straight to their fallback (steady.ts, the architect, the critic, the draft) instead of waiting;
+ *  - whoever listens (credit-alert.ts) hears once, and tells the operator;
+ *  - after the cooling period ONE real call is let through as the probe (others still get the 503). An
+ *    answer closes it; another 5xx opens it again for twice as long, up to BROKEN_MAX_MS. The sweep also
+ *    probes it each tick (credit-alert.ts), so an idle server notices a recovery too.
+ *
+ * Five in a row, not three: the same day GPT-5.4 mini answered 500 to 4 of 9 calls and was fine on the next
+ * try. A model failing that way reaches five in a row about once in sixty runs, and then costs one minute.
+ * Timeouts and 429s are not counted: a slow model and a busy key have their own handling.
+ */
+export const BROKEN_AFTER = 5;
+export const BROKEN_FOR_MS = 60_000;
+export const BROKEN_MAX_MS = 15 * 60_000;
+
+interface Broken {
+  host: string;
+  keyId: string;
+  model: string;
+  /** consecutive 5xx answers, reset by any answer */
+  streak: number;
+  /** epoch ms the model is passed over until; 0 while it is merely being counted */
+  openUntil: number;
+  /** when it was opened (ms); 0 while closed */
+  since: number;
+  /** how many times in a row it has been opened, for the doubling */
+  trips: number;
+  /** a probe call is in flight */
+  probing: boolean;
+  lastStatus: number;
+}
+
+export interface ModelEvent {
+  kind: "broken" | "recovered";
+  host: string;
+  keyId: string;
+  model: string;
+  since: number;
+  status: number;
+}
+
+/** Hear when a model starts failing every call, and when it answers again. Returns an unsubscribe. */
+export function onModelHealthChange(fn: (e: ModelEvent) => void): () => void {
+  modelListeners.add(fn);
+  return () => modelListeners.delete(fn);
+}
+
+function emitModel(e: ModelEvent): void {
+  for (const fn of modelListeners) {
+    try {
+      fn(e);
+    } catch {
+      /* a listener's failure never touches a model call */
+    }
+  }
+}
+
+const modelKey = (p: Pick<WireProvider, "host" | "key" | "model">) => `${gateKey(p)}|${p.model}`;
+
+/** Every model the wire is passing over right now. */
+export function brokenModelList(): { host: string; keyId: string; model: string; since: number; status: number }[] {
+  return [...brokenModels.values()].filter((b) => b.since > 0).map(({ host, keyId, model, since, lastStatus }) => ({ host, keyId, model, since, status: lastStatus }));
+}
+
+/** Is this exact model on this key being passed over? Callers with a different fallback go to it first. */
+export function isModelBroken(p: Pick<WireProvider, "host" | "key" | "model">, now = Date.now()): boolean {
+  const b = brokenModels.get(modelKey(p));
+  return !!b && b.since > 0 && (now < b.openUntil || b.probing);
+}
+
+function noteServerError(p: Pick<WireProvider, "host" | "key" | "model">, status: number, now: number): void {
+  const k = modelKey(p);
+  const b = brokenModels.get(k) ?? { host: p.host, keyId: keyIdOf(p), model: p.model, streak: 0, openUntil: 0, since: 0, trips: 0, probing: false, lastStatus: status };
+  b.streak += 1;
+  b.lastStatus = status;
+  b.probing = false;
+  brokenModels.set(k, b);
+  if (b.since > 0) {
+    // the probe failed: pass it over again, for longer
+    b.trips += 1;
+    b.openUntil = now + Math.min(BROKEN_FOR_MS * 2 ** b.trips, BROKEN_MAX_MS);
+    return;
+  }
+  if (b.streak < BROKEN_AFTER) return;
+  b.since = now;
+  b.trips = 0;
+  b.openUntil = now + BROKEN_FOR_MS;
+  console.error(`[llm-wire] ${p.host} ${p.model} answered ${status} to ${b.streak} calls in a row; passing it over until a probe answers`);
+  emitModel({ kind: "broken", host: b.host, keyId: b.keyId, model: b.model, since: b.since, status });
+}
+
+function noteModelAnswered(p: Pick<WireProvider, "host" | "key" | "model">, now: number): void {
+  const k = modelKey(p);
+  const b = brokenModels.get(k);
+  if (!b) return;
+  brokenModels.delete(k);
+  if (b.since === 0) return;
+  console.warn(`[llm-wire] ${p.host} ${p.model} answers again after ${Math.round((now - b.since) / 1000)}s`);
+  emitModel({ kind: "recovered", host: b.host, keyId: b.keyId, model: b.model, since: b.since, status: 200 });
+}
+
+/** The answer a call on a broken model gets, without a network call. */
+function brokenResponse(b: Broken): WireResponse {
+  return {
+    ok: false,
+    status: 503,
+    text: JSON.stringify({ error: { code: "model_broken", message: `${b.model} answered ${b.lastStatus} to every recent call; passed over until a probe answers` } }),
+    retryAfterMs: null,
+    sent: {},
+    outOfCredit: false,
+    modelBroken: true,
+  };
+}
+
 // ───────────────────────────── THE SEND ─────────────────────────────
 
 export interface WireResponse {
@@ -430,6 +565,8 @@ export interface WireResponse {
    * says 429), so no caller retries a closed account as if it were busy.
    */
   outOfCredit: boolean;
+  /** The model is being passed over (section 4b): `status` is 503 and no network call was made. */
+  modelBroken?: boolean;
 }
 
 /**
@@ -514,6 +651,8 @@ export async function postChat(
     fetchImpl?: typeof fetch;
     /** which lane the spend is booked to (PAYOUT, DRAFT, …); the priority when a caller names none. */
     lane?: string;
+    /** this call IS the probe of a broken model (the sweep's): it is sent even while the model cools. */
+    probe?: boolean;
   },
 ): Promise<WireResponse> {
   const profile = opts.profile ?? profileFor(p.model, p.endpoint);
@@ -525,6 +664,13 @@ export async function postChat(
   // so is a kind of work that has reached today's ceiling on this account (spend.ts)
   const over = overBudget(account, p.host, priority);
   if (over) return budgetResponse(over);
+  // so is a model that answers 5xx to every call (section 4b). Once it has cooled, ONE call goes through as
+  // the probe; the others keep the instant answer until that probe has spoken.
+  const sick = brokenModels.get(modelKey(p));
+  if (sick && sick.since > 0) {
+    if (!opts.probe && (sick.probing || Date.now() < sick.openUntil)) return brokenResponse(sick);
+    sick.probing = true;
+  }
   return withSlot(p, priority, async () => {
     const controller = new AbortController();
     const onOuterAbort = () => controller.abort();
@@ -609,8 +755,10 @@ export async function postChat(
           noteOutOfCredit(p, text, Date.now());
           return { ok: false, status: 402, text, retryAfterMs: null, sent, outOfCredit: true };
         }
+        if (res.status >= 500 && res.status <= 599) noteServerError(p, res.status, Date.now());
         if (res.ok) {
           noteAnswered(p, Date.now());
+          noteModelAnswered(p, Date.now());
           recordSpend({ account, host: p.host, model: p.model, lane: opts.lane ?? priority, responseText: text, sentChars: JSON.stringify(sent).length });
         }
         return { ok: res.ok, status: res.status, text, retryAfterMs: parseRetryAfterMs(headerOf(res, "retry-after")), sent, outOfCredit: false };
@@ -618,6 +766,10 @@ export async function postChat(
     } finally {
       clearTimeout(timer);
       opts.signal?.removeEventListener("abort", onOuterAbort);
+      // a probe that ended without an answer either way (a timeout, a 4xx) must not leave the model stuck
+      // behind a probe that is no longer running: the next call may probe again
+      const b = brokenModels.get(modelKey(p));
+      if (b?.probing) b.probing = false;
     }
   });
 }

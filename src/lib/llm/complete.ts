@@ -40,6 +40,8 @@ export interface LlmComplete {
   responseModel?: string | null;
 }
 
+import { DEADLINE_CODE, deadlineRemainingMs } from "./deadline";
+import { noteAnsweredJob, noteThinkOnly } from "./model-health";
 import { outputBudget, profileFor } from "./provider-profile";
 import { stripReasoningPrefix } from "./reasoning";
 import { postChat, priorityForLane, responseFormatFor } from "./wire";
@@ -237,6 +239,29 @@ export interface LlmCompletionErrorFields {
   /** structural facts about a REFUSED payload — never its content. See {@link contentStructure}. */
   contentStructure?: Record<string, unknown> | null;
   retryAfterMs: number | null;
+  /** the model spent its whole budget thinking and wrote no answer (see {@link thoughtOnly}). More room
+   *  does not fix this; another model does. */
+  thinkOnly?: boolean;
+  /** the wire is passing this model over (5xx to every call): no network call was made (wire.ts, 4b). */
+  modelBroken?: boolean;
+}
+
+/**
+ * RAN OUT OF ROOM BEFORE ANY ANSWER, as opposed to cut mid-answer (22 Nov 2026).
+ *
+ * Measured 21 Nov 2026: MiniMax M3 spent all 14,000 completion tokens thinking on the architect prompt and
+ * wrote nothing. That arrived as `finish_reason: "length"` with empty content, or with content that is one
+ * unclosed `<think>` block, and was read as a truncation: the same model was given more room and asked
+ * again, five times. A truncation has the START of an answer in it. This has none, so a bigger budget buys
+ * a longer think, and the right move is a different model.
+ */
+export function thoughtOnly(choice: { message?: { content?: string | null; tool_calls?: unknown[] } | null; finish_reason?: string | null } | undefined | null): boolean {
+  if (!choice || choice.finish_reason !== "length") return false;
+  if (Array.isArray(choice.message?.tool_calls) && choice.message.tool_calls.length > 0) return false;
+  const c = (choice.message?.content ?? "").trim();
+  if (c === "") return true; // the reasoning went to a separate field (or nowhere) and no answer followed
+  if (c.startsWith("<think>") && !c.includes("</think>")) return true; // still thinking when the room ran out
+  return stripReasoningPrefix(c).trim() === ""; // closed its thinking and had no room left to answer
 }
 
 /**
@@ -259,6 +284,8 @@ export class LlmCompletionError extends Error implements LlmCompletionErrorField
   declare contentShape: ContentShape;
   declare contentStructure?: Record<string, unknown> | null;
   declare retryAfterMs: number | null;
+  declare thinkOnly?: boolean;
+  declare modelBroken?: boolean;
   constructor(f: LlmCompletionErrorFields) {
     super(f.code);
     this.name = "LlmCompletionError";
@@ -455,6 +482,15 @@ export async function llmCompleteJson(opts: {
    *  Throws `llm_not_configured` when no fallback is configured — never silently re-runs the
    *  primary. Reach for it only after the primary failed in a way retrying cannot fix. */
   useFallback?: boolean;
+  /** WHICH JOB this is on its lane ("architect@v4.7", "critic"): the key a think-only answer is remembered
+   *  under (model-health.ts), so one prompt a model cannot answer does not condemn it for the others. */
+  tag?: string;
+  /** abort this call from outside (a hedge whose other side already answered). */
+  signal?: AbortSignal;
+  /** the longest THIS call may take, when the caller knows better than the provider's profile: a small
+   *  question on a path that has a fallback should not wait out a five-minute reasoning timeout. It can
+   *  only shorten the call's own budget, never lengthen it. */
+  maxWaitMs?: number;
 }): Promise<LlmComplete> {
   // an explicit model override is the PRIMARY's model — it must not be carried onto the fallback
   const p = opts.useFallback ? fallbackLlm() : resolveLlm(opts.model, opts.lane);
@@ -472,9 +508,20 @@ export async function llmCompleteJson(opts: {
   // aborts a call for being exactly as long as we asked, which is how P-GEN 46-48 read as "the
   // provider's heavy tail" — the tail was ours.
   const responseFormat = responseFormatFor(profile, opts.responseSchema);
-  const budgetMs = process.env.LLM_TIMEOUT_MS
+  const ownBudgetMs = process.env.LLM_TIMEOUT_MS
     ? TIMEOUT_MS
     : Math.max(TIMEOUT_MS, profile.timeoutMs, Math.ceil(maxOut / MIN_TOKENS_PER_SEC) * 1000 + QUEUE_GRACE_MS);
+  const failure = (code: string, over: Partial<LlmCompletionErrorFields> = {}) =>
+    new LlmCompletionError({
+      code, httpStatus: null, provider: p.host, requestedModel: p.model, responseModel: null, finishReason: null,
+      latencyMs: Date.now() - started, promptTokens: null, completionTokens: null, parsePolicy: policy,
+      responseSchemaName: schemaName, contentShape: "unknown", retryAfterMs: null, ...over,
+    });
+  // THE WORK'S OWN CLOCK (deadline.ts). A call inside a deadline gets at most the time that is left; with
+  // none left it is refused here, before the queue and the network, and the caller uses what it has.
+  const left = deadlineRemainingMs();
+  if (left !== null && left < 2_000) throw failure(DEADLINE_CODE);
+  const budgetMs = Math.min(ownBudgetMs, left ?? Number.POSITIVE_INFINITY, opts.maxWaitMs && opts.maxWaitMs > 0 ? opts.maxWaitMs : Number.POSITIVE_INFINITY);
   {
     // THE TIMER STARTS WHEN THE REQUEST DOES, not when it joins the queue (the wire starts it when a
     // slot is free): a call that waited behind two 130s generations used to have its whole timeout
@@ -521,15 +568,11 @@ export async function llmCompleteJson(opts: {
           { role: "user", content: opts.user },
         ],
       },
-      { timeoutMs: budgetMs, priority: priorityForLane(opts.lane), profile, lane: opts.lane },
+      { timeoutMs: budgetMs, priority: priorityForLane(opts.lane), profile, lane: opts.lane, signal: opts.signal },
     );
     if (!res.ok) {
       // bad status (429 quota, 400 schema-incompat, auth/billing) → sanitized error, no body text.
-      throw new LlmCompletionError({
-        code: `llm_status_${res.status}`, httpStatus: res.status, provider: p.host, requestedModel: p.model,
-        responseModel: null, finishReason: null, latencyMs: Date.now() - started, promptTokens: null, completionTokens: null,
-        parsePolicy: policy, responseSchemaName: schemaName, contentShape: "unknown", retryAfterMs: res.retryAfterMs,
-      });
+      throw failure(`llm_status_${res.status}`, { httpStatus: res.status, retryAfterMs: res.retryAfterMs, ...(res.modelBroken ? { modelBroken: true } : {}) });
     }
     let data: ChatResponse;
     try {
@@ -540,6 +583,15 @@ export async function llmCompleteJson(opts: {
     let json: unknown;
     let finishReason: string | null;
     let repaired = false;
+    // Thought the whole budget away and answered nothing: remembered for this job, and named as what it is.
+    const thinkOnly = thoughtOnly(data.choices?.[0]);
+    if (thinkOnly) noteThinkOnly(p, opts.lane, opts.tag);
+    const seen = {
+      httpStatus: res.status, responseModel: typeof data.model === "string" ? data.model : null,
+      finishReason: data.choices?.[0]?.finish_reason ?? null,
+      promptTokens: data.usage?.prompt_tokens ?? null, completionTokens: data.usage?.completion_tokens ?? null,
+      contentShape: classifyContentShape(data.choices?.[0]?.message?.content),
+    };
     if (policy === "strict") {
       const choice0 = data.choices?.[0];
       try {
@@ -555,6 +607,7 @@ export async function llmCompleteJson(opts: {
           promptTokens: data.usage?.prompt_tokens ?? null, completionTokens: data.usage?.completion_tokens ?? null,
           parsePolicy: "strict", responseSchemaName: schemaName, contentShape: classifyContentShape(choice0?.message?.content),
           contentStructure: contentStructure(choice0?.message?.content), retryAfterMs: null,
+          ...(thinkOnly ? { thinkOnly: true } : {}),
         });
       }
     } else {
@@ -563,7 +616,10 @@ export async function llmCompleteJson(opts: {
       const content = data.choices?.[0]?.message?.content;
       // An empty answer the provider REFUSED (a safety classifier: finish_reason content_filter / refusal) is
       // not an outage: callers say so, and may try another provider, instead of "couldn't reach" (Sage Bench r5).
-      if (!content) throw new Error(finishReason === "content_filter" || finishReason === "refusal" ? "llm_refused" : "llm_empty");
+      if (thinkOnly) throw failure("llm_think_only", { ...seen, thinkOnly: true });
+      // (these carry the finish reason and usage, so a caller can tell a cut answer from a malformed one;
+      // `message === code`, so every existing classifier reads them as before)
+      if (!content) throw failure(finishReason === "content_filter" || finishReason === "refusal" ? "llm_refused" : "llm_empty", seen);
       // The reasoning block is framing, not answer, and it must go BEFORE extraction — MEASURED
       // 2026-08-27 on play2048: a 25,430-char <think> block contained its own ```json fence (the
       // model drafting), and extractJson takes the FIRST fence, so a COMPLETE answer
@@ -575,10 +631,11 @@ export async function llmCompleteJson(opts: {
       } catch {
         // recovery rung: bounded structural repair before giving up.
         json = repairJson(extracted);
-        if (json === null) throw new Error("llm_unparseable");
+        if (json === null) throw failure("llm_unparseable", seen);
         repaired = true;
       }
     }
+    noteAnsweredJob(p, opts.lane, opts.tag);
     return {
       json,
       model: p.model,

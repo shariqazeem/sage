@@ -45,7 +45,7 @@ import { renewDuePlans } from "@/lib/plans/renewal";
 import { openDueRounds } from "@/lib/programmes/rounds";
 import { checkMilestones } from "@/lib/numbers/milestones";
 import { collectAdvanceRepayments } from "@/lib/advance/collect";
-import { armCreditAlerts, creditStatus, judgeOutOfCredit, probeClosedProviders } from "@/lib/llm/credit-alert";
+import { armCreditAlerts, creditStatus, judgeOutOfCredit, probeBrokenModels, probeClosedProviders } from "@/lib/llm/credit-alert";
 import { lastReopenedAt } from "@/lib/llm/wire";
 import { queueDueFindings } from "@/lib/report";
 import { runXAgent } from "@/lib/x/agent";
@@ -123,6 +123,9 @@ async function runSweep() {
   armCreditAlerts();
   const probe = await probeClosedProviders().catch(() => ({ probed: 0, reopened: 0 }));
   summary.llm = { closed: creditStatus(), ...probe };
+  // ...and a model the wire is passing over (5xx to every call) is asked once a tick, so an idle server
+  // notices it recover too. No call while nothing is broken.
+  await probeBrokenModels().catch(() => undefined);
   const judgeDown = judgeOutOfCredit();
   const reopenedAt = lastReopenedAt();
 

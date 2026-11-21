@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { notifyTelegram } from "@/lib/deputy/notify";
 import { fallbackLlm, LANES, resolveLlm, type ResolvedProvider } from "./complete";
 import { budgetAlertText, onBudgetTrip } from "./spend";
-import { closedProviders, onCreditChange, postChat, type CreditEvent } from "./wire";
+import { brokenModelList, closedProviders, onCreditChange, onModelHealthChange, postChat, type CreditEvent, type ModelEvent } from "./wire";
 
 /**
  * WHEN SAGE'S MODEL PROVIDER RUNS OUT OF CREDIT, THE OPERATOR HEARS IT FROM SAGE.
@@ -29,6 +29,7 @@ interface AlertState {
   off: (() => void) | null;
   /** the daily-budget subscription (spend.ts): each ceiling is announced once per day. */
   offBudget?: (() => void) | null;
+  offModel?: (() => void) | null;
   /** where alerts go: the operator chat in production, a list in the suite. */
   send: (text: string) => Promise<void>;
   /** last "out of credit" alert per key id (ms). */
@@ -65,9 +66,73 @@ export function creditAlertText(e: CreditEvent, nowMs: number): string {
  * an account that emptied before anything was listening is still reported (the current state is replayed
  * on arming), and a reminder goes out while it lasts.
  */
+/**
+ * A BROKEN MODEL, SAID ONCE (22 Nov 2026). The wire passes over a model that answers 5xx to every call
+ * (wire.ts, section 4b). Sage carries on by the fallback where there is one, so this is a note, not an
+ * outage: one message when it starts, one when it answers again, at most one per model per OUTAGE_REPEAT_MS.
+ */
+export function modelAlertText(e: ModelEvent, nowMs: number): string {
+  if (e.kind === "broken") {
+    return [
+      "<b>One of Sage's models is failing every call</b>",
+      `${e.model} on ${e.host} answered ${e.status} to five calls in a row.`,
+      "Sage passes it over and uses the fallback provider where one is set; work with no fallback keeps its plain version or is held.",
+      "Nothing to do if it recovers: Sage probes it and switches back by itself. If it stays down, move its lanes (node scripts/vm/llm-route.mjs status).",
+    ].join("\n");
+  }
+  const mins = Math.max(1, Math.round((nowMs - e.since) / 60_000));
+  return ["<b>Sage's model is back</b>", `${e.model} on ${e.host} answers again after about ${mins} min.`].join("\n");
+}
+
+function heardModel(e: ModelEvent): void {
+  const now = Date.now();
+  const id = `model:${e.host}|${e.keyId}|${e.model}`;
+  if (e.kind === "broken") {
+    const last = state.alerted.get(id);
+    if (last !== undefined && now - last < OUTAGE_REPEAT_MS) return;
+    state.alerted.set(id, now);
+    void state.send(modelAlertText(e, now)).catch(() => undefined);
+    return;
+  }
+  // only someone who was told it broke is told it is back; the entry is kept, so a model that flaps is not
+  // announced again inside the repeat window
+  if (!state.alerted.has(id)) return;
+  void state.send(modelAlertText(e, now)).catch(() => undefined);
+}
+
+/**
+ * Ask each broken model once, whatever its cooling period says (the sweep calls this each tick). The call's
+ * own outcome is what the wire reads: an answer closes the breaker, another 5xx keeps it open. Small on
+ * purpose: the failure measured was a 500 at any size, so a few tokens tell as much as a full request.
+ */
+export async function probeBrokenModels(opts: { fetchImpl?: typeof fetch } = {}): Promise<{ probed: number; recovered: number }> {
+  const broken = brokenModelList();
+  if (broken.length === 0) return { probed: 0, recovered: 0 };
+  let probed = 0;
+  let recovered = 0;
+  for (const b of broken) {
+    // the key is found among what is configured now; a model no lane points at any more is left to expire
+    const p = configuredProviders().map((c) => ({ ...c, model: b.model })).find((c) => c.host === b.host && keyIdOf(c.key) === b.keyId);
+    if (!p) continue;
+    try {
+      probed++;
+      const res = await postChat(
+        p,
+        { model: p.model, max_tokens: 512, messages: [{ role: "user", content: "Reply with the single word: ok" }] },
+        { timeoutMs: 30_000, priority: "background", lane: "PROBE", fetchImpl: opts.fetchImpl, probe: true },
+      );
+      if (res.ok) recovered++;
+    } catch {
+      /* a network failure says nothing either way; the next tick asks again */
+    }
+  }
+  return { probed, recovered };
+}
+
 export function armCreditAlerts(send: (text: string) => Promise<void> = notifyTelegram): void {
   state.send = send;
   if (!state.off) state.off = onCreditChange(heard);
+  if (!state.offModel) state.offModel = onModelHealthChange(heardModel);
   if (!state.offBudget) state.offBudget = onBudgetTrip((e) => void state.send(budgetAlertText(e)).catch(() => undefined));
   for (const c of closedProviders()) heard({ kind: "closed", ...c });
 }
@@ -156,6 +221,8 @@ export function resetCreditAlerts(): void {
   state.off = null;
   state.offBudget?.();
   state.offBudget = null;
+  state.offModel?.();
+  state.offModel = null;
   state.send = notifyTelegram;
   state.alerted.clear();
 }
