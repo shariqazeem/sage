@@ -177,8 +177,13 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   const phase: LiveView["phase"] = campaign.status !== "live" || (total > 0 && paid >= total) ? "done" : "live";
   const { settledBase } = summarizeSettled(events);
 
-  const { frames, run, productUrl } = framesFor(campaign, owner);
-  const mayRead = owner || (sharing.findingsPublic && campaign.status !== "draft");
+  // NO CORPUS ORACLE (CLAUDE.md). Sage's frames carry what it saw (each frame's description is the very text
+  // the observation judge checks answers against), and paid answers can be copied. While places are open,
+  // only the owner sees either; once the test is done, the frames are anyone's and the findings are public
+  // if the builder said so.
+  const mayShowRun = owner || phase === "done";
+  const { frames, run, productUrl } = mayShowRun ? framesFor(campaign, owner) : { frames: [], run: null, productUrl: getInspectionJobByCampaign(campaign.id)?.productUrl ?? null };
+  const mayRead = owner || (sharing.findingsPublic && phase === "done");
 
   let ownerView: LiveOwner | null = null;
   if (owner && viewer) {
