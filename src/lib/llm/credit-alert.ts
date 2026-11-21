@@ -41,11 +41,16 @@ const state: AlertState = (g.__sageCreditAlert ??= { off: null, send: notifyTele
 /** The operator's words for each change. Pure, for the suite. */
 export function creditAlertText(e: CreditEvent, nowMs: number): string {
   if (e.kind === "closed") {
+    // a key's own spending quota (CommonStack: "Access key quota exceeded (cap 3)") is raised on the key,
+    // not by topping up the account
+    const keyQuota = /quota exceeded|\bcap\s*\d/i.test(e.message);
     return [
       "<b>Sage can't reach its model</b>",
       `${e.host} refuses every call: "${e.message}"`,
       "Work is held for review, Post can't draft, and Telegram can't reply until it answers.",
-      `Top up ${e.host} and Sage carries on by itself: held work is re-judged on the next sweep.`,
+      keyQuota
+        ? `Raise this key's spending limit on ${e.host} (or give Sage a key of its own) and Sage carries on by itself: held work is re-judged on the next sweep.`
+        : `Top up ${e.host} and Sage carries on by itself: held work is re-judged on the next sweep.`,
     ].join("\n");
   }
   const mins = Math.max(1, Math.round((nowMs - e.since) / 60_000));
@@ -121,8 +126,10 @@ export async function probeClosedProviders(opts: { fetchImpl?: typeof fetch } = 
       probed++;
       const res = await postChat(
         p,
-        // a few tokens, not one: a reasoning model may refuse a budget too small to start in
-        { model: p.model, max_tokens: 16, messages: [{ role: "user", content: "ok" }] },
+        // Sized like real work: a key's spending quota is checked against the most a request could cost, so a
+        // few-token probe passes on a key that refuses every real call (21 Nov 2026), and would announce a
+        // recovery that isn't one. Billing is per token produced, so a one-word answer still costs next to nothing.
+        { model: p.model, max_tokens: 4096, messages: [{ role: "user", content: "Reply with the single word: ok" }] },
         { timeoutMs: 15_000, priority: "judgment", lane: "PROBE", fetchImpl: opts.fetchImpl },
       );
       if (res.ok) reopened++;
