@@ -77,6 +77,23 @@ describe("the ledger", () => {
     expect(e.filter((x) => x.kind === "visual")).toHaveLength(1);
   });
 
+  it("leaves out the browser's own network noise, and lists an error once however many pages log it", () => {
+    const page = run().pages[0]!;
+    const ft = run({
+      states: [],
+      visionObservations: [],
+      pages: [
+        { ...page, brokenRequests: [], consoleErrors: ["Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED", "Failed to load resource: the server responded with a status of 404 ()", "TypeError: x is undefined", "a", "b", "c"].flatMap((e) => (e.length > 1 ? [e, e] : [`error ${e} happened`])) },
+        { ...page, url: `https://${HOST}/us`, brokenRequests: [], consoleErrors: ["TypeError: x is undefined", "Uncaught (in promise) net::ERR_FAILED"] },
+      ],
+    });
+    const errs = ledgerOf(ft, HOST).filter((e) => e.kind === "console");
+    expect(errs.map((e) => e.text)).toEqual(["TypeError: x is undefined", "error a happened"]);
+    expect(errs[0]).toMatchObject({ times: 3, step: 1 });
+    // and a map with no claim of its own has nothing to set the first screen against
+    expect(plainFirstLook({ valueProp: "(no clear value proposition observed)", fieldTest: ft }, HOST).read.says).toBeNull();
+  });
+
   it("is empty for a run that never happened", () => {
     expect(ledgerOf(null, HOST)).toEqual([]);
     expect(ledgerOf({ ...run(), ran: false }, HOST)).toEqual([]);

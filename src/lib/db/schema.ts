@@ -1791,9 +1791,19 @@ export interface StoredFinding {
   submissionIds: string[];
   /** each `text` is an exact substring of that submission's own answer, checked in code. */
   quotes: { submissionId: string; text: string }[];
+  /** one suggested fix, a model's sentence that survived the checks (no link, no instruction, no invented number). */
+  fix?: string;
+  /** the id of the problem in Sage's own first look that this finding matches ("P2"); set only when code confirms shared words. */
+  sageSaw?: string;
 }
 export interface StoredFindings {
   findings: StoredFinding[];
+  /**
+   * For answers to the core mission: whether the person's first impression matches what the product
+   * says it is. A model's label per answer, checked in code (a real answer id, one of three values);
+   * "X of N understood it" is counted from these on every read and never stored as a number.
+   */
+  understood?: { submissionId: string; read: "yes" | "partly" | "no" }[];
 }
 
 /**

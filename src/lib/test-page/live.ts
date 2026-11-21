@@ -17,6 +17,7 @@ import { short } from "@/lib/format";
 import { seatLinkFor } from "@/lib/people/link-info";
 import { linkFor, seatHolders } from "@/lib/people/seats";
 import { findingsView, notPaidReason, type FindingsView } from "@/lib/report";
+import { firstLookView, type FirstLookView } from "./first-look";
 import { sharingFor, type Sharing } from "@/lib/sharing";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
 import { testUrl } from "@/lib/site/test-url";
@@ -93,6 +94,12 @@ export interface LiveView {
   money: { fundedBase: number; paidBase: number; unspentBase: number };
   frames: RealFrame[];
   run: { steps: number; seconds: number | null } | null;
+  /**
+   * What Sage itself noticed. The owner's while the test is live: it holds things Sage saw, and a
+   * tester must not read those before answering. Once the test is done and its findings are public,
+   * anyone may (never a look taken with the builder's own test account).
+   */
+  firstLook: FirstLookView | null;
   /** the findings, when this visitor may read them */
   findings: Omit<FindingsView, "rebuilding"> | null;
   owner: LiveOwner | null;
@@ -179,6 +186,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
 
   const { frames, run, productUrl } = framesFor(campaign, owner);
   const mayRead = owner || (sharing.findingsPublic && campaign.status !== "draft");
+  const lookJob = getInspectionJobByCampaign(campaign.id);
 
   let ownerView: LiveOwner | null = null;
   if (owner && viewer) {
@@ -229,6 +237,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
     money: { fundedBase: e.totalFundedBase, paidBase: settledBase, unspentBase: Math.max(0, e.totalFundedBase - settledBase) },
     frames,
     run,
+    firstLook: lookJob && (owner || (phase === "done" && sharing.findingsPublic && !lookJob.testAccountSealed)) ? firstLookView(lookJob) : null,
     findings: mayRead ? findingsView(campaign, owner ? "owner" : "public", sharing.findingsPublic) : null,
     owner: ownerView,
     shareUrl: testUrl(campaign.id),

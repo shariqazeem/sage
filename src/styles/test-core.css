@@ -188,3 +188,343 @@
     max-width: 220px;
   }
 }
+
+/* ── the core mission's two taps on the tester's form ───────────────────────── */
+.sg-t-taps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sg-t-taps-label {
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.sg-t-taps-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sg-t-taps[data-stacked] .sg-t-taps-row {
+  flex-direction: column;
+}
+.sg-t-taps button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.3;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--dur-press, 120ms) ease, background var(--dur-press, 120ms) ease;
+}
+.sg-t-taps:not([data-stacked]) button {
+  flex: 1 1 0;
+  text-align: center;
+}
+.sg-t-taps button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.sg-t-taps button[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 500;
+}
+.sg-t-taps button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sg-t-taps button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── the report: what people found, part by part ────────────────────────────── */
+.sg-t-rep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  min-width: 0;
+}
+.sg-t-rep-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.sg-t-rep-sec + .sg-t-rep-sec {
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--border);
+}
+.sg-t-rep-h {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+.sg-t-rep-h > span {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+/* N of M: the one number a part is about */
+.sg-t-rep-big {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+.sg-t-rep-big > b {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  line-height: 1;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.06em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.sg-t-rep-big > b > span {
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  color: var(--ink-faint);
+}
+/* one cell per person: ink for yes, a lighter ink for partly, hollow for no. Never green or red:
+   understanding a product is not a payout. */
+.sg-t-rep-cells {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+}
+.sg-t-rep-cells > i {
+  flex: 1 1 0;
+  max-width: 44px;
+  height: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  background: transparent;
+}
+.sg-t-rep-cells > i[data-read="yes"] {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.sg-t-rep-cells > i[data-read="partly"] {
+  border-color: var(--ink-faint);
+  background: var(--ink-faint);
+}
+.sg-t-rep-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--ink-muted);
+}
+.sg-t-rep-key > span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+}
+.sg-t-rep-key > span[data-read="yes"]::before {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.sg-t-rep-key > span[data-read="partly"]::before {
+  border-color: var(--ink-faint);
+  background: var(--ink-faint);
+}
+.sg-t-rep-says {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.sg-t-rep-words {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sg-t-rep-words > li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.sg-t-rep-words .sg-t-quote {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.sg-t-rep-words .sg-pill {
+  flex: none;
+}
+/* the rungs of the main action, first screen to finished */
+.sg-t-rep-rungs {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sg-t-rep-rungs > li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.sg-t-rep-rungs > li:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.sg-t-rep-rung {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(72px, 34%);
+  align-items: center;
+  gap: var(--s-3);
+}
+.sg-t-rep-rung-n {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+.sg-t-rep-rung-label {
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+}
+.sg-t-rep-rungs > li[data-empty] .sg-t-rep-rung-n,
+.sg-t-rep-rungs > li[data-empty] .sg-t-rep-rung-label {
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+.sg-t-rep-rungs .sg-t-quote,
+.sg-t-rep-rungs .sg-t-quote-more {
+  margin-left: 40px;
+}
+.sg-t-rep-again {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-muted);
+}
+.sg-t-rep-again b {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.sg-t-rep-sage {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+.sg-t-rep .sg-t-finding-title {
+  font-size: 16px;
+}
+/* fix these first: the conclusion, set on a card so it reads as one */
+.sg-t-rep-fixes {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.sg-t-rep-fixes > li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: 16px 18px;
+}
+.sg-t-rep-fixes > li + li {
+  border-top: 1px dashed var(--border-strong);
+}
+.sg-t-rep-fix-n {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.sg-t-rep-fix-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.sg-t-rep-fix-main > b {
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  overflow-wrap: anywhere;
+}
+.sg-t-rep-fix-main > p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.sg-t-rep-fix-from {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--ink-faint);
+}
+@media (max-width: 479px) {
+  .sg-t-rep-big > b {
+    font-size: 34px;
+  }
+  .sg-t-rep-rung {
+    grid-template-columns: 24px minmax(0, 1fr) 64px;
+  }
+  .sg-t-rep-rungs .sg-t-quote,
+  .sg-t-rep-rungs .sg-t-quote-more {
+    margin-left: 0;
+  }
+  .sg-t-rep-fixes > li {
+    padding: 14px;
+  }
+}

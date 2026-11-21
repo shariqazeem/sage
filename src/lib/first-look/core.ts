@@ -35,6 +35,8 @@ export const FIX_MAX = 220;
 export const READ_MAX = 200;
 /** A recorded line is shown as recorded, cut to this at a word. */
 export const EVIDENCE_TEXT_MAX = 240;
+/** How many different console errors a look lists; the rest are the same story. */
+export const MAX_CONSOLE = 3;
 
 export type EvidenceKind =
   /** the first screen: what a stranger sees before doing anything */
@@ -240,11 +242,19 @@ export function ledgerOf(fieldTest: FieldTestSummary | null | undefined, host: s
     const errors = new Map<string, number>();
     for (const e of Array.isArray(p.consoleErrors) ? p.consoleErrors : []) {
       const line = cutAtWord(squash(str(e)), EVIDENCE_TEXT_MAX);
-      if (line.length >= 4) errors.set(line, (errors.get(line) ?? 0) + 1);
+      // "Failed to load resource" is the browser reporting a request, not the page's code failing,
+      // and in Sage's guarded browser it is often Sage's own doing (measured on a news site: 157 of
+      // them, all net::ERR_TUNNEL_CONNECTION_FAILED). A request that failed on the product's own
+      // site is already in the ledger above, with its status.
+      if (line.length < 4 || /^failed to load resource/i.test(line) || /net::ERR_/i.test(line)) continue;
+      errors.set(line, (errors.get(line) ?? 0) + 1);
     }
-    // the three most repeated lines stand for the page: a news site logs hundreds
-    for (const [line, times] of [...errors].sort((a, b) => b[1] - a[1]).slice(0, 3)) {
-      out.push({ kind: "console", step: states.length === 0 ? i + 1 : null, frame, url: str(p.url), text: line, times });
+    // the most repeated lines stand for the page (a news site logs hundreds), and a line already
+    // recorded on an earlier page is counted there, not listed twice
+    for (const [line, times] of [...errors].sort((a, b) => b[1] - a[1]).slice(0, 2)) {
+      const before = out.find((x) => x.kind === "console" && x.text === line);
+      if (before) before.times += times;
+      else if (out.filter((x) => x.kind === "console").length < MAX_CONSOLE) out.push({ kind: "console", step: states.length === 0 ? i + 1 : null, frame, url: str(p.url), text: line, times });
     }
     if (p.jsOnly === true) out.push({ kind: "blank", step: states.length === 0 ? i + 1 : null, frame, url: str(p.url), text: squash(str(p.title) || pathOf(str(p.url), host)), times: 1 });
   });
@@ -384,7 +394,9 @@ export function plainFirstLook(map: MapLike | null | undefined, host: string): F
   const { trail, steps } = trailOf(ran ? ft : null, host);
   const landing = evidence.find((e) => e.kind === "landing") ?? null;
   const eyes = (Array.isArray(ft?.visionObservations) ? ft!.visionObservations : []).find((v) => v.stateIndex === 0);
-  const says = squash(str(map?.valueProp));
+  // the map writes "(no clear value proposition observed)" when it found none: that is not a claim
+  const saysRaw = squash(str(map?.valueProp));
+  const says = /^\(.*\)$/.test(saysRaw) ? "" : saysRaw;
   const limits = [
     ...(Array.isArray(map?.limitations) ? (map!.limitations as unknown[]) : []).map((l) => squash(str(l))),
     squash(str(ft?.limitation)),
