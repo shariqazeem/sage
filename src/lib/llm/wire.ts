@@ -468,9 +468,10 @@ const CALL_CEILING_MS = 20 * 60_000;
 /** A burst 429 is waited out once per entry, at most (see postChat). */
 const BURST_WAITS_MS = [4_000, 10_000, 20_000] as const;
 export const BURST_RETRIES = BURST_WAITS_MS.length;
-/** A 429 that STATES a cap ("Access key quota exceeded (cap 3)") means the key has that many calls in flight
- *  already, counting every process on it; a slot frees when one of them finishes, and a mission design runs
- *  for a minute or two, so these waits are longer. */
+/** A 429 that STATES a cap ("Access key quota exceeded (cap 3)"): the key's spending quota cannot cover this
+ *  request's most it could cost right now (measured 21 Nov 2026: the refusal followed max_tokens). What calls in
+ *  flight hold is given back as they finish, and a mission design runs for a minute or two, so these waits are
+ *  longer; a quota that is simply used up never clears, and the SPENT rule in postChat closes the key. */
 const CAP_WAITS_MS = [5_000, 15_000, 30_000, 60_000] as const;
 export const CAP_RETRIES = CAP_WAITS_MS.length;
 /** a Retry-After above this is a quota block, returned to the caller at once (never slept on) */
@@ -570,11 +571,11 @@ export async function postChat(
           return { ok: false, status: 402, text, retryAfterMs: null, sent, outOfCredit: true };
         }
         // A BUSY KEY, WAITED OUT (21 Nov 2026). A caller that took a 429 as a failure dropped a whole mission
-        // design, and the first look and the findings fell back to their plain versions. Two kinds, measured on
-        // CommonStack the same day:
-        //   - "Access key quota exceeded (cap 3)": the key already has 3 calls in flight, counting every process
-        //     on it (five sent together: three refused at once, the others answered). The cap is learned above,
-        //     and the call waits for a slot to free: 5 s, 15 s, 30 s, 60 s;
+        // design, and the first look and the findings fell back to their plain versions. Two kinds:
+        //   - "Access key quota exceeded (cap 3)": the key's spending quota cannot cover this request's most it
+        //     could cost (CommonStack, measured: the refusal followed max_tokens). Calls in flight give back what
+        //     they hold as they finish, so the call waits: 5 s, 15 s, 30 s, 60 s. (The number is also learned above
+        //     as a concurrency cap, a reading kept from 23 Aug, when a "(cap 1)" refused a second call in flight.)
         //   - a plain 429 (a short burst limit): 4 s, 10 s, 20 s.
         // Either way it waits only while the call's own budget has room, and for the provider's own short
         // Retry-After when it gives one. Without one, up to a second of jitter, so calls refused together do
@@ -582,8 +583,11 @@ export async function postChat(
         // Never retried: an empty account (above), or a long Retry-After, which is a quota: that goes straight
         // back to the caller, who classifies it.
         const retryAfter = res.status === 429 ? parseRetryAfterMs(headerOf(res, "retry-after")) : null;
-        const waits = res.status === 429 && statedCap(text) !== null ? CAP_WAITS_MS : BURST_WAITS_MS;
-        if (res.status === 429 && bursts < waits.length && (retryAfter === null || retryAfter <= BURST_RETRY_AFTER_MAX_MS)) {
+        const capped = res.status === 429 && statedCap(text) !== null;
+        const waits = capped ? CAP_WAITS_MS : BURST_WAITS_MS;
+        // a key already known to be spent (below) is not waited on again: it is answered at once
+        const spentKey = store.closed.has(account);
+        if (res.status === 429 && !(capped && spentKey) && bursts < waits.length && (retryAfter === null || retryAfter <= BURST_RETRY_AFTER_MAX_MS)) {
           const wait = retryAfter ?? waits[bursts]! + Math.floor(Math.random() * 1_000);
           if (Date.now() - startedAt + wait < opts.timeoutMs - 5_000 && !controller.signal.aborted) {
             bursts += 1;
@@ -591,6 +595,19 @@ export async function postChat(
             await sleepFor(wait, controller.signal);
             if (!controller.signal.aborted) continue;
           }
+        }
+        // A KEY STILL AT ITS CAP AFTER EVERY WAIT IS SPENT, NOT BUSY (21 Nov 2026). Measured that day: the
+        // refusal followed the SIZE of the request, one call at a time with nothing else in flight (8 tokens
+        // answered on every model; 1,024 on DeepSeek, 1,500 on Gemini and 8,000 on MiniMax were refused at once).
+        // CommonStack's "Access key quota exceeded (cap 3)" was the key's spending quota, checked against each
+        // request's most it could cost, and that quota was used up. Nothing said so. So a call refused through
+        // all four waits (about 110 s) closes the key exactly as an empty account does: one alert to the operator,
+        // 402 at once to every caller (the judge holds, nothing burns more minutes waiting), and the sweep's
+        // probe (credit-alert.ts, sized like real work) reopens it when it answers again. A call whose budget
+        // cut the waits short concludes nothing and gets its 429 as before.
+        if (capped && (bursts >= CAP_RETRIES || spentKey)) {
+          noteOutOfCredit(p, text, Date.now());
+          return { ok: false, status: 402, text, retryAfterMs: null, sent, outOfCredit: true };
         }
         if (res.ok) {
           noteAnswered(p, Date.now());

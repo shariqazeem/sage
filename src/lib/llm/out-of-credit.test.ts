@@ -115,6 +115,13 @@ describe("the operator hears it once, and hears it come back", () => {
     expect(creditAlertText({ ...closed, kind: "reopened" }, 47 * 60_000)).toMatch(/about 47 min/);
   });
 
+  it("a key's own spending quota is raised on the key, not by a top-up", () => {
+    const t = creditAlertText({ ...closed, message: "Access key quota exceeded (cap 3)" }, 0);
+    expect(t).toContain("Access key quota exceeded (cap 3)");
+    expect(t).toMatch(/Raise this key's spending limit on api\.commonstack\.ai/);
+    expect(t).not.toMatch(/Top up/);
+  });
+
   it("one alert per outage, a reminder only after hours, and a recovery note only if it was told", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-05T09:00:00Z"));

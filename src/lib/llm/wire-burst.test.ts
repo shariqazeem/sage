@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { BURST_RETRIES, CAP_RETRIES, postChat, resetWireMemory, withSlot } from "./wire";
+import { BURST_RETRIES, CAP_RETRIES, closedProviders, postChat, resetWireMemory, withSlot } from "./wire";
 
 /**
  * A provider's burst limit (CommonStack answers a quick run of calls with 429, then lets the next through)
@@ -62,6 +62,31 @@ describe("a burst 429", () => {
       inFlight--;
     })));
     expect(max).toBe(3);
+  });
+
+  it("a key still at its cap after every wait is SPENT: closed, 402 now, and 402 at once after", async () => {
+    resetWireMemory();
+    const capped = () => new Response(JSON.stringify({ error: { message: "Access key quota exceeded (cap 3)" } }), { status: 429, headers: { "retry-after": "0" } });
+    const s = sequence(capped);
+    const r = await postChat(P, { messages: [{ role: "user", content: "design the missions" }] }, { timeoutMs: 600_000, fetchImpl: s.fetchImpl });
+    expect(r.status).toBe(402);
+    expect(r.outOfCredit).toBe(true);
+    expect(s.calls()).toBe(CAP_RETRIES + 1);
+    expect(closedProviders()).toEqual([expect.objectContaining({ host: P.host, message: "Access key quota exceeded (cap 3)" })]);
+    // the next caller is answered from memory: no network call, no minutes spent waiting
+    const again = await postChat(P, { messages: [{ role: "user", content: "judge this" }] }, { timeoutMs: 600_000, fetchImpl: s.fetchImpl });
+    expect(again.status).toBe(402);
+    expect(s.calls()).toBe(CAP_RETRIES + 1);
+  });
+
+  it("a call whose budget cut the waits short concludes nothing: its 429, and the key stays open", async () => {
+    resetWireMemory();
+    const capped = () => new Response(JSON.stringify({ error: { message: "Access key quota exceeded (cap 3)" } }), { status: 429 });
+    const s = sequence(capped);
+    const r = await postChat(P, { messages: [{ role: "user", content: "hi" }] }, { timeoutMs: 6_000, fetchImpl: s.fetchImpl });
+    expect(r.status).toBe(429);
+    expect(s.calls()).toBe(1);
+    expect(closedProviders()).toEqual([]);
   });
 
   it("hands a quota (a long Retry-After) straight back, never sleeping on it", async () => {
