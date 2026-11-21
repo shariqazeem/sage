@@ -61,9 +61,17 @@ describe("pricing an answer", () => {
     expect(costMicroUsd("claude-haiku-5-5", 100_001, 1_000)).toBe(Math.ceil(100_001 * 0.5 + 1_000 * 2.5));
   });
 
+  it("prices CommonStack's vision model and shared chain from its own list, not as unknown", () => {
+    expect(costMicroUsd("qwen/qwen3-vl-235b-a22b-instruct", 10_000, 2_000)).toBe(10_000 * 0.4 + 2_000 * 1.6);
+    expect(costMicroUsd("deepseek/deepseek-v4-flash", 10_000, 2_000)).toBe(Math.ceil(10_000 * 0.14 + 2_000 * 0.28));
+    expect(costMicroUsd("google/gemini-3.5-flash", 10_000, 2_000)).toBe(10_000 * 1.5 + 2_000 * 9);
+    // a lookalike that is not on the list stays unknown, and so over-counted
+    expect(costMicroUsd("deepseek/deepseek-v4-pro", 10_000, 2_000)).toBe(costMicroUsd("some-new-model-9", 10_000, 2_000));
+  });
+
   it("over-counts a model it does not know, never under-counts it", () => {
     const unknown = costMicroUsd("some-new-model-9", 10_000, 2_000);
-    for (const known of ["claude-sonnet-5-5", "minimax/minimax-m3", "google/gemini-3.1-flash-lite", "claude-haiku-5-5"]) {
+    for (const known of ["claude-sonnet-5-5", "minimax/minimax-m3", "google/gemini-3.1-flash-lite", "claude-haiku-5-5", "qwen/qwen3-vl-235b-a22b-instruct", "deepseek/deepseek-v4-flash", "google/gemini-3.5-flash"]) {
       expect(unknown).toBeGreaterThan(costMicroUsd(known, 10_000, 2_000));
     }
   });

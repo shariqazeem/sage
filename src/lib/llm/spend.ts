@@ -44,6 +44,12 @@ const PRICES: { match: RegExp; price: Price }[] = [
   { match: /claude-fable-5/i, price: { input: 10, output: 50 } },
   { match: /minimax/i, price: { input: 0.3, output: 1.2 } },
   { match: /gemini[^/]*flash-lite/i, price: { input: 0.25, output: 1.5 } },
+  // CommonStack's own price list (GET /v1/models, read 21 Nov 2026). Before these, the vision model and the
+  // shared chain were "unknown" and counted at Opus rates, 10x to 70x over, so a vision-heavy day would have
+  // tripped the daily ceiling at a fraction of its real spend.
+  { match: /gemini-3\.5-flash/i, price: { input: 1.5, output: 9 } },
+  { match: /qwen3-vl/i, price: { input: 0.4, output: 1.6 } },
+  { match: /deepseek-v4-flash/i, price: { input: 0.14, output: 0.28 } },
 ];
 /** An unknown model is priced like Opus 5.5: over-counting is safe, under-counting drains an account. */
 const UNKNOWN: Price = { input: 4, output: 20 };
