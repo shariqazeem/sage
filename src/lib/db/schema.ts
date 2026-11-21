@@ -1959,6 +1959,21 @@ export const firstLooks = sqliteTable("first_looks", {
 export type FirstLookRow = typeof firstLooks.$inferSelect;
 
 /**
+ * GET YOUR FIRST USERS (21 Nov 2026). The posts a model worded for a builder, kept so the wording is
+ * paid for once per version of the facts (`version` is a hash of them: the counts, the quotes, the
+ * product). Written only when the owner asks; a failed wording is kept as `plain` so it is not asked
+ * again at once. The JSON is `Drafts` (`src/lib/users/core.ts`).
+ */
+export const userDrafts = sqliteTable("user_drafts", {
+  campaignId: text("campaign_id").primaryKey(),
+  version: text("version").notNull(),
+  json: text("json", { mode: "json" }).$type<unknown>().notNull(),
+  engine: text("engine").notNull(),
+  builtAt: integer("built_at").notNull(),
+});
+export type UserDraftsRow = typeof userDrafts.$inferSelect;
+
+/**
  * WHAT A TESTER TAPPED on a test's core mission: how far they got with the product's main action, and
  * whether they would use it again. Their own taps, one row per answer, kept apart from the written
  * answer so the words Sage judges are only ever the tester's own. The report counts these rows; no

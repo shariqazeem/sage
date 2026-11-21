@@ -994,6 +994,96 @@ a.sg-t-step-state:hover {
   gap: var(--s-2);
 }
 
+/* ── get your first users: drafts the builder posts themselves ──────────────── */
+.sg-u-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.sg-u-part-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.sg-u-part-title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+.sg-u-draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.sg-u-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+}
+.sg-u-count {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.sg-u-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2);
+}
+/* a line of the builder's own words is prose, not a value */
+.sg-field.sg-u-words {
+  font-family: var(--font-sans);
+  letter-spacing: -0.005em;
+}
+.sg-u-venues {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+.sg-u-venues li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sg-u-venues a {
+  align-self: flex-start;
+  font-size: 15px;
+  font-weight: 500;
+}
+.sg-u-venues p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+@media (max-width: 479px) {
+  .sg-u-line {
+    grid-template-columns: 1fr;
+  }
+  .sg-u-line .sg-btn {
+    justify-self: start;
+  }
+}
+
 /* the old stop control, inside a sheet: its own inline look, on the kit's surface */
 .sg-t-stop .sage-agent-card {
   margin: 0;

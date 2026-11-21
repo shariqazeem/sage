@@ -26,6 +26,7 @@ import { summarizeSettled } from "@/lib/telegram/format";
 import { productName } from "@/lib/x/agent";
 import { resultText } from "@/lib/x/compose";
 import { resultFactsFor } from "@/lib/x/result-facts";
+import { firstUsersView, type FirstUsersView } from "@/lib/users";
 import type { TicketState } from "@/components/sage/ticket";
 
 /**
@@ -71,6 +72,11 @@ export interface LiveOwner {
   seatLink: { url: string; seats: number; taken: number } | null;
   /** the exact words Sage would post when the test ends, from today's answers; null when there is nothing to say yet */
   resultPost: string | null;
+  /**
+   * "Get your first users": drafts in the builder's own voice that link their PRODUCT, and where to post
+   * them. Null when the test has no product address. Written by code on every read; never a model here.
+   */
+  users: FirstUsersView | null;
 }
 
 export interface LiveView {
@@ -192,6 +198,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   const { frames, run, productUrl } = mayShowRun ? framesFor(campaign, owner) : { frames: [], run: null, productUrl: getInspectionJobByCampaign(campaign.id)?.productUrl ?? null };
   const mayRead = owner || (sharing.findingsPublic && phase === "done");
   const lookJob = getInspectionJobByCampaign(campaign.id);
+  const findings = mayRead ? findingsView(campaign, owner ? "owner" : "public", sharing.findingsPublic) : null;
 
   let ownerView: LiveOwner | null = null;
   if (owner && viewer) {
@@ -219,6 +226,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
       held: listHeldSubmissions(campaign).length,
       seatLink,
       resultPost: post ? post.text : null,
+      users: firstUsersView(campaign, findings, { done: phase === "done", now }),
     };
   }
 
@@ -243,7 +251,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
     frames,
     run,
     firstLook: lookJob && (owner || (phase === "done" && sharing.findingsPublic && !lookJob.testAccountSealed)) ? firstLookView(lookJob) : null,
-    findings: mayRead ? findingsView(campaign, owner ? "owner" : "public", sharing.findingsPublic) : null,
+    findings,
     owner: ownerView,
     shareUrl: testUrl(campaign.id),
   };

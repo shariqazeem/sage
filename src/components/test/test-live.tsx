@@ -10,10 +10,10 @@ import type { PillTone } from "@/components/sage/pill";
 import { Sheet } from "@/components/sage/sheet";
 import { PlacesRail } from "@/components/sage/test-card";
 import { Ticket } from "@/components/sage/ticket";
-import { short } from "@/lib/format";
 import { count, howLong } from "@/lib/site/when";
 import type { LiveView } from "@/lib/test-page/live";
 import { FirstLook, lookMeta } from "./first-look";
+import { FirstUsers } from "./first-users";
 import { MissionItem, Stage, TestHead } from "./parts";
 import { Report } from "./report";
 import { TesterDoor } from "./tester-door";
@@ -364,9 +364,9 @@ function Switch({ title, sub, checked, onChange }: { title: string; sub: string;
 }
 
 /**
- * THE OWNER'S END OF THE PAGE: who wants to hear from them, the money (paid, with receipts on the
- * tickets above, and what was not spent), how the test is shared, Sage's result post with its exact
- * words before any yes, sharing it themselves, and stopping the test.
+ * THE OWNER'S END OF THE PAGE: getting their first users (posts in their own voice, the testers who
+ * asked to hear back, where to post, and what Sage shares itself with its exact words before any yes),
+ * then the money (paid, with receipts on the tickets above, and what was not spent) and stopping the test.
  */
 function OwnerEnd({ view, onChanged }: { view: LiveView; onChanged: () => void }) {
   const o = view.owner!;
@@ -399,23 +399,43 @@ function OwnerEnd({ view, onChanged }: { view: LiveView; onChanged: () => void }
 
   return (
     <>
-      <Stage state={contacts.length > 0 ? "done" : "next"} title={f.keepPosted.count > 0 ? `${count(f.keepPosted.count, "person wants", "people want")} to hear from you` : "Who wants to hear from you"}>
-        {contacts.length > 0 ? (
-          <>
-            <ul className="sg-t-contacts">
-              {contacts.map((c) => (
-                <li key={c.submissionId}>
-                  {c.kind === "wallet" ? short(c.contact) : c.contact}
-                  <span>{c.kind === "x" ? "X" : c.kind}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="sg-small">Each of them tapped Keep me posted after trying it. Only you see this.</p>
-          </>
-        ) : (
-          <p className="sg-small">A tester who liked it can tap Keep me posted. Whoever does appears here, for you alone.</p>
-        )}
-      </Stage>
+      <FirstUsers campaignId={view.id} users={o.users} contacts={contacts} wanted={f.keepPosted.count}>
+        <div className="sg-t-offer">
+          <div className="sg-t-offer-switches">
+            {!view.inviteOnly && !done ? (
+              <Switch title="Sage shares it" sub="Sage posts the test on its X account and its Telegram channel while places are open." checked={sharing.postMission} onChange={(v) => void save({ postMission: v })} />
+            ) : null}
+            <Switch title="Findings are public" sub="Anyone with this link can read what people found. Off: only you." checked={sharing.findingsPublic} onChange={(v) => void save({ findingsPublic: v })} />
+            <Switch
+              title="Let Sage post the result"
+              sub={o.resultPost ? "When the test ends, Sage's X account posts the words below. Nothing is posted without this." : "When the test ends, Sage's X account posts what people found. You'll see the exact words here once someone is paid."}
+              checked={sharing.postResult}
+              onChange={(v) => void save({ postResult: v })}
+            />
+          </div>
+        </div>
+        {o.resultPost ? (
+          <div className="sg-stack sg-gap-2">
+            <span className="sg-label">{sharing.postResult ? "Sage will post this" : "What Sage would post"}</span>
+            <p className="sg-t-post">{o.resultPost}</p>
+            {!done ? <p className="sg-small">These are today&apos;s words. They follow the answers until the test ends, and a quote is always exactly what a paid person wrote.</p> : null}
+          </div>
+        ) : null}
+        {problem ? (
+          <p className="sg-small sg-note-problem" role="alert">
+            {problem}
+          </p>
+        ) : null}
+        <div className="sg-stack sg-gap-2">
+          <span className="sg-label">The test itself</span>
+          <CopyRow value={view.shareUrl} label="This test's link" />
+          <div className="sg-t-share">
+            <ButtonLink href={intent} variant="quiet" size="sm">
+              Post the test on X <ArrowUpRight size={14} aria-hidden />
+            </ButtonLink>
+          </div>
+        </div>
+      </FirstUsers>
 
       <Stage state="done" title="The money">
         <div className="sg-sum">
@@ -449,44 +469,6 @@ function OwnerEnd({ view, onChanged }: { view: LiveView; onChanged: () => void }
             </Button>
           </div>
         ) : null}
-      </Stage>
-
-      <Stage state="done" title="Sharing">
-        <div className="sg-t-offer">
-          <div className="sg-t-offer-switches">
-            {!view.inviteOnly && !done ? (
-              <Switch title="Sage shares it" sub="Sage posts the test on its X account and its Telegram channel while places are open." checked={sharing.postMission} onChange={(v) => void save({ postMission: v })} />
-            ) : null}
-            <Switch title="Findings are public" sub="Anyone with this link can read what people found. Off: only you." checked={sharing.findingsPublic} onChange={(v) => void save({ findingsPublic: v })} />
-            <Switch
-              title="Let Sage post the result"
-              sub={o.resultPost ? "When the test ends, Sage's X account posts the words below. Nothing is posted without this." : "When the test ends, Sage's X account posts what people found. You'll see the exact words here once someone is paid."}
-              checked={sharing.postResult}
-              onChange={(v) => void save({ postResult: v })}
-            />
-          </div>
-        </div>
-        {o.resultPost ? (
-          <div className="sg-stack sg-gap-2">
-            <span className="sg-label">{sharing.postResult ? "Sage will post this" : "What Sage would post"}</span>
-            <p className="sg-t-post">{o.resultPost}</p>
-            {!done ? <p className="sg-small">These are today&apos;s words. They follow the answers until the test ends, and a quote is always exactly what a paid person wrote.</p> : null}
-          </div>
-        ) : null}
-        {problem ? (
-          <p className="sg-small sg-note-problem" role="alert">
-            {problem}
-          </p>
-        ) : null}
-        <div className="sg-stack sg-gap-2">
-          <span className="sg-label">Share it yourself</span>
-          <CopyRow value={view.shareUrl} label="This test's link" />
-          <div className="sg-t-share">
-            <ButtonLink href={intent} variant="quiet" size="sm">
-              Post it on X <ArrowUpRight size={14} aria-hidden />
-            </ButtonLink>
-          </div>
-        </div>
       </Stage>
 
       <Sheet open={stop} onClose={() => setStop(false)} title="Stop this test">
