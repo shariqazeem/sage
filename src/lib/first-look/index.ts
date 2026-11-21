@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { firstLooks } from "@/lib/db/schema";
 import { nowSeconds } from "@/lib/db/keys";
 import { llmCompleteJson, resolveLlm, type LlmComplete } from "@/lib/llm/complete";
+import { completeSteadily } from "@/lib/llm/steady";
 import { hostOf } from "@/lib/site/when";
 import { enforceFirstLook, FIRST_LOOK_SYSTEM, FIRST_LOOK_VERSION, firstLookUser, plainFirstLook, PLAIN_ENGINE, type FirstLook } from "./core";
 
@@ -66,13 +67,18 @@ export async function wordFirstLook(plain: FirstLook, map: MapLike | null, deps:
   if (!configured || !worthAsking) return plain;
   try {
     const complete: Complete = deps.complete ?? llmCompleteJson;
-    const res = await complete({
-      system: FIRST_LOOK_SYSTEM,
-      user: firstLookUser(plain, { name: str(map?.productName), category: str(map?.category) }),
-      maxTokens: 1400,
-      temperature: 0.2,
-      lane: "DRAFT",
-    });
+    // The plain look is already on the page, so the wording can wait out a provider's hiccup (steady.ts).
+    const res = await completeSteadily(
+      complete,
+      {
+        system: FIRST_LOOK_SYSTEM,
+        user: firstLookUser(plain, { name: str(map?.productName), category: str(map?.category) }),
+        maxTokens: 1400,
+        temperature: 0.2,
+        lane: "DRAFT",
+      },
+      { attempts: 3, budgetMs: 75_000, label: "first-look" },
+    );
     const out = enforceFirstLook(res.json, plain, (res.responseModel ?? res.model) || "model");
     if (out.dropped.length > 0) console.warn("[first-look] wordings dropped:", out.dropped.slice(0, 6).join(" | "));
     return out.look;

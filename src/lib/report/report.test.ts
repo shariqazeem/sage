@@ -6,6 +6,9 @@ import { buildFindings, findingsView, openFindings, PLAIN_ENGINE, queueDueFindin
 import { setKeepPosted } from "./keep-posted";
 import { OTHER_NOTES } from "./core";
 
+// a provider hiccup is retried (steady.ts): keep the ladder's shape without sleeping through its seconds
+process.env.LLM_RETRY_MAX_WAIT_MS = "5";
+
 /**
  * The report end to end against the real tables: built from paid answers only, rebuilt only when
  * their number changes and never inside the cooldown, and never a dead end without a model.
@@ -88,6 +91,22 @@ describe("buildFindings", () => {
     const built = await buildFindings(c.id, { modelConfigured: () => true, complete: async () => { throw err; } }, T0);
     expect(built.engine).toBe(PLAIN_ENGINE);
     expect(built.findings).toHaveLength(2);
+  });
+
+  it("waits out a provider's hiccup before building plainly", async () => {
+    const c = test_();
+    answer(c.id, "First thing I noticed was the slow load.");
+    answer(c.id, "Search returned nothing for my query.");
+    const steady = groupsAll("Slow first load");
+    const worded = steady.complete!;
+    let calls = 0;
+    const complete = vi.fn(async (opts: Parameters<typeof worded>[0]) => {
+      if (calls++ === 0) throw new Error("llm_status_503");
+      return worded(opts);
+    });
+    const built = await buildFindings(c.id, { modelConfigured: () => true, complete }, T0);
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(built.engine).toBe("test-model-served");
   });
 
   it("builds plainly when the model's groups are all unusable", async () => {

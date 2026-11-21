@@ -4,6 +4,9 @@ import { firstLooks } from "@/lib/db/schema";
 import { PLAIN_ENGINE } from "./core";
 import { firstLookFor, recordFirstLook, storedFirstLook, wordFirstLook, plainLookFor, type LookDeps } from "./index";
 
+
+// a provider hiccup is retried (steady.ts): keep the ladder's shape without sleeping through its seconds
+process.env.LLM_RETRY_MAX_WAIT_MS = "5";
 /**
  * The first look against the real table: the plain look is stored at once, a model's wording
  * replaces it only when it survives the contract, and no failure of a model is ever a dead end.
@@ -52,6 +55,19 @@ describe("recordFirstLook", () => {
     const call = vi.mocked(deps.complete!).mock.calls[0]![0];
     expect(call.lane).toBe("DRAFT");
     expect(call.user).toContain("<<<UNTRUSTED_INSPECTED_PRODUCT>>>");
+  });
+
+  it("waits out a provider's hiccup: the wording that follows it replaces the plain look", async () => {
+    let calls = 0;
+    const complete = vi.fn(async (opts: { user: string }) => {
+      if (calls++ === 0) throw new Error("llm_status_500");
+      const slow = /(E\d+) kind=slow/.exec(opts.user)![1];
+      return { json: { problems: [{ evidence: [slow], title: "The first visit sits on a loading screen", fix: "Show the page frame before the data arrives." }] }, model: "m", responseModel: "m-served" };
+    });
+    const look = await recordFirstLook("job-hiccup", map, URL_, { modelConfigured: () => true, complete });
+    expect(complete).toHaveBeenCalledTimes(2);
+    expect(look?.engine).toBe("m-served");
+    expect(storedFirstLook("job-hiccup")?.engine).toBe("m-served");
   });
 
   it("keeps the plain look when the model fails, is out of credit, or answers nonsense", async () => {

@@ -6,6 +6,7 @@ import { getCampaign, getDecisionBySubmission, listCampaignEvents, listSubmissio
 import { nowSeconds } from "@/lib/db/keys";
 import { normalizeFounder } from "@/lib/auth/founder";
 import { llmCompleteJson, resolveLlm, type LlmComplete } from "@/lib/llm/complete";
+import { completeSteadily } from "@/lib/llm/steady";
 import { reasonSentencePublic } from "@/lib/deputy/reason-copy";
 import { summarizeSettled } from "@/lib/telegram/format";
 import { listCoreAnswers } from "@/lib/core-test/answers";
@@ -109,7 +110,8 @@ async function grouped(title: string, answers: PaidAnswer[], ctx: ReportContext,
   if (answers.length < MIN_ANSWERS_FOR_MODEL || !modelConfigured(deps)) return null;
   try {
     const complete: Complete = deps.complete ?? llmCompleteJson;
-    const res = await complete({ system: REPORT_SYSTEM, user: reportUser(title, answers, ctx), maxTokens: 2600, temperature: 0.2, lane: "REPORT" });
+    // background work: a provider's hiccup is waited out before the plain report is built (steady.ts)
+    const res = await completeSteadily(complete, { system: REPORT_SYSTEM, user: reportUser(title, answers, ctx), maxTokens: 2600, temperature: 0.2, lane: "REPORT" }, { attempts: 3, budgetMs: 90_000, label: "report" });
     const out = enforceGroups(res.json, answers, ctx);
     if (out.droppedExtras.length > 0) console.warn("[report] dropped:", out.droppedExtras.slice(0, 6).join(" | "));
     if (out.kept === 0) return null;
