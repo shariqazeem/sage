@@ -23,6 +23,7 @@ import {
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction, coreActionFromCandidates } from "./gated-action-mission";
 import { addCoreMission, coerceCoreDecision, coerceCoreHint, CORE_RANK_WORDS, DEFAULT_CORE_DECISION, type CoreDecision, type CoreHint } from "./core-mission";
+import { askCorePlace } from "./core-decision";
 import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import { TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
@@ -989,6 +990,28 @@ export async function runMissionBrain(
     }
   } catch {
     /* a synthesized extra is a bonus, never a reason the whole plan fails */
+  }
+
+  // THE CORE'S MAIN ACTION AND PLACE, WHEN THE ARCHITECT LEFT THEM OUT (21 Nov 2026). MiniMax can spend its whole
+  // budget thinking on the architect prompt; the plan then comes from a corrective round with no "core", and the
+  // core mission fell back to a generic action with the builder's purpose unread. One small question to the fast
+  // shared model, with the accepted missions in front of it, fills in whatever is missing, through the same checks
+  // (core-decision.ts). Asked only when something is missing, so a complete architect answer costs nothing.
+  if (r.accepted.length > 0 && (coreHint === null || coreDecision.from === "default")) {
+    try {
+      const place = await askCorePlace({
+        goal: founder.goal,
+        targetUsers: founder.targetUsers,
+        budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals),
+        map,
+        missions: r.accepted,
+        corpus,
+      });
+      coreHint ??= place.hint;
+      if (coreDecision.from === "default") coreDecision = place.decision;
+    } catch {
+      /* the defaults stand: the hint ladder, and the core leads */
+    }
   }
 
   // THE CORE. Every test that has a plan also asks a stranger the three things a builder most needs:

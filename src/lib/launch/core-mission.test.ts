@@ -11,6 +11,7 @@ import { CORE_MISSION_KEY } from "@/lib/core-test/shape";
 import { evidencePrompts, MAX_EVIDENCE_PROMPTS } from "@/lib/campaigns/evidence-answers";
 import { addCoreMission, buildCoreMission, coerceCoreDecision, coerceCoreHint, coreAnchors, coreHintLadder, CORE_PRIORITY, DEFAULT_CORE_DECISION, GENERIC_ACTION, usableAction } from "./core-mission";
 import { MISSION_INTERACTION, runMissionBrain } from "./mission-brain";
+import { CORE_DECISION_SYSTEM } from "./core-decision";
 import { ARCHITECT_SYSTEM, budgetAnswersFor, buildArchitectUser, CRITIC_SYSTEM } from "./mission-prompt";
 import { scopeFromObservations } from "./product-map";
 import type { CandidateMission, FieldTestSummary, ProductMapV1 } from "./schemas";
@@ -272,6 +273,27 @@ describe("the brain adds the core to a plan that exists", () => {
     const r = await runMissionBrain(map, founder, scope, corpus, { runGroundedShadow: false });
     expect(r.accepted.find((m) => m.missionKey === CORE_MISSION_KEY)!.priority).toBe("high");
     expect(r.coreDecision).toEqual(DEFAULT_CORE_DECISION);
+  }, 30_000);
+
+  it("when the architect leaves the core out, one small question fills in its main action and its place", async () => {
+    vi.mocked(llmCompleteJson).mockImplementation(async (opts) => {
+      if (opts.system === CRITIC_SYSTEM) return reply({ critiques: [{ missionKey: "start-a-drop", decision: "accept", reasons: [] }] });
+      if (opts.system === CORE_DECISION_SYSTEM)
+        return reply({ core: { mainAction: "start a drop", startsAt: "Start a drop", purpose: "You most likely want to know whether people can start a drop.", rank: "alongside", why: "You named starting a drop." } });
+      return reply({ missions: [architectMission()] }); // an architect answer with no "core"
+    });
+    const r = await runMissionBrain(map, founder, scope, corpus, { runGroundedShadow: false });
+    const core = r.accepted.find((m) => m.missionKey === CORE_MISSION_KEY)!;
+    expect(core.objective).toContain("try to start a drop");
+    expect(core.priority).toBe("medium");
+    expect(r.coreDecision).toMatchObject({ rank: "alongside", from: "model" });
+    expect(vi.mocked(llmCompleteJson).mock.calls.filter(([o]) => o.system === CORE_DECISION_SYSTEM)).toHaveLength(1);
+  }, 30_000);
+
+  it("a complete architect answer costs no extra question", async () => {
+    withArchitect({ core: { mainAction: "start a drop", startsAt: "Start a drop", rank: "lead", purpose: "You most likely want to know whether strangers get Drops.", why: "You named no single flow." }, missions: [architectMission()] });
+    await runMissionBrain(map, founder, scope, corpus, { runGroundedShadow: false });
+    expect(vi.mocked(llmCompleteJson).mock.calls.filter(([o]) => o.system === CORE_DECISION_SYSTEM)).toHaveLength(0);
   }, 30_000);
 
   it("still there when the architect ignores the hint or sends a hostile one", async () => {
