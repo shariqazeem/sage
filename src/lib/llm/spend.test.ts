@@ -65,6 +65,7 @@ describe("pricing an answer", () => {
     expect(costMicroUsd("qwen/qwen3-vl-235b-a22b-instruct", 10_000, 2_000)).toBe(10_000 * 0.4 + 2_000 * 1.6);
     expect(costMicroUsd("deepseek/deepseek-v4-flash", 10_000, 2_000)).toBe(Math.ceil(10_000 * 0.14 + 2_000 * 0.28));
     expect(costMicroUsd("google/gemini-3.5-flash", 10_000, 2_000)).toBe(10_000 * 1.5 + 2_000 * 9);
+    expect(costMicroUsd("openai/gpt-5.4-mini-2026-03-17", 10_000, 2_000)).toBe(10_000 * 0.75 + 2_000 * 4.5);
     // a lookalike that is not on the list stays unknown, and so over-counted
     expect(costMicroUsd("deepseek/deepseek-v4-pro", 10_000, 2_000)).toBe(costMicroUsd("some-new-model-9", 10_000, 2_000));
   });

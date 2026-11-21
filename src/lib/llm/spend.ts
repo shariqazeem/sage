@@ -50,6 +50,8 @@ const PRICES: { match: RegExp; price: Price }[] = [
   { match: /gemini-3\.5-flash/i, price: { input: 1.5, output: 9 } },
   { match: /qwen3-vl/i, price: { input: 0.4, output: 1.6 } },
   { match: /deepseek-v4-flash/i, price: { input: 0.14, output: 0.28 } },
+  // the shared chain and the fallback since 21 Nov 2026 (DeepSeek V4 Flash answered 500 to every real call that day)
+  { match: /gpt-5\.4-mini/i, price: { input: 0.75, output: 4.5 } },
 ];
 /** An unknown model is priced like Opus 5.5: over-counting is safe, under-counting drains an account. */
 const UNKNOWN: Price = { input: 4, output: 20 };
