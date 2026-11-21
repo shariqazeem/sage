@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { firstLookFor } from "@/lib/first-look";
 import { pathOf, PLAIN_ENGINE, type EvidenceKind, type ReadVerdict } from "@/lib/first-look/core";
+import { kindHonestyLine } from "@/lib/launch/product-kind";
 
 /**
  * SAGE'S FIRST LOOK, as a page reads it (the core, 21 Nov 2026).
@@ -42,6 +43,8 @@ export interface FirstLookView {
     frame: string | null;
   };
   limits: string[];
+  /** what Sage could and could not try with this kind of product, in one fixed line; null for an ordinary site */
+  tried: string | null;
   /** true when a model chose any of the words; the evidence is Sage's own either way */
   worded: boolean;
 }
@@ -75,6 +78,7 @@ export function firstLookView(job: { id: string; productUrl: string; result: unk
       frame: landing ? frameSrc(job.id, landing.frame) : null,
     },
     limits: look.limits,
+    tried: kindHonestyLine((job.result as { map?: { productKind?: unknown } } | null)?.map) || null,
     worded: look.engine !== PLAIN_ENGINE,
   };
 }

@@ -324,6 +324,13 @@ export interface ProductMapV1 {
    */
   fieldTest?: FieldTestSummary | null;
   /**
+   * The KIND of product (product-kind.ts): a repository, a store listing, a Telegram bot, a dapp behind
+   * Connect wallet... Decided from the address and what Sage saw, no model. Beside the category, never in
+   * its place. Left out of the map's hash (attached after it) and absent for an ordinary website, so every
+   * map that was a website before is byte-identical.
+   */
+  productKind?: import("./product-kind").ProductKindRecord | null;
+  /**
    * Eyes V2 — the action-grounded, source-addressable observation set derived deterministically from the
    * field test (type-only reference to avoid a runtime cycle). ALSO excluded from `digest`, so it is
    * purely additive: an inspection without it produces byte-identical downstream hashes, and old artifacts

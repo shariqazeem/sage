@@ -6,6 +6,7 @@ import type { InspectionJob } from "@/lib/db/schema";
 import { getCurrentRevision } from "@/lib/db/plan-revisions";
 import { sameFounder } from "@/lib/auth/founder";
 import { jobToView } from "@/lib/launch/job";
+import { kindOfMap, playbookOf, sageReadsOnly } from "@/lib/launch/product-kind";
 import { deserializePlan } from "@/lib/launch/serde";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
 import { hostOf } from "@/lib/site/when";
@@ -41,6 +42,8 @@ export interface BeforeView {
   facts: TestFact[];
   /** what Sage says it could not see */
   couldNotSee: string[];
+  /** what Sage read where it could not use the product itself ("the store listing"); null when it tried it */
+  sageReads: string | null;
   /** what Sage itself noticed while trying it: there as soon as its browser closes, before the missions */
   firstLook: FirstLookView | null;
   inviteOnly: boolean;
@@ -62,6 +65,7 @@ type StoredMap = {
   limitations?: unknown;
   pagesInspected?: unknown;
   fieldTest?: unknown;
+  productKind?: unknown;
 };
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
@@ -85,6 +89,9 @@ export function factsOf(map: StoredMap | null, steps: number | null): { facts: T
   const name = str(map.productName);
   const category = str(map.category);
   if (name || category) facts.push({ label: "What it is", value: [name, category].filter(Boolean).join(", ") });
+  // the kind, when it is not an ordinary site, and what Sage read of it (product-kind.ts)
+  const kind = kindOfMap(map);
+  if (kind !== "website") facts.push({ label: "What kind of product", value: `${playbookOf(kind).label}. Sage read ${playbookOf(kind).sageRead}.` });
   const says = str(map.valueProp);
   if (says) facts.push({ label: "What it says", value: says });
   const journey = (Array.isArray(map.primaryJourney) ? map.primaryJourney : []).map((j) => str(j?.value).replace(/^\d+\.\s*/, "")).filter(Boolean);
@@ -133,6 +140,7 @@ export function beforeView(job: InspectionJob, viewer: string | null): BeforeVie
     run,
     facts,
     couldNotSee,
+    sageReads: sageReadsOnly(map, job.productUrl),
     // a look taken with the builder's own test account shows signed-in screens: the owner's alone
     firstLook: mayShowFrames ? firstLookView(job) : null,
     inviteOnly: plan?.visibility === "unlisted",

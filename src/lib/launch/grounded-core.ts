@@ -91,7 +91,7 @@ export interface CoreAttachment {
 export function attachCoreToGroundedPlan(
   plan: GroundedCandidatePlan,
   ctx: {
-    map: Pick<ProductMapV1, "productName" | "fieldTest" | "observations">;
+    map: Pick<ProductMapV1, "productName" | "fieldTest" | "observations" | "productKind">;
     productUrl: string;
     scope: ValidationScope;
     corpus: string;

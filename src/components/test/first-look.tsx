@@ -68,6 +68,7 @@ export function FirstLook({ look }: { look: FirstLookView }) {
   const hasRead = !!(read.says || read.firstScreen);
   return (
     <div className="sg-t-look">
+      {look.tried ? <p className="sg-small">{look.tried}</p> : null}
       {hasRead ? (
         <section className="sg-t-read" aria-label="What a stranger would take it for">
           <div className="sg-t-read-side">

@@ -2,6 +2,7 @@ import { detectInjection } from "@/lib/deputy/brain-core";
 import { CORE_MISSION_KEY } from "@/lib/core-test/shape";
 import type { CandidateMission, FieldTestSummary, MissionPriority, MissionValidationReport, ProductMapV1, SourceRef } from "./schemas";
 import { anchorIssues, classifyVerifiability, validatePlanMissions, type ValidationScope } from "./validate-mission";
+import { kindFallbackName, kindOfMap, kindProofIssue, playbookOf, type ProductKind } from "./product-kind";
 
 /**
  * THE CORE MISSION: the three things every builder needs to know, on every test (21 Nov 2026).
@@ -32,6 +33,13 @@ import { anchorIssues, classifyVerifiability, validatePlanMissions, type Validat
  * saw itself, with the private key the tester never sees; nothing here loosens that judge. It is paid
  * for an honest try whether or not the person finished: the criteria ask them to NAME where they
  * stopped, never to succeed.
+ *
+ * EVERY KIND OF PRODUCT (22 Nov 2026). A site is tried in a browser; a phone app is installed, a bot is started,
+ * a README is followed. For each kind Sage cannot open like a site, the same mission is written with that kind's
+ * own fixed words (`product-kind.ts`): the tester first reads what Sage read (the store listing, the bot's page,
+ * the README), then tries the product where it lives. The answer is still judged against what Sage read, and the
+ * verification line says plainly that Sage could not use the product itself. An ordinary website's mission is
+ * word for word what it was.
  */
 
 export interface CoreHint {
@@ -173,8 +181,10 @@ function firstButton(ft: FieldTestSummary | null | undefined, corpus: string): s
  * mission that reads as something a person does, then the product's first button, then the sentence
  * that fits anything. The gate picks the first one whose mission it accepts.
  */
-export function coreHintLadder(model: CoreHint | null, accepted: readonly Accepted[], map: Pick<ProductMapV1, "fieldTest">, corpus: string): CoreHint[] {
+export function coreHintLadder(model: CoreHint | null, accepted: readonly Accepted[], map: Pick<ProductMapV1, "fieldTest">, corpus: string, kind: ProductKind = "website"): CoreHint[] {
   const out: CoreHint[] = [];
+  // the sentence that fits any product of this kind: "start it and use its main command" for a bot
+  const generic = playbookOf(kind).firstTry?.defaultAction ?? GENERIC_ACTION;
   if (model) out.push(model);
   const rank = (m: Accepted) => (m.riskCategory === "critical_journey" ? 0 : m.riskCategory === "onboarding" ? 1 : 2) * 3 + (m.priority === "high" ? 0 : m.priority === "medium" ? 1 : 2);
   for (const m of [...accepted].sort((a, b) => rank(a) - rank(b))) {
@@ -185,13 +195,13 @@ export function coreHintLadder(model: CoreHint | null, accepted: readonly Accept
     break;
   }
   const button = firstButton(map.fieldTest, corpus);
-  if (button) out.push({ mainAction: GENERIC_ACTION, startsAt: button, from: "first-button" });
-  out.push({ mainAction: GENERIC_ACTION, startsAt: null, from: "generic" });
+  if (button) out.push({ mainAction: generic, startsAt: button, from: "first-button" });
+  out.push({ mainAction: generic, startsAt: null, from: "generic" });
   return out;
 }
 
 /** Two to four verbatim things Sage observed on the way in: where it starts, and the first screen's own words. */
-export function coreAnchors(map: Pick<ProductMapV1, "fieldTest">, corpus: string, startsAt: string | null): string[] {
+export function coreAnchors(map: Pick<ProductMapV1, "fieldTest" | "productKind">, corpus: string, startsAt: string | null): string[] {
   const ft = map.fieldTest;
   const page = ft?.pages?.[0];
   const first = ft?.states?.[0];
@@ -202,6 +212,8 @@ export function coreAnchors(map: Pick<ProductMapV1, "fieldTest">, corpus: string
     ...(first?.visibleTextExcerpt ?? "").split("\n").slice(0, 6),
     ...(page?.visibleTextExcerpt ?? "").split("\n").slice(0, 6),
     ...(page?.ctas ?? []).slice(0, 3),
+    // what Sage read on the product's page when no browser ran (a listing read as plain HTML)
+    ...(map.productKind?.seen ?? []),
   ];
   const out: string[] = [];
   for (const raw of pool) {
@@ -227,7 +239,9 @@ export interface CoreContext {
 }
 
 /** The mission itself. Fixed words; the product's name, its main action and its starting point are the only moving parts. */
-export function buildCoreMission(hint: CoreHint, ctx: CoreContext, rank: CoreRank = "lead"): CandidateMission {
+export function buildCoreMission(hint: CoreHint, ctx: CoreContext, rank: CoreRank = "lead", kind: ProductKind = "website"): CandidateMission {
+  const words = playbookOf(kind).firstTry;
+  if (words) return buildKindFirstTry(hint, ctx, rank, kind);
   let host = ctx.targetSurface;
   try {
     host = new URL(ctx.targetSurface).hostname.replace(/^www\./, "");
@@ -279,6 +293,64 @@ export function buildCoreMission(hint: CoreHint, ctx: CoreContext, rank: CoreRan
   };
 }
 
+/**
+ * The first-try mission for a kind Sage cannot open like a site. Same four questions, same order, same gate;
+ * the words say where the tester reads first (what Sage read) and how a person tries this kind of product.
+ */
+function buildKindFirstTry(hint: CoreHint, ctx: CoreContext, rank: CoreRank, kind: ProductKind): CandidateMission {
+  const book = playbookOf(kind);
+  const t = book.firstTry!;
+  let host = ctx.targetSurface;
+  try {
+    host = new URL(ctx.targetSurface).hostname.replace(/^www\./, "");
+  } catch {
+    /* the address stands */
+  }
+  const product = nameOf(ctx.productName, host);
+  const action = hint.mainAction;
+  const from = hint.startsAt ? `, starting from “${hint.startsAt}”` : "";
+  const stranger = "A builder cannot see their own product for the first time.";
+  return {
+    missionKey: CORE_MISSION_KEY,
+    title: `Try ${product} for the first time and say how far you got`,
+    objective: `Read ${t.place} of ${product}, say what you take it to be, then try to ${action} and report how far you got and what stopped you.`,
+    instructions: [
+      `1. Open ${ctx.targetSurface} and ${t.look}`,
+      `2. Decide, from ${t.place} alone, what ${product} is and who it is for. Note one thing there you could only know by looking: the words of a heading, a button or a line of its description.`,
+      `3. ${t.how(product, action, from)} Go as far as you can. ${t.stop}`,
+      `4. When you finish or get stuck, note ${t.last}, and what stopped or confused you.`,
+      `5. Answer the four questions in your own words. An honest "I got stuck here" earns the same as "I finished".`,
+    ].join("\n"),
+    targetSurface: ctx.targetSurface,
+    criteria: [
+      `The answer says in one sentence what the tester took ${product} to be and who it is for, from ${t.place}.`,
+      `The answer names one specific thing from ${t.place} that matches what Sage read there.`,
+      `The answer names ${t.where} where the tester finished or stopped while trying to ${action}, and what happened there.`,
+      `The answer says whether the tester would use ${product} again and what would change that.`,
+    ],
+    evidenceRequirements: [
+      `Before trying it: in one sentence, what is ${product} and who is it for?`,
+      `What is one thing on ${t.place} that you only know by looking at it (the words of a heading, a button or a line of its description)?`,
+      `You tried to ${action}. What did you do, where did you finish or stop, and what stopped or confused you? Name ${t.last}.`,
+      `Would you use ${product} again? What would make you?`,
+    ],
+    whyItMatters: `${stranger} This asks every tester the three things only a stranger can answer: what they took ${product} to be, how far they got trying to ${action}, and whether they would come back.`,
+    sources: ctx.sources,
+    priority: CORE_PRIORITY[rank],
+    riskCategory: "onboarding",
+    effortMinutes: t.minutes,
+    conditions: t.conditions,
+    rewardWeight: 6,
+    maxCompletions: 5,
+    // said plainly: what Sage read, what it could not do, and what the answer is therefore checked against
+    verificationMethod: `${book.honesty} So Sage judges the tester's own account against ${t.place} as it read it: the detail named from it must match what Sage read, and the account of the try must be specific and fit what ${t.place} says ${product} does. The answer is paid for being a real, specific try, whether or not the tester finished.`,
+    confidence: 0.7,
+    assumptions: [],
+    disallowed: t.disallowed,
+    anchors: ctx.anchors,
+  };
+}
+
 export interface CoreAdded {
   mission: CandidateMission;
   hint: CoreHint;
@@ -292,7 +364,7 @@ export interface CoreAdded {
  * its core is better than a plan with a mission Sage cannot stand behind.
  */
 export function addCoreMission(input: {
-  map: Pick<ProductMapV1, "productName" | "fieldTest" | "observations">;
+  map: Pick<ProductMapV1, "productName" | "fieldTest" | "observations" | "productKind">;
   productUrl: string;
   scope: ValidationScope;
   corpus: string;
@@ -307,11 +379,19 @@ export function addCoreMission(input: {
   const sources: SourceRef[] = scope.knownUrls.has(targetSurface)
     ? [{ kind: "page", ref: targetSurface, observation: "The first screen Sage opened, and where a first-time visitor starts." }]
     : [{ kind: "founder", ref: "goal", observation: "The builder asked for this product to be tried by people." }];
-  for (const hint of coreHintLadder(input.modelHint, accepted, map, corpus)) {
-    const mission = buildCoreMission(hint, { productName: map.productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt), sources }, (input.decision ?? DEFAULT_CORE_DECISION).rank);
-    const reports = validatePlanMissions([...accepted, mission], scope, corpus, map.observations);
-    const report = reports[reports.length - 1]!;
-    if (report.ok) return { mission: { ...mission, verifiabilityClass: classifyVerifiability(mission) }, hint, report };
+  const kind = kindOfMap(map);
+  // A product's own NAME can trip the gate: a prototype called "Checkout flow" reads, inside the fixed words, as
+  // an instruction to check out. Where the kind has its own first try (which may be the whole plan), the mission
+  // is then written once more with a plain noun for the kind ("this prototype"). A website is tried once, as before.
+  const names = playbookOf(kind).firstTry ? [map.productName, kindFallbackName(kind)] : [map.productName];
+  for (const productName of names) {
+    for (const hint of coreHintLadder(input.modelHint, accepted, map, corpus, kind)) {
+      const mission = buildCoreMission(hint, { productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt), sources }, (input.decision ?? DEFAULT_CORE_DECISION).rank, kind);
+      const reports = validatePlanMissions([...accepted, mission], scope, corpus, map.observations);
+      const report = reports[reports.length - 1]!;
+      // the kind's own rule too: the first try is the tester's account, never a page-and-quote check
+      if (report.ok && kindProofIssue(mission, kind, classifyVerifiability(mission)) === null) return { mission: { ...mission, verifiabilityClass: classifyVerifiability(mission) }, hint, report };
+    }
   }
   return null;
 }

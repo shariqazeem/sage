@@ -131,7 +131,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
         {view.frames.length > 0 || owner || done ? (
         <Stage
           state="done"
-          title={view.frames.length > 0 ? "Sage tried it first" : "The missions"}
+          title={view.frames.length > 0 ? (view.sageReads ? `Sage read ${view.sageReads} first` : "Sage tried it first") : "The missions"}
           meta={view.frames.length > 0 && view.run ? [count(view.run.steps, "step", "steps"), view.run.seconds ? howLong(view.run.seconds) : ""].filter(Boolean).join(" · ") : null}
         >
           {view.frames.length > 0 ? (
@@ -213,6 +213,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
           {view.findings ? (
             view.findings.findings.length > 0 ? (
               <>
+                {view.findings.sageTried ? <p className="sg-small">{view.findings.sageTried}</p> : null}
                 <Report view={view.findings} />
                 {view.findings.notPaid.total > 0 ? (
                   <p className="sg-small">

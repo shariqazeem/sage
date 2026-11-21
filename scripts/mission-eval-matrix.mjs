@@ -5,7 +5,11 @@
  * scores a fixed rubric so we can see where the P12–P17 machinery breaks beyond the four products it
  * has met. Standing pre-deploy check: re-run after any inspection/mission change.
  *
- *   node scripts/mission-eval-matrix.mjs [--base https://sagepays.xyz] [--nonce N] [--only category] [--job <id>]
+ *   node scripts/mission-eval-matrix.mjs [--base https://sagepays.xyz] [--nonce N] [--only category] [--job <id>] [--kinds]
+ *
+ * `--kinds` runs the PRODUCT-KIND rows instead of the matrix (22 Nov 2026): one real listing per kind of
+ * product that is not a website (a bot's Telegram page, a repository, a store listing...). They are a
+ * separate set so the standing battery costs what it did; `--only` filters them the same way.
  *
  * `--nonce N` varies each URL's budget so a re-run creates FRESH jobs (the launch API dedupes on
  * url+budget+founder). Prints a per-URL line, the category×check grid, failure evidence, and the
@@ -18,6 +22,7 @@ const base = flag("base", "https://sagepays.xyz").replace(/\/+$/, "");
 const nonce = Number(flag("nonce", "0")) || 0;
 const only = flag("only", "");
 const existingJob = flag("job", "");
+const kindsOnly = args.includes("--kinds");
 
 // ── THE MATRIX — one real, live, stable public URL per category (documented picks) ──────────────
 // expectMode: what the field test SHOULD classify. expectLint: which verifiability class should
@@ -61,6 +66,24 @@ const MATRIX = [
   //    fabricated mission about what is behind it.
   { cat: "webgl-world", url: "https://useagora.vercel.app/square", expectMode: "interactive", expectLint: "obs", thin: "maybe", accept: ["ready", "needs_input"] },
   { cat: "wallet-gated", url: "https://app.uniswap.org", expectMode: "any", expectLint: "any", thin: "maybe", accept: ["ready", "needs_input"] },
+];
+
+/**
+ * THE PRODUCT-KIND ROWS (`--kinds`). One real, stable, public listing per kind where Sage reads a page and
+ * people do the try (src/lib/launch/product-kind.ts). The property under test is never the product: it is
+ * that the kind is detected, the plan is READY (the first-try mission may be the whole plan), every anchor
+ * is text Sage read, and the first limit on the map is the honest line about what Sage could not try.
+ * `readOnly` rows also FAIL on any url-verifiable mission: on a listing, quoting the page proves reading it.
+ * A waitlist has no stable public example to pin here: run one with `--job <id> --only kind-waitlist`.
+ */
+const KIND_ROWS = [
+  { cat: "kind-telegram-bot", url: "https://t.me/sagedeputybot", expectKind: "telegram_bot", readOnly: true, expectMode: "any", expectLint: "any", thin: false },
+  { cat: "kind-repo", url: "https://github.com/colinhacks/zod", expectKind: "code_repo", expectMode: "any", expectLint: "any", thin: false },
+  { cat: "kind-package", url: "https://pypi.org/project/requests/", expectKind: "package", expectMode: "any", expectLint: "any", thin: false },
+  { cat: "kind-app-store", url: "https://apps.apple.com/us/app/signal-private-messenger/id874139669", expectKind: "mobile_app", readOnly: true, expectMode: "any", expectLint: "any", thin: false },
+  { cat: "kind-extension", url: "https://chromewebstore.google.com/detail/ublock-origin-lite/ddkjiahejlhfcafbddmgiahcphecmpfh", expectKind: "browser_extension", readOnly: true, expectMode: "any", expectLint: "any", thin: false },
+  { cat: "kind-discord", url: "https://discord.com/invite/python", expectKind: "community", readOnly: true, expectMode: "any", expectLint: "any", thin: false },
+  { cat: "kind-waitlist", url: "", expectKind: "waitlist", expectMode: "any", expectLint: "any", thin: false },
 ];
 
 // MUST MIRROR normAnchorText in src/lib/launch/validate-mission.ts, typography folding included.
@@ -279,7 +302,11 @@ async function runOne(m, i) {
     mode: m.expectMode === "any" ? "n/a" : (ft ? (mode === m.expectMode ? "PASS" : `FAIL(${mode})`) : "n/a"),
     states: !isInteractive ? "n/a" : ((ft?.states?.length ?? 0) > 1 ? "PASS" : `FAIL(${ft?.states?.length ?? 0})`),
     loadingWaited: !isInteractive ? "n/a" : ((ft?.states || []).some((s) => /waited out loading/i.test(s.trigger)) ? "PASS" : "—"),
-    category: job.status === "needs_input" ? "n/a" : (map?.category && map.category !== "product (uncategorized)" && !junkJourney ? "PASS" : `FAIL(${map?.category}${junkJourney ? "+junkJourney" : ""})`),
+    // a listing's words are its platform's, so its category says nothing; its KIND is what is checked
+    kind: !m.expectKind ? "n/a" : ((map?.productKind?.kind ?? "website") === m.expectKind ? "PASS" : `FAIL(${map?.productKind?.kind ?? "website"})`),
+    honesty: !m.expectKind ? "n/a" : (/^(Sage (can't|does not|has no|reads|opened)|There is nothing to try|A prototype is)/.test(map?.limitations?.[0] ?? "") ? "PASS" : "FAIL(no-line)"),
+    listing: !m.readOnly || missions.length === 0 ? "n/a" : (urlV === 0 ? "PASS" : `FAIL(${urlV}url-on-a-listing)`),
+    category: m.expectKind || job.status === "needs_input" ? "n/a" : (map?.category && map.category !== "product (uncategorized)" && !junkJourney ? "PASS" : `FAIL(${map?.category}${junkJourney ? "+junkJourney" : ""})`),
     anchorInteg: missions.length === 0 ? "n/a" : (integrity === 100 ? "PASS" : `FAIL(${integrity}%)`),
     lintSplit: missions.length === 0 ? "n/a" : (m.expectLint === "any" ? "PASS" : m.expectLint === "url" ? (urlV > 0 ? "PASS" : softLint(`0url/${obsV}obs`)) : (obsV > 0 ? "PASS" : softLint(`${urlV}url/0obs`))),
     needsInput: accept.includes(job.status) ? "PASS" : `FAIL(got-${job.status},want-${accept.join("|")})`,
@@ -343,7 +370,7 @@ async function runOne(m, i) {
 }
 
 // ── run the battery (light concurrency; the prod server + LLM quota bound it) ──
-const rows = MATRIX.filter((m) => !only || m.cat === only);
+const rows = (kindsOnly ? KIND_ROWS : MATRIX).filter((m) => (!only || m.cat === only) && (m.url || existingJob));
 /**
  * NONCE RANGE GUARD. The nonce varies each URL's budget so a re-run creates fresh jobs, but budget
  * is capped at $10,000 by the launch validator — so nonce >= 100 makes EVERY row fail with
@@ -373,7 +400,7 @@ for (const [i, m] of rows.entries()) {
 }
 
 // ── the grid ──
-const CHECKS = ["mode", "states", "loadingWaited", "category", "anchorInteg", "lintSplit", "needsInput", "templateLeak", "floor", "coverage", "core"];
+const CHECKS = ["mode", "states", "loadingWaited", "category", "anchorInteg", "lintSplit", "needsInput", "templateLeak", "floor", "coverage", "core", ...(kindsOnly ? ["kind", "honesty", "listing"] : [])];
 console.log(`\n${"═".repeat(90)}\nGRID (category × check)\n`);
 console.log(["category".padEnd(16), ...CHECKS.map((c) => c.slice(0, 9).padEnd(10))].join(""));
 for (const r of results) {

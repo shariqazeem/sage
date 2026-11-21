@@ -167,6 +167,8 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
   const shape = plan ? offerOf(plan.missions) : null;
   const latest = trail[trail.length - 1];
   const isTrying = TRYING.has(status);
+  // a phone app, a bot, a repository: Sage read its page and people do the try (product-kind.ts)
+  const reads = initial.sageReads;
   const isWriting = WRITING.has(status);
   const ready = status === "ready" && !!plan && plan.missions.length > 0;
   const mine = whose === "yours" || whose === "nobody" || whose === "handover";
@@ -191,11 +193,15 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
         tone={pill.tone}
         sub={
           isTrying ? (
-            "It opens the product in a real browser and uses it the way a stranger would. You can close this page: Sage keeps going, and this link is the test."
+            reads
+              ? `Sage can't use this kind of product itself, so it is reading ${reads}. People do the trying. You can close this page: Sage keeps going, and this link is the test.`
+              : "It opens the product in a real browser and uses it the way a stranger would. You can close this page: Sage keeps going, and this link is the test."
           ) : isWriting ? (
             "From what it saw, it is working out what to ask people to try, and checking each mission can be judged fairly. This part usually takes two to five minutes."
           ) : ready && mine ? (
-            "Sage tried it, wrote the missions below, and will check every answer against what it saw itself. You pay only what testers earn."
+            reads
+              ? `Sage read ${reads}, wrote the missions below, and will check every answer against what it read. It could not use the product itself: people do. You pay only what testers earn.`
+              : "Sage tried it, wrote the missions below, and will check every answer against what it saw itself. You pay only what testers earn."
           ) : ready && whose === "x" ? (
             `A tag on X started this test. Only ${who ?? "the account that tagged Sage"} can pay for it.`
           ) : ready ? (
@@ -208,7 +214,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
         }
       >
         {isTrying ? (
-          <>Sage is trying <span className="sg-mono">{host}</span>.</>
+          <>Sage is {reads ? "reading" : "trying"} <span className="sg-mono">{host}</span>.</>
         ) : isWriting ? (
           <>Sage is writing the missions.</>
         ) : ready && shape && mine ? (
@@ -216,7 +222,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
             {shape.people} people can try <span className="sg-mono">{host}</span> for {baseToUsd(shape.totalBase)}.
           </>
         ) : ready ? (
-          <>Sage tried <span className="sg-mono">{host}</span>{who && whose === "x" ? ` for ${who}` : ""}. The test is ready.</>
+          <>Sage {reads ? "read" : "tried"} <span className="sg-mono">{host}</span>{who && whose === "x" ? ` for ${who}` : ""}. The test is ready.</>
         ) : status === "needs_input" ? (
           <>Sage has a question before it writes the missions.</>
         ) : status === "superseded" ? (
@@ -228,7 +234,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
 
       <div className="sg-t-stages">
         {/* 1 ── Sage tries it ──────────────────────────────────────────────── */}
-        <Stage state={isTrying ? "now" : "done"} title={isTrying ? "Sage is trying it" : "Sage tried it"} meta={runMeta}>
+        <Stage state={isTrying ? "now" : "done"} title={reads ? (isTrying ? `Sage is reading ${reads}` : `Sage read ${reads}`) : isTrying ? "Sage is trying it" : "Sage tried it"} meta={runMeta}>
           {running ? (
             <>
               {framed.length > 0 ? (

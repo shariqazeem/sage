@@ -3,6 +3,7 @@ import { llmCompleteJson } from "@/lib/llm/complete";
 import { completeSteadily } from "@/lib/llm/steady";
 import { coerceCoreDecision, coerceCoreHint, DEFAULT_CORE_DECISION, type CoreDecision, type CoreHint } from "./core-mission";
 import { stripMarkers } from "./mission-prompt";
+import { kindLineFor } from "./product-kind";
 import type { CandidateMission, ProductMapV1 } from "./schemas";
 
 /**
@@ -63,7 +64,7 @@ export function coreDecisionUser(input: {
   goal: string;
   targetUsers: string;
   budgetAnswers: number;
-  map: Pick<ProductMapV1, "productName" | "valueProp" | "fieldTest">;
+  map: Pick<ProductMapV1, "productName" | "valueProp" | "fieldTest" | "productKind">;
   missions: readonly Pick<CandidateMission, "title" | "priority">[];
 }): string {
   const controls = observedControls(input.map);
@@ -71,14 +72,17 @@ export function coreDecisionUser(input: {
     `BUILDER GOAL (their words, trusted): ${clean(input.goal, 600) || "(they did not say)"}`,
     clean(input.targetUsers, 300) ? `WHO IT IS FOR (their words, trusted): ${clean(input.targetUsers, 300)}` : "",
     `BUDGET: enough for about ${input.budgetAnswers} paid ${input.budgetAnswers === 1 ? "answer" : "answers"} in total (for your rank only).`,
+    // the kind, when it is not an ordinary website: the main action is then what a person does where the product lives
+    kindLineFor(input.map).slice(0, 900),
     "",
     OPEN,
     `product: ${clean(input.map.productName, 80) || "(unnamed)"}`,
     `it says: ${clean(input.map.valueProp, 300) || "(nothing clear)"}`,
     "missions Sage designed (priority, title):",
-    ...input.missions.slice(0, MAX_MISSIONS).map((m) => `- [${m.priority}] ${clean(m.title, 120)}`),
+    ...(input.missions.length > 0 ? input.missions.slice(0, MAX_MISSIONS).map((m) => `- [${m.priority}] ${clean(m.title, 120)}`) : ["- (none: the first-try mission stands alone)"]),
     "OBSERVED CONTROLS (verbatim):",
     ...(controls.length > 0 ? controls.map((c) => `- ${c}`) : ["- (none recorded)"]),
+    ...((input.map.productKind?.seen ?? []).length > 0 ? ["WORDS ON THE PAGE SAGE READ (verbatim):", ...(input.map.productKind?.seen ?? []).map((s) => `- ${clean(s, 90)}`)] : []),
     CLOSE,
   ]
     .filter((l) => l !== "")

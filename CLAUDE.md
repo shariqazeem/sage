@@ -398,6 +398,28 @@ if you must touch them, that suite must stay green.
   - With no rank, the core leads.
   - The builder sees Sage's read beside the missions ("What Sage thinks you want", `JobView.purpose`) before any
     money moves.
+- **Every kind of product gets the best honest test (22 Nov 2026).** A builder can paste anything, so the kind is
+  decided once, with no model, from the address and what Sage saw (`src/lib/launch/product-kind.ts`), and carried
+  on the map beside the category (`productKind`, absent for an ordinary website, whose map is byte-identical):
+  - Kinds: single-page app, dapp behind Connect wallet, Telegram bot and mini app, Discord bot, community, code
+    repository, package, API, mobile app, browser extension, desktop download, waitlist, AI chat, design
+    prototype, recorded demo.
+  - On someone else's platform (a store, a repository host, Telegram) Sage reads the product's own page or path
+    only (`inspectProduct`'s `pathPrefix`), and its browser is given no goal to chase there. A pasted GitHub
+    repository is also read as a repository (README and file list, never run).
+  - The first-try mission has fixed words per kind (`KIND_PLAYBOOK`): the tester reads what Sage read, then
+    tries the product where it lives. Where people do the try and Sage cannot (`peopleDoTheTry`), that mission
+    may be the whole plan: a thin listing, an architect with nothing to design or a provider that is down still
+    ends in one gated mission, never in a question about a store page.
+  - `kindProofIssue` refuses a proof Sage cannot read for that kind: a chat link, a transaction's hash on a dapp,
+    a handed-over key, and on a listing any page-and-quote mission (quoting a listing pays for reading it).
+  - One line says what Sage could and could not try (`honesty`): first among the map's limits, in the first
+    look, on the builder's page ("Sage read the store listing", never "Sage tried it") and above the findings.
+  - The architect and the core-place question are told the kind in one trusted line (`MISSION_PROMPT_VERSION`
+    `mb-v4.8-kinds`; the system prompts are unchanged).
+  - Still true: the judge's private key comes from what Sage's browser read, so a listing read as one page sits
+    under the three-source floor and its answers hold for the builder's release.
+  - `tests/model-zoo/product-kinds.test.ts` runs one saved page per kind through `inspectAndPlan` offline.
 - **The account pays its own network fee (24 Oct 2026).** No door sends an account gas unless `OPERATOR_COVERS_GAS=1`;
   short of it, the door names the amount and the way to get it, and moves nothing.
 - **An agent key is its owner, and never lifts a limit.** A workspace key acts as the owner who minted it, with only

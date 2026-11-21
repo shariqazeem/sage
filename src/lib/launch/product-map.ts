@@ -10,6 +10,7 @@
 import { norm, productMapDigest } from "./schemas";
 import { deriveObservations } from "./observed-facts";
 import { aggregateVisionSignals, visionCategory, type AggregatedVision } from "./vision";
+import { detectProductKind, kindProductName, playbookOf } from "./product-kind";
 import type {
   FieldTestSummary,
   FounderLaunchInput,
@@ -234,10 +235,14 @@ export function buildProductMap(
   // then an answer ("no account gate"), not a question. A login wall still yields ~2 states (entry +
   // auth), so it keeps the question — that product genuinely does gate the start.
   const walkedIntoProduct = (fieldTest?.states?.length ?? 0) >= 3;
+  // THE KIND (product-kind.ts), decided once from the address and what Sage saw. A store listing, a bot's
+  // page or a waitlist has no signup surface to find, so the question below is never asked about one.
+  const productKind = detectProductKind({ url: founder.productUrl, observations, fieldTest });
   if (
     !observations.some((o) => journeyOrder.test(o.url)) &&
     observations.length > 0 &&
-    !walkedIntoProduct
+    !walkedIntoProduct &&
+    !playbookOf(productKind.kind).peopleDoTheTry
   ) {
     openQuestions.push("Sage did not find an obvious signup/onboarding surface — where should a new user start?");
   }
@@ -290,6 +295,14 @@ export function buildProductMap(
   // Applied AFTER the digest (exactly like vision below), so the canonical digest stays a hash of the
   // deterministic static evidence and existing plan hashes never shift.
   if (ftFallbackName) map.productName = ftFallbackName;
+  // The kind rides beside the category, after the hash, and only when it is not an ordinary website: a
+  // map that was a website before is byte-identical. On a shared platform the page title names the platform
+  // ("Apps on Google Play"), so the product's name is read from the address or the title's own part.
+  if (productKind.kind !== "website") {
+    map.productKind = productKind;
+    const named = kindProductName(founder.productUrl, observations);
+    if (named) map.productName = named;
+  }
   if (fieldTestExplored(fieldTest)) map.fieldTest = fieldTest;
   // P14 — enrich the map's UNDERSTANDING from what a vision model saw in the state screenshots. Applied
   // AFTER the digest, so the canonical digest stays a stable hash of the deterministic static evidence

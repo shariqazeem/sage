@@ -23,6 +23,12 @@ export interface InspectOptions {
   totalBytes?: number;
   timeBudgetMs?: number;
   maxRedirects?: number;
+  /**
+   * On a platform many products share (a repository host, a registry, Telegram), only pages at or under this
+   * path belong to the product: without it the crawl follows the platform's own navigation (its pricing, its
+   * features pages) and Sage plans a test of the platform. Null or absent: the whole site, as before.
+   */
+  pathPrefix?: string | null;
 }
 
 export interface InspectResult {
@@ -36,6 +42,7 @@ export interface InspectResult {
 }
 
 const DEFAULTS: Required<InspectOptions> = {
+  pathPrefix: null,
   maxPages: 9,
   maxDepth: 2,
   perResponseBytes: 800 * 1024,
@@ -100,6 +107,13 @@ function priority(url: string): number {
 export function sameSiteHost(a: string, b: string): boolean {
   const norm = (h: string) => h.toLowerCase().replace(/^www\./, "");
   return norm(a) === norm(b);
+}
+
+/** Is `pathname` the product's own path on a shared platform, or a page under it? */
+export function underPath(pathname: string, prefix: string): boolean {
+  const p = pathname.replace(/\/+$/, "").toLowerCase();
+  const base = prefix.replace(/\/+$/, "").toLowerCase();
+  return p === base || p.startsWith(`${base}/`);
 }
 
 /**
@@ -310,7 +324,8 @@ export async function inspectProduct(startUrl: string, opts: InspectOptions = {}
         }
         if (abs.protocol !== "https:") continue;
         if (!sameSiteHost(abs.host, host)) continue; // same-site only (www/apex variants included)
-        if (SOCIAL.test(abs.toString())) continue;
+        if (o.pathPrefix && !underPath(abs.pathname, o.pathPrefix)) continue; // a shared platform: this product's pages only
+        if (!o.pathPrefix && SOCIAL.test(abs.toString())) continue;
         if (isStaticAsset(abs.toString())) continue; // a file is not a page — see STATIC_ASSET
         const k = abs.toString().replace(/#.*$/, "");
         if (visited.has(k) || queue.some((q) => q.url === k)) continue;

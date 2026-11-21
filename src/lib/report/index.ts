@@ -16,6 +16,7 @@ import { getInspectionJobByCampaign } from "@/lib/db/inspection";
 import { firstLookFor } from "@/lib/first-look";
 import { cover, enforceGroups, plainFindings, REPORT_SYSTEM, reportUser, type Finding, type FindingKind, type PaidAnswer, type ReportContext, type Understood } from "./core";
 import { listKeepPosted, type KeepPostedContact } from "./keep-posted";
+import { kindHonestyLine } from "@/lib/launch/product-kind";
 import { coreReport, fixFirst, mainActionOf, rankFindings, type CoreReport, type FixFirst, type SageProblem } from "./product";
 
 /**
@@ -74,6 +75,8 @@ export interface ProductContext {
   mainAction: string | null;
   /** true when Sage's look used the builder's own test account: its notes are the owner's to read */
   sealed: boolean;
+  /** what Sage could and could not try with this kind of product: one fixed line, null for an ordinary site */
+  sageTried: string | null;
 }
 
 export function productContext(campaignId: string, paid: readonly Submission[] = paidAnswers(campaignId)): ProductContext {
@@ -102,6 +105,7 @@ export function productContext(campaignId: string, paid: readonly Submission[] =
     coreHash,
     mainAction: mainActionOf(core?.evidenceList),
     sealed: !!job?.testAccountSealed,
+    sageTried: kindHonestyLine((job?.result as { map?: { productKind?: unknown } } | null | undefined)?.map) || null,
   };
 }
 
@@ -249,6 +253,8 @@ export interface FindingsView {
   notPaid: { total: number; byReason: { reason: string; count: number }[] };
   /** answers still being checked. */
   checking: number;
+  /** what Sage itself could and could not try (a phone app is read from its listing, people try it); null for a site */
+  sageTried: string | null;
   /** problems first, then by how many people, ranked in code */
   findings: FindingView[];
   /** the core mission's counts (understood it, the main action, would use it again); null when the test has no core answers yet */
@@ -364,6 +370,7 @@ export function findingsView(campaign: Campaign, viewer: "owner" | "public", fin
       byReason: [...reasons].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason)),
     },
     checking: subs.filter((s) => s.status === "pending" || s.status === "approved" || s.status === "settling").length,
+    sageTried: product.sageTried,
     findings: ranked.map((f) => {
       const people = f.submissionIds.map(person);
       return { title: f.title, kind: f.kind, count: people.length, people, quotes: f.quotes, fix: f.suggestedFix, sageSaw: !!f.sage, sageTitle: f.sage && maySeeSage ? f.sage.title : null };

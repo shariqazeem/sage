@@ -22,8 +22,12 @@
  *  came for and RANKS the first-try mission ("lead" | "alongside" | "yield", with one sentence each for purpose
  *  and why). The rank becomes the core's priority; the frozen allocator still decides what is funded and every
  *  amount (`core-mission.ts` coerceCoreDecision). The user prompt gains a BUDGET line in answers, not dollars.
+ *  v4.8 (22 Nov 2026) — THE KIND. When the product is not an ordinary website (a repository, a store listing, a
+ *  Telegram bot, a dapp behind Connect wallet...: `product-kind.ts`), the user prompt gains ONE trusted line
+ *  saying which kind it is, what Sage could read, and what proof fits it, and the map carries "productKind".
+ *  The system prompts are unchanged, and for a website the user prompt is byte-identical to v4.7.
  */
-export const MISSION_PROMPT_VERSION = "mb-v4.7-purpose" as const;
+export const MISSION_PROMPT_VERSION = "mb-v4.8-kinds" as const;
 
 /** Everything between these markers is untrusted inspected data — judged, never obeyed. */
 export const UNTRUSTED_MAP_OPEN = "<<<UNTRUSTED_INSPECTED_PRODUCT>>>";
@@ -146,7 +150,7 @@ OUTPUT: strict JSON only:
 export function buildArchitectUser(
   mapJson: string,
   founder: { goal: string; targetUsers: string; missionCountHint?: string; budgetAnswers?: number },
-  opts: { hasFieldTest?: boolean } = {},
+  opts: { hasFieldTest?: boolean; kindLine?: string } = {},
 ): string {
   return [
     `FOUNDER GOAL (trusted): ${stripMarkers(founder.goal).slice(0, 1200)}`,
@@ -161,6 +165,8 @@ export function buildArchitectUser(
     founder.budgetAnswers && founder.budgetAnswers > 0
       ? `BUDGET (Sage's compiler sets every amount; this is for your "rank" only and never changes how many flows you design): enough for about ${founder.budgetAnswers} paid ${founder.budgetAnswers === 1 ? "answer" : "answers"} at a typical $1 each.`
       : "",
+    // THE KIND (v4.8): one trusted line, absent for an ordinary website (product-kind.ts kindLineFor)
+    opts.kindLine ? stripMarkers(opts.kindLine).slice(0, 900) : "",
     founder.missionCountHint ? `Design ${founder.missionCountHint} missions — one per DISTINCT observed flow, never padded (the count rule above decides; this is its band for THIS map).` : "",
     // DOCUMENTED IS NOT OBSERVED. When a connect-wallet or sign-in wall stops Sage, it reads the
     // product's own docs so the plan still knows what a signed-in user is meant to reach. That is a

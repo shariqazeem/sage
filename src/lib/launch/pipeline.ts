@@ -10,7 +10,8 @@ import "server-only";
  * render from. This module performs NO deployment, funding, or signing.
  */
 
-import { inspectProduct, rankPrimaryLinks } from "./inspect";
+import { inspectProduct, rankPrimaryLinks, underPath } from "./inspect";
+import { kindFromUrl, kindHonestyLine, kindOfMap, playbookOf } from "./product-kind";
 import { fieldTestEnabled, runFieldTest } from "./field-test";
 import { inspectRepo } from "./github";
 import {
@@ -201,6 +202,28 @@ function unspentNoteFor(
   return `This plan pays fair rates for the work it contains, so it spends ${usd(spentBase)} of your ${usd(totalBudgetBase)} budget. The remaining ${usd(unspentBase)} stays with you. A broader goal, or more flows to test, would put it to work.`;
 }
 
+/** The product's own pages on a shared platform that the browser may also read: under its path, a few at most. */
+function platformPages(observations: { url: string; links: string[] }[], entryUrl: string, platform: { pathPrefix: string; onlyThisPage: boolean }): string[] {
+  if (platform.onlyThisPage) return [];
+  const seen = new Set<string>([entryUrl.replace(/[#?].*$/, "")]);
+  const out: string[] = [];
+  for (const o of observations) {
+    for (const raw of o.links) {
+      try {
+        const u = new URL(raw, o.url);
+        const key = u.toString().replace(/[#?].*$/, "");
+        if (u.protocol !== "https:" || u.host !== new URL(entryUrl).host || !underPath(u.pathname, platform.pathPrefix) || seen.has(key)) continue;
+        seen.add(key);
+        out.push(key);
+        if (out.length >= 3) return out;
+      } catch {
+        /* not a link */
+      }
+    }
+  }
+  return out;
+}
+
 export async function inspectAndPlan(
   input: FounderLaunchInput,
   publicCampaignId: string,
@@ -251,7 +274,15 @@ export async function inspectAndPlan(
 
   // 1. inspect the real product (bounded + SSRF-guarded).
   stamp("fetching");
-  const inspection = await inspectProduct(input.productUrl, {}, now);
+  // A PRODUCT LISTED ON SOMEONE ELSE'S PLATFORM (product-kind.ts): a store listing, a repository, a bot's
+  // Telegram page. Sage reads the product's own page or pages there and nothing else: followed freely, the
+  // crawl walks the platform's navigation (its pricing, its sign-in) and the plan tests the platform.
+  const platform = kindFromUrl(input.productUrl)?.scope ?? null;
+  const inspection = await inspectProduct(
+    input.productUrl,
+    platform ? { pathPrefix: platform.pathPrefix, ...(platform.onlyThisPage ? { maxPages: 1, maxDepth: 0 } : { maxPages: 4, maxDepth: 1 }) } : {},
+    now,
+  );
 
   // 1b. FIELD TEST (flag-gated): actually browse the product in a real headless browser and
   //     capture what a real visit reveals. FULLY failure-isolated — any error/timeout degrades
@@ -278,25 +309,32 @@ export async function inspectAndPlan(
     // ORDERED FOUNDER GOAL — compile the request into required checkpoints BEFORE browsing, so the
     // controller pursues the next UNMET one (never an entity merely named during onboarding). A null
     // journey (model unconfigured / unusable output) degrades to the previous behavior exactly.
-    try {
-      goalJourney = await compileGoalJourney(
-        typeof input.goal === "string" ? input.goal : "",
-      );
-    } catch {
-      goalJourney = null;
+    // On a shared platform the browser READS the product's page; it is given no goal to pursue there. The goal
+    // is about the product ("can people start the bot"), and chasing it on a store or a repository host means
+    // pressing that platform's own buttons (Install, Sign in), which is not the product and not Sage's to press.
+    if (!platform) {
+      try {
+        goalJourney = await compileGoalJourney(
+          typeof input.goal === "string" ? input.goal : "",
+        );
+      } catch {
+        goalJourney = null;
+      }
     }
     const fieldTestArgs = {
       inspectionId: opts.inspectionId,
       startUrl: inspection.startUrl,
       host: inspection.host,
-      candidateLinks: rankPrimaryLinks(
-        inspection.observations,
-        inspection.host,
-        inspection.startUrl,
-        5,
-      ),
+      candidateLinks: platform
+        ? platformPages(inspection.observations, inspection.startUrl, platform)
+        : rankPrimaryLinks(
+            inspection.observations,
+            inspection.host,
+            inspection.startUrl,
+            5,
+          ),
       // the founder's exact goal drives the goal-directed browser controller (reach the goal, not decorations).
-      goal: typeof input.goal === "string" ? input.goal : undefined,
+      goal: !platform && typeof input.goal === "string" ? input.goal : undefined,
       journey: goalJourney,
       // The founder's TEST account, when they supplied one. This is what lets Sage see (and later
       // PAY for) work behind a login instead of designing missions about a page it never reached.
@@ -321,7 +359,8 @@ export async function inspectAndPlan(
     // Bounded on purpose: one retry, only when BOTH the browser and the static crawl were thin (the
     // exact population that triggers those questions), and the richer of the two runs wins — a
     // retry can only ever add, never replace a good look with a worse one.
-    if (thinFieldRun(fieldTest) && inspection.observations.length <= 1) {
+    // (a listing is one page by nature: reading it twice finds nothing new)
+    if (!platform && thinFieldRun(fieldTest) && inspection.observations.length <= 1) {
       // Re-stamp before the second look. The sweep reaper treats 15 minutes without a stamp as a
       // dead runner, and a slow first run plus a retry could legitimately exceed that in one stage —
       // the retry must reset the clock it is about to spend. The duplicate trail entry is honest:
@@ -341,9 +380,11 @@ export async function inspectAndPlan(
     artifacts: [] as Awaited<ReturnType<typeof inspectRepo>>["artifacts"],
     reason: null as string | null,
   };
-  if (input.repoUrl) {
+  // A pasted GitHub repository IS the repository to read: its README and file list, never run.
+  const repoToRead = input.repoUrl || (kindFromUrl(input.productUrl)?.kind === "code_repo" && /^https:\/\/(www\.)?github\.com\//i.test(input.productUrl) ? input.productUrl : null);
+  if (repoToRead) {
     stamp("analyzing");
-    repo = await inspectRepo(input.repoUrl);
+    repo = await inspectRepo(repoToRead);
   }
 
   // 3. deterministic product map (+ field-test evidence when present).
@@ -407,13 +448,19 @@ export async function inspectAndPlan(
         (l) => !/server-rendered HTML only/i.test(l),
       )
     : inspection.limitations;
-  const explorationNote = explored
+  // WHAT SAGE COULD AND COULD NOT TRY, FIRST (product-kind.ts). One plain line per kind, ahead of every other
+  // limit, so the first look and the builder's page lead with it ("Sage can't run a phone app itself: it read
+  // the store listing, and people installed the app and tried it").
+  const kindLine = kindHonestyLine(map);
+  const readNotUsed = playbookOf(kindOfMap(map)).peopleDoTheTry;
+  const explorationNote = explored && !readNotUsed
     ? [
         "Sage explored the live product in a real browser; anything behind a login, or a specific interaction Sage didn't perform, may still be under-observed.",
       ]
     : [];
   map.limitations = [
     ...new Set([
+      ...(kindLine ? [kindLine] : []),
       ...map.limitations,
       ...inspectorLimitations,
       ...explorationNote,

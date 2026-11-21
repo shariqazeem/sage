@@ -31,6 +31,7 @@ import { TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
 import { fieldTestForMap } from "./field-test";
 import { hasUsableInspection } from "./product-map";
+import { kindLineFor, kindOfMap, kindProofIssue, playbookOf } from "./product-kind";
 import { norm } from "./schemas";
 import type {
   CandidateMission,
@@ -345,6 +346,9 @@ const EMPTY = (reason: string): MissionBrainResult => ({
   needsInputQuestions: [], model: "", provider: "", promptVersion: MISSION_PROMPT_VERSION, latencyMs: 0,
 });
 
+/** The "model" recorded on a plan no model wrote: the first-try mission's fixed words, alone. */
+export const FIXED_WORDS_MODEL = "sage/fixed-words";
+
 /** A tight map summary for the LLM — exact URLs (valid targets/citations) + surfaces,
  *  without the verbose sources/snippets that overwhelm the model on content-heavy sites. */
 export function compactMapForLlm(map: ProductMapV1): string {
@@ -372,6 +376,8 @@ export function compactMapForLlm(map: ProductMapV1): string {
     claimRisks: vals(map.claimRisks),
     observedStates: vals(map.observedStates),
     repoOnlyCapabilities: vals(map.repoOnlyCapabilities),
+    // the kind, and the page's own words Sage read (present only when the product is not an ordinary website)
+    ...(map.productKind ? { productKind: map.productKind } : {}),
     limitations: map.limitations,
     openQuestions: map.openQuestions,
     pagesInspected: map.pagesInspected,
@@ -551,7 +557,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
       const base = buildArchitectUser(
         mapJson,
         { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map), budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals) },
-        { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
+        { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)), kindLine: kindLineFor(map) },
       );
       // On a repeated schema failure, add an explicit shape reminder (model-independent nudge).
       const shapeNudge = empties > 0
@@ -691,7 +697,7 @@ async function architectOnFallback(
     const base = buildArchitectUser(
       mapJson,
       { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map), budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals) },
-      { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
+      { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)), kindLine: kindLineFor(map) },
     );
     const user = correction ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly: ${correction}` : base;
     const r = await llmCompleteJson({ system: ARCHITECT_SYSTEM, user, maxTokens: architectAnswerTokens(map), temperature: 0.3, useFallback: true, tag: ARCHITECT_TAG, ...(signal ? { signal } : {}) });
@@ -906,9 +912,35 @@ async function designMissions(
   // BUT once the founder has ANSWERED (folded into the goal), step aside and let the architect try
   // with that intent — the anchor gate still guarantees every mission stays real. This converges the
   // needs_input → answer → re-plan loop instead of asking the same question forever on a thin product.
+  const kind = kindOfMap(map);
+  const peopleDoTheTry = playbookOf(kind).peopleDoTheTry;
+  /**
+   * THE FIRST TRY, ALONE (22 Nov 2026). Where Sage cannot use the product itself (a phone app, a bot, a
+   * repository, a waitlist), the first-try mission is the test: its words are fixed in code for that kind and it
+   * faces the same gate. So a thin listing, an architect with nothing to design, or a provider that is down ends
+   * in that one honest mission instead of a question the builder cannot answer ("where should a new user
+   * start?" about a store page). Null when the kind is one Sage tries itself, or the gate refuses the mission.
+   */
+  const firstTryAlone = async (base: MissionBrainResult): Promise<MissionBrainResult | null> => {
+    if (!peopleDoTheTry) return null;
+    let hint: CoreHint | null = null;
+    let decision: CoreDecision = DEFAULT_CORE_DECISION;
+    try {
+      const place = await askCorePlace({ goal: founder.goal, targetUsers: founder.targetUsers, budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals), map, missions: [], corpus });
+      hint = place.hint;
+      decision = place.decision;
+    } catch {
+      /* the kind's own default action stands, and the core leads */
+    }
+    const core = addCoreMission({ map, productUrl: founder.productUrl, scope, corpus, accepted: [], modelHint: hint, decision });
+    if (!core) return null;
+    narrate(`people do this try: one first-try mission in the fixed words for ${playbookOf(kind).label} — main action: ${core.hint.mainAction}`);
+    return { ...base, ok: true, reason: null, accepted: [{ ...core.mission, verifiabilityClass: classifyVerifiability(core.mission) }], coreDecision: decision, needsInputQuestions: [], model: base.model || FIXED_WORDS_MODEL };
+  };
   const answered = /Founder clarification/i.test(founder.goal);
   if (!answered && observationScore(gatherRichness(map, corpus)) < SUFFICIENCY_THRESHOLD) {
-    return { ...EMPTY("insufficient_observation"), needsInputQuestions: sufficiencyQuestions(map, founder.goal) };
+    const thin: MissionBrainResult = { ...EMPTY("insufficient_observation"), needsInputQuestions: sufficiencyQuestions(map, founder.goal) };
+    return (await firstTryAlone(thin)) ?? thin;
   }
 
   const needsInputQuestions: string[] = [];
@@ -921,7 +953,14 @@ async function designMissions(
     // each accepted mission (deterministic, never model-provided) for the plan's honest disclosure.
     // Eyes V2: thread the inspection's observation set so the grounding gate can check any design-time
     // grounding map a candidate carries (no-op for candidates without one — backward-compatible).
-    const reports = validatePlanMissions(survivors, scope, corpus, map.observations);
+    // ...and the kind's own rule (product-kind.ts): no mission may ask for a proof Sage cannot read for THIS kind
+    // of product (a chat link, a page-and-quote on a store listing). It reads as any other gate refusal, so the
+    // corrective round is told exactly why.
+    const reports = validatePlanMissions(survivors, scope, corpus, map.observations).map((rep, i) => {
+      if (!rep.ok) return rep;
+      const issue = kindProofIssue(survivors[i]!, kind, classifyVerifiability(survivors[i]!));
+      return issue ? { ...rep, ok: false, issues: [...rep.issues, { code: "unsupported_evidence_type" as const, field: "evidenceRequirements", detail: issue }] } : rep;
+    });
     const accepted = survivors
       .filter((_m, i) => reports[i].ok)
       .map((m) => ({ ...m, verifiabilityClass: classifyVerifiability(m) }));
@@ -967,7 +1006,9 @@ async function designMissions(
     // an EMPTY plan is the architect saying the map is too thin: the same specific questions the
     // sufficiency gate asks, so the pipeline's needs_input path (not `failed`) carries it to the founder
     const asked = arch.error === "insufficient_observation" ? sufficiencyQuestions(map, founder.goal) : needsInputQuestions;
-    return { ...EMPTY(arch.error), needsInputQuestions: asked, ...(arch.detail ? { reasonDetail: arch.detail } : {}), ...(gs ? { groundingShadow: gs } : {}) };
+    const failed: MissionBrainResult = { ...EMPTY(arch.error), needsInputQuestions: asked, ...(arch.detail ? { reasonDetail: arch.detail } : {}), ...(gs ? { groundingShadow: gs } : {}) };
+    // the first try needs no architect: its words are fixed for the kind
+    return (await firstTryAlone(failed)) ?? failed;
   }
   let r = await run(arch);
 
@@ -1015,13 +1056,17 @@ async function designMissions(
   if (r.accepted.length > 0) {
     const urlAccepted = r.accepted.filter((m) => m.verifiabilityClass === "url-verifiable").length;
     const readablePages = map.pagesInspected + (map.fieldTest?.pages?.length ?? 0);
-    const wantUrl = urlAccepted === 0 && readablePages >= 2;
+    // (never on a listing: its one public page is the listing, and a page-and-quote there is refused by the kind's
+    // own rule, so asking for one would spend a round on a mission the gate then drops)
+    const wantUrl = urlAccepted === 0 && readablePages >= 2 && !playbookOf(kind).listingOnly;
     // missions this budget funds at the hard floor — a shape hint, not money math the model sees;
     // capped so the ask stays inside the architect's 3-6 design band. At the $0.50 floor (2026-08-14)
     // even a $5 budget clears the cap, so a small budget no longer collapses the plan onto one
     // mission the way the $3 floor forced it to.
     const fundable = Math.min(4, Number(founder.totalBudgetBase / TANGIBLE_MIN_REWARD_BASE));
-    const wantMore = r.accepted.length < Math.min(3, fundable);
+    // (nor where people do the try and Sage read a page: the first-try mission carries the plan, and "more distinct
+    // flows" from a page Sage only read is how a plan gets padded)
+    const wantMore = r.accepted.length < Math.min(3, fundable) && !peopleDoTheTry;
     /**
      * NO PLAN OF PURE READING. Measured across six live products (supervega, tokenwatcher, agora,
      * sagepays, keep.coffee, goat): 14 of 17 shipped missions were "verify page X explains Y" —
@@ -1160,7 +1205,7 @@ async function designMissions(
   // core mission fell back to a generic action with the builder's purpose unread. One small question to the fast
   // shared model, with the accepted missions in front of it, fills in whatever is missing, through the same checks
   // (core-decision.ts). Asked only when something is missing, so a complete architect answer costs nothing.
-  if (r.accepted.length > 0 && (coreHint === null || coreDecision.from === "default")) {
+  if ((r.accepted.length > 0 || peopleDoTheTry) && (coreHint === null || coreDecision.from === "default")) {
     try {
       const place = await askCorePlace({
         goal: founder.goal,
@@ -1183,8 +1228,10 @@ async function designMissions(
   // as every model-written mission; the model's only part is naming the main action, and when it names
   // nothing usable the action is read from the missions the gate already accepted. Added only to a
   // plan that exists: when nothing else survived, the founder is still asked what they want proven.
+  // ...or to no plan at all, where people do the try and Sage cannot (see `firstTryAlone`): the first try then
+  // stands alone.
   try {
-    if (r.accepted.length > 0) {
+    if (r.accepted.length > 0 || peopleDoTheTry) {
       const core = addCoreMission({ map, productUrl: founder.productUrl, scope, corpus, accepted: r.accepted, modelHint: coreHint, decision: coreDecision });
       if (core) {
         narrate(`adding the first-try mission every test carries — main action: ${core.hint.mainAction}${coreDecision.from === "model" ? `; for what you came for, ${CORE_RANK_WORDS[coreDecision.rank]}` : ""}`);

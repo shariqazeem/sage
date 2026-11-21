@@ -50,7 +50,8 @@ export interface CoreTaps {
 /** The main action, read back from the core mission's third question: "You tried to start a drop. Which…". */
 export function mainActionOf(evidenceList: readonly string[] | null | undefined): string | null {
   for (const q of evidenceList ?? []) {
-    const m = /^You tried to (.{3,90}?)\. Which screens/.exec(q);
+    // "Which screens" on a site; "What did you do" where the product is not a site (a bot, a phone app, a README)
+    const m = /^You tried to (.{3,90}?)\. (?:Which screens|What did you do)/.exec(q);
     if (m) return m[1]!;
   }
   return null;

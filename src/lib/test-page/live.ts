@@ -17,6 +17,7 @@ import { short } from "@/lib/format";
 import { seatLinkFor } from "@/lib/people/link-info";
 import { linkFor, seatHolders } from "@/lib/people/seats";
 import { findingsView, notPaidReason, type FindingsView } from "@/lib/report";
+import { sageReadsOnly } from "@/lib/launch/product-kind";
 import { firstLookView, type FirstLookView } from "./first-look";
 import { sharingFor, type Sharing } from "@/lib/sharing";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
@@ -100,6 +101,8 @@ export interface LiveView {
   money: { fundedBase: number; paidBase: number; unspentBase: number };
   frames: RealFrame[];
   run: { steps: number; seconds: number | null } | null;
+  /** what Sage read where it could not use the product itself ("the store listing"); null when it tried it */
+  sageReads: string | null;
   /**
    * What Sage itself noticed. The owner's while the test is live: it holds things Sage saw, and a
    * tester must not read those before answering. Once the test is done and its findings are public,
@@ -250,6 +253,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
     money: { fundedBase: e.totalFundedBase, paidBase: settledBase, unspentBase: Math.max(0, e.totalFundedBase - settledBase) },
     frames,
     run,
+    sageReads: lookJob ? sageReadsOnly((lookJob.result as { map?: { productKind?: unknown } } | null)?.map ?? null, lookJob.productUrl) : null,
     firstLook: lookJob && (owner || (phase === "done" && sharing.findingsPublic && !lookJob.testAccountSealed)) ? firstLookView(lookJob) : null,
     findings,
     owner: ownerView,
