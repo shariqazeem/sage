@@ -106,7 +106,10 @@ export function beforeView(job: InspectionJob, viewer: string | null): BeforeVie
 
   // A run where the builder gave Sage a test account can show a signed-in screen: its frames are the
   // owner's to see, and nobody else's.
-  const mayShowFrames = !job.testAccountSealed || whose === "yours";
+  // NO CORPUS ORACLE (CLAUDE.md): before anyone is paid, this page becomes the live test's page, and Sage's
+  // frames and first look carry what the judge will check answers against. Only the owner sees them now;
+  // the public sees them once the test is done (live.ts).
+  const mayShowFrames = whose === "yours";
   let run: BeforeView["run"] = null;
   if (map?.fieldTest && mayShowFrames) {
     const picked = framesOf(map.fieldTest, host, MAX_FRAMES);

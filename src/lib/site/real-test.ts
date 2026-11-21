@@ -5,6 +5,7 @@ import path from "node:path";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCampaign, listMissions, listSubmissions } from "@/lib/db/campaigns";
+import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { inspectionJobs, type InspectionJob } from "@/lib/db/schema";
 import { short } from "@/lib/format";
@@ -61,6 +62,14 @@ function onDisk(inspectionId: string, n: number): boolean {
   return existsSync(path.join(process.cwd(), "public", "field-tests", inspectionId, `${n}.png`));
 }
 
+/** A funded test with places still open: its frames carry what the judge checks answers against. */
+function stillOpen(campaignId: string): boolean {
+  const c = campaignId ? getCampaign(campaignId) : null;
+  if (!c || c.status !== "live") return false;
+  const e = v2Economics(c);
+  return !(e.totalCompletions > 0 && e.paidCompletions >= e.totalCompletions);
+}
+
 /** A builder's product is shown to strangers only with their yes, or when the test is Sage's own. */
 export function consented(job: Pick<InspectionJob, "founderWallet" | "publicCampaignId">): boolean {
   if (isOwnWallet(job.founderWallet)) return true;
@@ -70,6 +79,8 @@ export function consented(job: Pick<InspectionJob, "founderWallet" | "publicCamp
 function fromJob(job: InspectionJob, pinned = false): RealTest | null {
   if (job.status !== "ready" || job.testAccountSealed) return null;
   if (!pinned && !consented(job)) return null;
+  // NO CORPUS ORACLE: a test still taking answers never shows its frames on the front door, pinned or not.
+  if (stillOpen(job.publicCampaignId)) return null;
   const host = hostOf(job.productUrl);
   const result = job.result as StoredResult | null;
   if (!host || !result?.map?.fieldTest) return null;

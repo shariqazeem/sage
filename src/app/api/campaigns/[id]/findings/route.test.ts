@@ -20,7 +20,7 @@ const STRANGER = "0x00000000000000000000000000000000000000b2";
 let n = 0;
 const wallet = () => `0x${(++n + 4096).toString(16).padStart(40, "0")}`;
 
-function seed(status: "live" | "draft" = "live") {
+function seed(status: "live" | "draft" | "stopped" = "live") {
   const c = createCampaign({ title: "Try my app", rewardAmount: 2_000_000, maxRecipients: 5, chainId: 1088, vaultAddress: wallet(), posterWallet: OWNER, status });
   const r = createSubmission({ campaignId: c.id, wallet: wallet(), note: "The pricing page 404s from the footer link." });
   if (!r.ok) throw new Error(r.error);
@@ -70,8 +70,20 @@ describe("GET /api/campaigns/[id]/findings", () => {
     expect(deferred).toHaveLength(0);
   });
 
-  it("gives anyone the public findings with every contact removed", async () => {
-    const c = seed();
+  it("keeps a live test's findings from the public while places are open, even when sharing is on", async () => {
+    // NO CORPUS ORACLE: paid answers can be copied, so the public reads them only once no place is open
+    const c = seed("live");
+    setSharing(c.id, { findingsPublic: true });
+    for (const who of [null, STRANGER]) {
+      signedIn = who;
+      expect((await get(c.id)).status).toBe(404);
+    }
+    signedIn = OWNER;
+    expect((await get(c.id)).status).toBe(200);
+  });
+
+  it("gives anyone the public findings of a finished test, with every contact removed", async () => {
+    const c = seed("stopped");
     setSharing(c.id, { findingsPublic: true });
     for (const who of [null, STRANGER]) {
       signedIn = who;

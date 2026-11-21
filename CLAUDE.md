@@ -255,6 +255,10 @@ whether the payouts hold up.
   (`OBS_MAX_ATTEMPTS`). Any earlier signal is a key-mining oracle: an attacker submits nothing
   and reads the answer key off the meter. The 3-attempt post-judgment retry loop is the maximum
   safe disclosure — knowing where NOT to build is part of the guarantee.
+  **The test page (21 Nov 2026):** Sage's frames (each frame's description is the very text the
+  observation judge checks answers against), its first look and a test's public findings are the
+  OWNER'S while any place is open (`src/lib/test-page/live.ts`, `before.ts`, the findings route); the
+  public sees them once the test is done. The front door never shows a test still taking answers.
 - **P16 gate status: Stage 1 was submitted 2026-07-18. P16 is UNLOCKED.**
 
 ---
