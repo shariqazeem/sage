@@ -19,7 +19,7 @@ vi.mock("./field-test-progress", () => ({ recordFieldTestStep: vi.fn(async () =>
 
 import { CORE_MISSION_KEY } from "@/lib/core-test/shape";
 import { checkRevisionPolicyForApproval } from "./approve-policy";
-import type { CoreHint } from "./core-mission";
+import type { CoreDecision, CoreHint } from "./core-mission";
 import { attachCoreToGroundedPlan, buildGroundedCoverage, verifyGroundedSelection, type GroundedSelectionRecord } from "./grounded-core";
 import { inspectProduct } from "./inspect";
 import { runFieldTest } from "./field-test";
@@ -76,13 +76,13 @@ const groundedPlan = (missions: CandidateMission[], budget = input.totalBudgetBa
 });
 
 /** The brain's answer: a legacy plan, and (when `missionsFor` is given) a grounded candidate plan beside it. */
-function brainAnswers(missionsFor: ((map: ProductMapV1) => CandidateMission[]) | null, opts: { hint?: CoreHint | null; budget?: bigint } = {}) {
+function brainAnswers(missionsFor: ((map: ProductMapV1) => CandidateMission[]) | null, opts: { hint?: CoreHint | null; budget?: bigint; decision?: CoreDecision } = {}) {
   vi.mocked(runMissionBrain).mockImplementation((async (map: ProductMapV1) => {
     const base = { ok: true, reason: null, candidates: [legacyMission], critiques: [], accepted: [legacyMission], reports: [], needsInputQuestions: [], model: "legacy-model", provider: "api.test", promptVersion: "mb-v1", latencyMs: 5 };
     if (!missionsFor) return base;
     const plan = groundedPlan(missionsFor(map), opts.budget);
     plan.observationSetDigest = map.observations?.digest ?? "set";
-    return { ...base, groundingShadow: { groundedCandidatePlan: plan }, coreHint: opts.hint === undefined ? HINT : opts.hint };
+    return { ...base, groundingShadow: { groundedCandidatePlan: plan }, coreHint: opts.hint === undefined ? HINT : opts.hint, ...(opts.decision ? { coreDecision: opts.decision } : {}) };
   }) as never);
 }
 
@@ -234,17 +234,37 @@ describe("a selected grounded plan carries the core mission", () => {
     expect(spent(r)).toBe(input.totalBudgetBase);
   });
 
-  it("a budget that cannot carry one more mission ships the selected plan as it was, and says the core is absent and why", async () => {
-    const budget = BigInt(600_000); // one mission at the tangible floor, not two
+  // what the architect read this builder came for (`coerceCoreDecision`), and where it put the core because of it
+  const LEAD: CoreDecision = { rank: "lead", purpose: "You most likely want to know whether strangers get Yara and reach the garden.", why: "You named no single flow to test.", from: "model" };
+  const YIELD: CoreDecision = { rank: "yield", purpose: "You most likely want the garden world itself tested first.", why: "You asked about exploring the world.", from: "model" };
+
+  it("a budget for one answer buys what the builder came for: 'lead' buys the core's, 'yield' keeps their flow and says the core yielded", async () => {
+    const budget = BigInt(600_000); // one answer at the tangible floor, not two
+    brainAnswers(() => [groundedMission()], { budget, decision: LEAD });
+    const lead = await run({ totalBudgetBase: budget });
+    expect(lead.reason).toBeNull();
+    expect(lead.stage).toBe("ready");
+    expect(keys(lead)).toEqual([CORE_MISSION_KEY]);
+    expect(spent(lead)).toBe(budget);
+    // the record describes the plan that ships, nothing else
+    expect(lead.canary!.coverage!.missions.map((m) => m.missionKey)).toEqual([CORE_MISSION_KEY]);
+
+    brainAnswers(() => [groundedMission()], { budget, decision: YIELD });
+    const yielded = await run({ totalBudgetBase: budget });
+    expect(yielded.stage).toBe("ready");
+    expect(keys(yielded)).toEqual(["reach-world"]);
+    expect(spent(yielded)).toBe(budget);
+    expect(yielded.canary!.coverage).toMatchObject({ core: null, coreAbsentReason: "yielded" });
+    // the digest is the canary's own, over the plan as it would have been without a core
+    expect(yielded.canary!.groundedDigest).toBe(deterministicGroundedPlanDigest({ ...groundedPlan([groundedMission()], budget), observationSetDigest: yielded.map!.observations!.digest }));
+  });
+
+  it("with no decision from the architect, the old rule stands on both paths: the core leads", async () => {
+    const budget = BigInt(600_000);
     brainAnswers(() => [groundedMission()], { budget });
     const r = await run({ totalBudgetBase: budget });
-    expect(r.reason).toBeNull();
-    expect(r.stage).toBe("ready");
-    expect(keys(r)).toEqual(["reach-world"]);
+    expect(keys(r)).toEqual([CORE_MISSION_KEY]);
     expect(spent(r)).toBe(budget);
-    expect(r.canary!.coverage).toMatchObject({ core: null, coreAbsentReason: "budget_cannot_fund" });
-    // nothing describes a plan that did not ship: the digest is the canary's own, over the plan without a core
-    expect(r.canary!.groundedDigest).toBe(deterministicGroundedPlanDigest({ ...groundedPlan([groundedMission()], budget), observationSetDigest: r.map!.observations!.digest }));
   });
 
   const three = () => [
@@ -264,33 +284,44 @@ describe("a selected grounded plan carries the core mission", () => {
     expect(recheck(r, three(), HINT, (x) => x, budget).check).toEqual({ ok: true });
   });
 
-  it("the core never displaces a grounded mission: on a budget where it would, the plan ships as it would have without it", async () => {
-    // find, by the allocator's own behaviour, a budget where three missions are funded but four are not
+  it("on a budget for fewer missions than the plan has, the builder's rank decides which mission waits", async () => {
+    const two = () => three().slice(0, 2); // reach-world (high) and talk-to-yara (medium)
+    // find, by the allocator's own behaviour, a budget where "yield" keeps both of the builder's flows and the core waits
     let found: bigint | null = null;
     for (let cents = 100; cents <= 600 && found === null; cents += 10) {
       const budget = BigInt(cents * 10_000);
-      brainAnswers(three, { budget });
+      brainAnswers(two, { budget, decision: YIELD });
       const r = await run({ totalBudgetBase: budget });
-      if (r.stage === "ready" && r.canary!.coverage!.coreAbsentReason === "budget_cannot_fund" && keys(r).length > 1) found = budget;
+      if (r.stage === "ready" && r.canary!.coverage!.coreAbsentReason === "yielded" && keys(r).length === 2) found = budget;
     }
     expect(found).not.toBeNull();
     const budget = found!;
-    brainAnswers(three, { budget });
-    const withDoor = await run({ totalBudgetBase: budget });
-    expect(keys(withDoor)).not.toContain(CORE_MISSION_KEY);
-    expect(keys(withDoor).length).toBeGreaterThan(1); // more than the one mission a core-first allocation would have left
-    expect(spent(withDoor)).toBe(budget);
-    const c = withDoor.canary!;
-    const shippedPlan = { ...groundedPlan(three().filter((m) => keys(withDoor).includes(m.missionKey)), budget), observationSetDigest: withDoor.map!.observations!.digest };
+
+    brainAnswers(two, { budget, decision: YIELD });
+    const yielded = await run({ totalBudgetBase: budget });
+    expect([...keys(yielded)].sort()).toEqual(["reach-world", "talk-to-yara"]);
+    expect(spent(yielded)).toBe(budget);
+    const c = yielded.canary!;
+    const shippedPlan = { ...groundedPlan(two(), budget), observationSetDigest: yielded.map!.observations!.digest };
     expect(c.groundedDigest).toBe(deterministicGroundedPlanDigest(shippedPlan));
     expect(
-      verifyGroundedSelection({ groundedPlan: shippedPlan, plan: withDoor.plan!, founderBudgetBase: budget, tokenDecimals: 6, record: { groundedDigest: c.groundedDigest!, planDigest: c.planDigest!, planCommitment: c.planCommitment!, coverage: c.coverage!, verificationPolicy: null, verificationPolicyDigest: null, verificationPolicyRequired: false } }),
+      verifyGroundedSelection({ groundedPlan: shippedPlan, plan: yielded.plan!, founderBudgetBase: budget, tokenDecimals: 6, record: { groundedDigest: c.groundedDigest!, planDigest: c.planDigest!, planCommitment: c.planCommitment!, coverage: c.coverage!, verificationPolicy: null, verificationPolicyDigest: null, verificationPolicyRequired: false } }),
     ).toEqual({ ok: true });
+
+    // "lead" at the same budget: the core is funded and the builder's lower-priority flow waits instead
+    brainAnswers(two, { budget, decision: LEAD });
+    const lead = await run({ totalBudgetBase: budget });
+    expect(lead.stage).toBe("ready");
+    expect(keys(lead)).toContain(CORE_MISSION_KEY);
+    expect(keys(lead)).toContain("reach-world");
+    expect(keys(lead)).not.toContain("talk-to-yara");
+    expect(spent(lead)).toBe(budget);
+    expect(lead.canary!.coverage!.missions.map((m) => m.missionKey).sort()).toEqual([...keys(lead)].sort());
   });
 
   it("when the allocator drops a mission, the record describes the missions that ship", async () => {
     const budget = BigInt(600_000);
-    brainAnswers(three, { budget });
+    brainAnswers(three, { budget, decision: YIELD });
     const r = await run({ totalBudgetBase: budget });
     expect(r.reason).toBeNull();
     expect(keys(r)).toEqual(["reach-world"]);

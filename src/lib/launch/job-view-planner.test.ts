@@ -50,3 +50,21 @@ describe("a job's view of its planner", () => {
     expect(job({ plan: null, map: null, questions: ["What should people try?"] }).planner).toBeNull();
   });
 });
+
+describe("a job's view of what the builder came for", () => {
+  const plan = { missions: [], missionPlanDigest: "0xplan" };
+  const decision = { rank: "yield", purpose: "You most likely want the checkout tested first.", why: "You named the checkout.", from: "model" };
+
+  it("shows the architect's checked read and its rank, nothing else of the brain", () => {
+    const v = job({ plan, map: null, questions: [], brain: { coreDecision: decision, candidates: [{ title: "secret draft" }] } });
+    expect(v.purpose).toEqual({ line: "You most likely want the checkout tested first.", rank: "yield", why: "You named the checkout." });
+    expect(JSON.stringify(v)).not.toMatch(/secret draft/);
+  });
+
+  it("is null when the architect gave no decision, gave a rank that is not one of the three, or no sentence", () => {
+    expect(job({ plan, map: null, questions: [], brain: { coreDecision: { ...decision, from: "default" } } }).purpose).toBeNull();
+    expect(job({ plan, map: null, questions: [], brain: { coreDecision: { ...decision, rank: "first" } } }).purpose).toBeNull();
+    expect(job({ plan, map: null, questions: [], brain: { coreDecision: { ...decision, purpose: null } } }).purpose).toBeNull();
+    expect(job({ plan, map: null, questions: [] }).purpose).toBeNull();
+  });
+});

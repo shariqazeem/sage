@@ -662,7 +662,7 @@ export async function inspectAndPlan(
     const groundedModel = canaryDecision.plan.architectModel ?? brain.model;
     let attached: CoreAttachment;
     try {
-      attached = attachCoreToGroundedPlan(canaryDecision.plan, { map, productUrl: input.productUrl, scope, corpus, modelHint: brain.coreHint ?? null });
+      attached = attachCoreToGroundedPlan(canaryDecision.plan, { map, productUrl: input.productUrl, scope, corpus, modelHint: brain.coreHint ?? null, decision: brain.coreDecision });
     } catch {
       // the core is added to a plan, never a reason one fails
       attached = { plan: canaryDecision.plan, hint: null, absentReason: "gate_refused" };
@@ -671,17 +671,17 @@ export async function inspectAndPlan(
     // core cannot join, and the measure of what the core may not cost.
     let g = compileMissions(canaryDecision.plan.missions, groundedModel);
     if (attached.hint) {
-      // THE CORE NEVER DISPLACES A GROUNDED MISSION. On a budget too small for every mission the frozen
-      // allocator funds the most important and drops the rest, and the core is important: on a small
-      // budget it would be kept and a mission the founder's goal needs dropped in its place. So the
-      // plan with the core is taken only when the money is exact, the core is in it once, and every
-      // mission the plan would have funded without the core is still funded. Otherwise the selected
-      // plan stands as it was and the record says the core is absent and why.
+      // WHAT THE BUILDER CAME FOR DECIDES (21 Nov 2026, the founder: "according to budget or anything, the agent
+      // should make the decisions that are good for the purpose they most likely came for"). The core carries the
+      // priority the architect ranked it at for THIS builder (lead, alongside or yield: `CoreDecision`), and the
+      // frozen allocator funds by priority. On a small budget a "lead" core may take the place of a lower-priority
+      // grounded mission; a "yield" core is the first to wait. Whatever the allocator funds, exactly, is what
+      // ships: when the core is not in it, the plan ships as it would have without the core and the record says
+      // the core yielded; when the plan with the core cannot be funded exactly at all, it says so.
       const withCore = compileMissions(attached.plan.missions, groundedModel);
-      const funded = new Set(withCore.ok && withCore.plan ? withCore.plan.missions.map((m) => m.missionKey) : []);
-      const keepsEverything = !g.ok || !g.plan || g.plan.missions.every((m) => funded.has(m.missionKey));
-      if (withCore.ok && withCore.plan && withCore.plan.allocatedBase === input.totalBudgetBase && funded.has(CORE_MISSION_KEY) && keepsEverything) g = withCore;
-      else attached = { plan: canaryDecision.plan, hint: null, absentReason: "budget_cannot_fund" };
+      const exact = !!(withCore.ok && withCore.plan && withCore.plan.allocatedBase === input.totalBudgetBase);
+      if (exact && withCore.plan!.missions.some((m) => m.missionKey === CORE_MISSION_KEY)) g = withCore;
+      else attached = { plan: canaryDecision.plan, hint: null, absentReason: exact ? "yielded" : "budget_cannot_fund" };
     }
     // The record describes the missions that SHIP. When the allocator dropped one, the digest and the
     // policy below are taken over the funded missions, never over a mission no tester will see.

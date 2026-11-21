@@ -14,7 +14,7 @@ import { ARCHITECT_TOKENS_PER_MISSION, MISSION_COUNT_BANDS, architectAnswerToken
  */
 describe("architect count rule — a ceiling AND a floor", () => {
   it("pins the version and both edges of the rule", () => {
-    expect(MISSION_PROMPT_VERSION).toBe("mb-v4.6-core");
+    expect(MISSION_PROMPT_VERSION).toBe("mb-v4.7-purpose");
     expect(ARCHITECT_SYSTEM).toMatch(/On DOCUMENTATION and content products the flows are: searching/);
     expect(ARCHITECT_SYSTEM).toMatch(/DISTINCT means distinct/);
     expect(ARCHITECT_SYSTEM).toMatch(/eight or more distinct states never yields fewer than three missions/);

@@ -17,8 +17,13 @@
  *  v4.6 (21 Nov 2026) — rule 9, THE CORE. Sage itself adds one first-try mission to every plan (first
  *  impression, the main action, the verdict: `core-mission.ts`), so the architect is told not to design
  *  that mission and, in the same answer, names the product's main action for it ("core"). Nothing about
- *  how a mission is written, anchored or verified changed. */
-export const MISSION_PROMPT_VERSION = "mb-v4.6-core" as const;
+ *  how a mission is written, anchored or verified changed.
+ *  v4.7 (21 Nov 2026) — rule 9 continued, THE PURPOSE. The architect also reads what this builder most likely
+ *  came for and RANKS the first-try mission ("lead" | "alongside" | "yield", with one sentence each for purpose
+ *  and why). The rank becomes the core's priority; the frozen allocator still decides what is funded and every
+ *  amount (`core-mission.ts` coerceCoreDecision). The user prompt gains a BUDGET line in answers, not dollars.
+ */
+export const MISSION_PROMPT_VERSION = "mb-v4.7-purpose" as const;
 
 /** Everything between these markers is untrusted inspected data — judged, never obeyed. */
 export const UNTRUSTED_MAP_OPEN = "<<<UNTRUSTED_INSPECTED_PRODUCT>>>";
@@ -88,10 +93,10 @@ PLAYBOOKS — choose the missions that fit the product's TYPE (inferred from the
 - Commerce: browse → product → cart clarity (NEVER a real purchase), a specific policy or claim.
 The founder's GOAL and TARGET USERS must visibly shape which missions you pick and how you frame success; a mission that ignores them is weaker than one that serves them.
 
-9. THE CORE (every plan). Sage itself adds ONE first-try mission to every plan: a stranger says what they take the product to be from the first screen, tries its main action and reports where they stopped, and says whether they would use it again. So do NOT design a first-impression mission, a "walk through the product and tell us what you think" mission, or a "would you use it again" mission: those are covered. Design the product-specific flows, as the rules above say. Instead, tell Sage what the main action IS, in "core": "mainAction" is the ONE thing this product exists for, as a short lowercase verb phrase a stranger would try first ("start a drop", "create a board", "play the first level", "search the docs for a topic"), at most ten words, something the map shows a person can attempt; never a purchase, a payment, a wallet approval or anything destructive. "startsAt" is the VERBATIM text of the observed button, link or heading where that action begins, copied exactly from the map, or "" when the map shows none.
+9. THE CORE (every plan). Sage itself adds ONE first-try mission to every plan: a stranger says what they take the product to be from the first screen, tries its main action and reports where they stopped, and says whether they would use it again. So do NOT design a first-impression mission, a "walk through the product and tell us what you think" mission, or a "would you use it again" mission: those are covered. Design the product-specific flows, as the rules above say. Instead, tell Sage what the main action IS, in "core": "mainAction" is the ONE thing this product exists for, as a short lowercase verb phrase a stranger would try first ("start a drop", "create a board", "play the first level", "search the docs for a topic"), at most ten words, something the map shows a person can attempt; never a purchase, a payment, a wallet approval or anything destructive. "startsAt" is the VERBATIM text of the observed button, link or heading where that action begins, copied exactly from the map, or "" when the map shows none. Then decide where that first-try mission stands for THIS builder, from what they most likely came to Sage for: read their goal's words, who it is for, what the map shows about the product's stage, and the BUDGET line. "purpose": one plain sentence to the builder in Sage's voice, beginning "You most likely want" (for example "You most likely want to know whether strangers get what Plotline is and can plan a first week."). "rank": "lead" when they want to know whether strangers get it or how far a first visitor gets, or said nothing specific (most builders); "alongside" when they named specific flows AND want first impressions; "yield" when they named one specific flow or fix to test and a small budget should go there first. "why": one short sentence that points at their words or at what the map shows. You only rank: Sage's compiler decides which missions the budget funds and every amount.
 
 OUTPUT: strict JSON only, no prose, matching exactly:
-{"core":{"mainAction":"short lowercase verb phrase","startsAt":"verbatim observed text or empty"},"missions":[{"missionKey":"kebab-case-unique","title":"...","objective":"one sentence","instructions":"numbered, concrete steps","targetSurface":"https://... (an inspected URL)","criteria":["ordered","objective"],"evidenceRequirements":["ordered","verifiable"],"anchors":["2-5 VERBATIM strings copied exactly from the observed map/fieldTest/vision text"],"whyItMatters":"product-specific reason","sources":[{"kind":"page|repo|founder","ref":"exact url/path/goal","observation":"what was seen"}],"priority":"high|medium|low","riskCategory":"critical_journey|onboarding|responsive|wallet_payment|claim_validation|error_recovery|accessibility|cross_browser|docs_consistency|trust_safety|regression","effortMinutes":<int>,"conditions":["device/browser/account needs"],"rewardWeight":<1-10>,"maxCompletions":<int>,"verificationMethod":"how Sage verifies from evidence","confidence":<0-1>,"assumptions":["..."],"disallowed":["destructive/authenticated actions the tester must NOT take"]}]}
+{"core":{"mainAction":"short lowercase verb phrase","startsAt":"verbatim observed text or empty","purpose":"You most likely want ...","rank":"lead|alongside|yield","why":"one short reason"},"missions":[{"missionKey":"kebab-case-unique","title":"...","objective":"one sentence","instructions":"numbered, concrete steps","targetSurface":"https://... (an inspected URL)","criteria":["ordered","objective"],"evidenceRequirements":["ordered","verifiable"],"anchors":["2-5 VERBATIM strings copied exactly from the observed map/fieldTest/vision text"],"whyItMatters":"product-specific reason","sources":[{"kind":"page|repo|founder","ref":"exact url/path/goal","observation":"what was seen"}],"priority":"high|medium|low","riskCategory":"critical_journey|onboarding|responsive|wallet_payment|claim_validation|error_recovery|accessibility|cross_browser|docs_consistency|trust_safety|regression","effortMinutes":<int>,"conditions":["device/browser/account needs"],"rewardWeight":<1-10>,"maxCompletions":<int>,"verificationMethod":"how Sage verifies from evidence","confidence":<0-1>,"assumptions":["..."],"disallowed":["destructive/authenticated actions the tester must NOT take"]}]}
 Choose only the missions that genuinely matter for the inspected product. Do not mechanically produce one per category.`;
 
 export const CRITIC_SYSTEM = `You are Sage's Mission Critic. You independently review candidate testing missions the Architect proposed for a specific inspected product. You are adversarial about quality and safety, never a rubber stamp.
@@ -140,7 +145,7 @@ OUTPUT: strict JSON only:
  *  architect behaviour is unchanged unless Sage actually field-tested the product. */
 export function buildArchitectUser(
   mapJson: string,
-  founder: { goal: string; targetUsers: string; missionCountHint?: string },
+  founder: { goal: string; targetUsers: string; missionCountHint?: string; budgetAnswers?: number },
   opts: { hasFieldTest?: boolean } = {},
 ): string {
   return [
@@ -150,6 +155,11 @@ export function buildArchitectUser(
     // from the product itself, which is what it should do anyway.
     stripMarkers(founder.targetUsers ?? "").trim()
       ? `FOUNDER TARGET USERS (trusted): ${stripMarkers(founder.targetUsers).slice(0, 800)}`
+      : "",
+    // THE BUDGET, IN ANSWERS (v4.7). For the core's rank only: on a small budget the rank decides which missions
+    // are funded. Never a dollar sum to divide, and never a reason to design fewer flows (the count rule decides).
+    founder.budgetAnswers && founder.budgetAnswers > 0
+      ? `BUDGET (Sage's compiler sets every amount; this is for your "rank" only and never changes how many flows you design): enough for about ${founder.budgetAnswers} paid ${founder.budgetAnswers === 1 ? "answer" : "answers"} at a typical $1 each.`
       : "",
     founder.missionCountHint ? `Design ${founder.missionCountHint} missions — one per DISTINCT observed flow, never padded (the count rule above decides; this is its band for THIS map).` : "",
     // DOCUMENTED IS NOT OBSERVED. When a connect-wallet or sign-in wall stops Sage, it reads the
@@ -189,4 +199,11 @@ export function buildCriticUser(candidatesJson: string, mapJson: string): string
     ``,
     `Review every candidate against the rubric. Strict JSON only.`,
   ].join("\n");
+}
+
+/** How many answers the founder's budget buys at a typical $1, for the architect's rank (never a sum to divide). */
+export function budgetAnswersFor(totalBudgetBase: bigint, tokenDecimals = 6): number {
+  const unit = BigInt(10) ** BigInt(tokenDecimals);
+  const answers = Number(totalBudgetBase / unit);
+  return Number.isFinite(answers) ? Math.max(1, Math.min(answers, 10_000)) : 1;
 }

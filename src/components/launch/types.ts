@@ -55,6 +55,9 @@ export interface JobView {
   failureReason: string | null;
   result: { map: unknown; questions: string[]; reason: string | null } | null;
   plan: PlanView | null;
+  /** what Sage read this builder came for, and where it put the first-try mission because of it (the server's
+   *  `JobView.purpose`, `src/lib/launch/job.ts`); absent on older servers and when the architect gave none */
+  purpose?: { line: string; rank: "lead" | "alongside" | "yield"; why: string | null } | null;
   /** P23 — whether this plan's corpus supports autonomous payouts (shown before the founder funds). */
   corpusReadiness: { observation: boolean; sources: number; autonomous: boolean } | null;
   revision: number;

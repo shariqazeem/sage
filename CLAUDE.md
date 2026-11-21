@@ -389,6 +389,15 @@ if you must touch them, that suite must stay green.
   work — and the pure policy sizes it from the ceilings and the observed results. A proposal naming
   an amount is rejected; a surface outside the founder's own set is refused rather than sanitised.
   Every move is recorded with its reason BEFORE money moves and is vetoable for a window.
+  The same holds for a test's plan (21 Nov 2026, the founder: "the agent should make the decisions that are good
+  for the purpose they most likely came for"):
+  - The architect reads what the builder came for (their words, the product's stage, the budget told to it in
+    answers, never dollars) and RANKS the core first-try mission: "lead", "alongside" or "yield".
+  - That rank is only the core's priority; the frozen allocator decides what a budget funds and every amount.
+  - It holds on both planners: a grounded plan no longer has a fixed "never displace" rule (`pipeline.ts`).
+  - With no rank, the core leads.
+  - The builder sees Sage's read beside the missions ("What Sage thinks you want", `JobView.purpose`) before any
+    money moves.
 - **The account pays its own network fee (24 Oct 2026).** No door sends an account gas unless `OPERATOR_COVERS_GAS=1`;
   short of it, the door names the amount and the way to get it, and moves nothing.
 - **An agent key is its owner, and never lifts a limit.** A workspace key acts as the owner who minted it, with only

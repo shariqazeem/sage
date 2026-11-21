@@ -18,10 +18,11 @@ import {
   MISSION_PROMPT_VERSION,
   buildArchitectUser,
   buildCriticUser,
+  budgetAnswersFor,
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction, coreActionFromCandidates } from "./gated-action-mission";
-import { addCoreMission, coerceCoreHint, type CoreHint } from "./core-mission";
+import { addCoreMission, coerceCoreDecision, coerceCoreHint, CORE_RANK_WORDS, DEFAULT_CORE_DECISION, type CoreDecision, type CoreHint } from "./core-mission";
 import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import { TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import type { GroundingShadowResult } from "./mission-grounding-shadow";
@@ -322,6 +323,9 @@ export interface MissionBrainResult {
    *  grounded candidate plan, so a selected grounded plan gets the same product-specific core mission the
    *  legacy plan got (`grounded-core.ts`). Absent everywhere else: a legacy run's result is unchanged. */
   coreHint?: CoreHint | null;
+  /** The architect's read of what this builder came for, and the core's rank because of it (`coerceCoreDecision`);
+   *  `from: "default"` when it gave none (the old rule: the core leads). */
+  coreDecision?: CoreDecision;
   /** WHY the architect failed, when it did — provider finish_reason / content shape / token count.
    *  Present only on a failure; a stored `reason` alone could not distinguish truncation from a
    *  malformed answer, so every occurrence needed a live reproduction. */
@@ -467,7 +471,7 @@ async function architect(map: ProductMapV1, founder: FounderLaunchInput, correct
     try {
       const base = buildArchitectUser(
         mapJson,
-        { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map) },
+        { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map), budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals) },
         { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
       );
       // On a repeated schema failure, add an explicit shape reminder (model-independent nudge).
@@ -559,7 +563,7 @@ async function architectOnFallback(
   try {
     const base = buildArchitectUser(
       mapJson,
-      { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map) },
+      { goal: founder.goal, targetUsers: founder.targetUsers, missionCountHint: missionCountHintFor(map), budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals) },
       { hasFieldTest: !!(map.fieldTest && (map.fieldTest.pages.length > 0 || map.fieldTest.states.length > 0)) },
     );
     const user = correction ? `${base}\n\nYOUR PREVIOUS ATTEMPT WAS REJECTED by deterministic validation for these reasons — fix them exactly: ${correction}` : base;
@@ -781,6 +785,9 @@ export async function runMissionBrain(
   // The architect names the product's main action for the core mission in the same answer. The first
   // usable one is kept across the corrective rounds, which re-ask about missions and may omit it.
   let coreHint: CoreHint | null = arch.ok ? coerceCoreHint(arch.raw, corpus) : null;
+  // ...and, in the same answer, what this builder most likely came for and where the core stands for them. The
+  // first usable decision is kept the same way; with none, the old rule stands (the core leads).
+  let coreDecision: CoreDecision = arch.ok ? coerceCoreDecision(arch.raw) : DEFAULT_CORE_DECISION;
   // The grounded-architect shadow (S2) is INDEPENDENT measurement: it runs whenever mode≠off and the
   // observations are sufficient, EVEN when the legacy architect returns empty / fails / produces zero
   // survivors — so its result is still recorded. It never changes the legacy externally-visible result;
@@ -825,7 +832,12 @@ export async function runMissionBrain(
       : "\nThe reviewer ACCEPTED these missions — they failed only on the listed fields. RE-EMIT each one with EVERY field filled in, and ADD the other distinct flows the product map shows (different screens, tabs, states or controls — never a rephrasing), so the plan no longer rests on a single mission.";
     narrate("first draft rejected by the quality gate — redesigning from the exact reasons");
     const arch2 = await architect(map, founder, issues ? `${issues}${steer}` : "produce specific, in-scope, non-destructive missions that cite inspectedUrls");
-    if (arch2.ok) { arch = arch2; coreHint ??= coerceCoreHint(arch2.raw, corpus); r = await run(arch2); }
+    if (arch2.ok) {
+      arch = arch2;
+      coreHint ??= coerceCoreHint(arch2.raw, corpus);
+      if (coreDecision.from === "default") coreDecision = coerceCoreDecision(arch2.raw);
+      r = await run(arch2);
+    }
   }
 
   // PLAN-SHAPE CORRECTIVE ROUND — ONE bounded round that fixes the two shapes a first pass gets
@@ -883,6 +895,7 @@ export async function runMissionBrain(
       const arch3 = await architect(map, founder, asks);
       if (arch3.ok) {
         coreHint ??= coerceCoreHint(arch3.raw, corpus);
+        if (coreDecision.from === "default") coreDecision = coerceCoreDecision(arch3.raw);
         const r3 = await run(arch3);
         const url3 = r3.accepted.filter((m) => m.verifiabilityClass === "url-verifiable").length;
         const urlOk = !wantUrl || url3 >= 1;
@@ -986,10 +999,10 @@ export async function runMissionBrain(
   // plan that exists: when nothing else survived, the founder is still asked what they want proven.
   try {
     if (r.accepted.length > 0) {
-      const core = addCoreMission({ map, productUrl: founder.productUrl, scope, corpus, accepted: r.accepted, modelHint: coreHint });
+      const core = addCoreMission({ map, productUrl: founder.productUrl, scope, corpus, accepted: r.accepted, modelHint: coreHint, decision: coreDecision });
       if (core) {
-        narrate(`adding the first-try mission every test carries — main action: ${core.hint.mainAction}`);
-        // first, so it is the mission a builder and a tester meet first
+        narrate(`adding the first-try mission every test carries — main action: ${core.hint.mainAction}${coreDecision.from === "model" ? `; for what you came for, ${CORE_RANK_WORDS[coreDecision.rank]}` : ""}`);
+        // first, so it is the mission a builder and a tester meet first (the allocator orders the compiled plan by priority)
         r = { ...r, accepted: [{ ...core.mission, verifiabilityClass: classifyVerifiability(core.mission) }, ...r.accepted] };
       }
     }
@@ -1027,6 +1040,9 @@ export async function runMissionBrain(
     reports: r.reports,
     ...(groundingShadow ? { groundingShadow } : {}),
     ...(groundingShadow?.groundedCandidatePlan ? { coreHint } : {}),
+    // what Sage read this builder came for and where it put the core because of it: the record, the grounded path
+    // and the test page all read this one value
+    coreDecision,
     needsInputQuestions,
     model: arch.model,
     provider: arch.provider,

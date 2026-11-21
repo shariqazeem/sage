@@ -329,7 +329,7 @@ async function runOne(m, i) {
           if (planSource !== "grounded_v2") return n === 1 ? "PASS" : "~(none:legacy)";
           const cov = planner?.coverage;
           if (!cov) return "FAIL(no-coverage)";
-          if (n === 0) return cov.coreAbsentReason === "budget_cannot_fund" ? "~(none:budget)" : `FAIL(none:${cov.coreAbsentReason ?? "unstated"})`;
+          if (n === 0) return cov.coreAbsentReason === "budget_cannot_fund" ? "~(none:budget)" : cov.coreAbsentReason === "yielded" ? "~(none:yielded)" : `FAIL(none:${cov.coreAbsentReason ?? "unstated"})`;
           const row = (cov.missions || []).find((x) => x.missionKey === CORE_KEY);
           if (!cov.core || !row || row.replayCovenant !== "outside" || row.verifiabilityClass !== "observation-based") return "FAIL(core-coverage)";
           if (cov.missionPlanDigest !== plan?.missionPlanDigest || planner?.planDigest !== plan?.missionPlanDigest) return "FAIL(digest)";

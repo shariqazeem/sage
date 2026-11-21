@@ -34,6 +34,7 @@ import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import type { ValidationScope } from "./validate-mission";
 import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 import type { InspectionJob, InspectionStatus } from "@/lib/db/schema";
+import { CORE_RANKS, type CoreDecision, type CoreRank } from "./core-mission";
 
 /**
  * P23 — the founder learns BEFORE funding whether this product supports autonomous payouts. Preview the
@@ -465,6 +466,12 @@ export interface JobView {
    * observed. It describes the plan whose digest it carries (revision 1), not a later edit.
    */
   planner: { source: "legacy" | "grounded_v2"; planDigest: string | null; coverage: unknown } | null;
+  /**
+   * What Sage read this builder came for, and where it put the first-try mission because of it (the architect's
+   * checked decision, `coerceCoreDecision`). Null unless the architect gave one: its own two sentences, already
+   * checked to be plain words, and a rank.
+   */
+  purpose: { line: string; rank: CoreRank; why: string | null } | null;
   /** the CURRENT revision's plan snapshot (serialized), or null. */
   plan: unknown;
   /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
@@ -479,6 +486,15 @@ export interface JobView {
   launched: { campaignId: string } | null;
   createdAt: number;
   updatedAt: number;
+}
+
+/** The architect's read of what the builder came for, from the stored brain result, re-checked on the way out. */
+function purposeOf(res: unknown): JobView["purpose"] {
+  const brain = (res as { brain?: { coreDecision?: unknown } } | null)?.brain;
+  const d = brain?.coreDecision as Partial<CoreDecision> | undefined;
+  if (!d || d.from !== "model" || !d.rank || !(CORE_RANKS as readonly string[]).includes(d.rank)) return null;
+  if (typeof d.purpose !== "string" || !d.purpose.trim()) return null;
+  return { line: d.purpose, rank: d.rank, why: typeof d.why === "string" && d.why.trim() ? d.why : null };
 }
 
 export function jobToView(job: InspectionJob): JobView {
@@ -505,6 +521,7 @@ export function jobToView(job: InspectionJob): JobView {
         ? { source: "grounded_v2", planDigest: selected.planDigest ?? null, coverage: selected.coverage ?? null }
         : { source: "legacy", planDigest: null, coverage: null }
       : null,
+    purpose: purposeOf(res),
     plan: current ? current.planJson : ((res as { plan?: unknown } | null)?.plan ?? null),
     corpusReadiness: computeCorpusReadiness(
       (res?.map ?? null) as ProductMapV1 | null,

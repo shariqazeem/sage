@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { CORE_MISSION_KEY } from "@/lib/core-test/shape";
-import { addCoreMission, type CoreHint } from "./core-mission";
+import { addCoreMission, type CoreDecision, type CoreHint } from "./core-mission";
 import { canaryPlanCommitment, deterministicGroundedPlanDigest } from "./mission-canary";
 import type { GroundedCandidatePlan } from "./mission-grounding-shadow";
 import { verificationPolicyV2Digest, validateVerificationPolicyV2Complete, type VerificationPolicyV2 } from "./mission-probe-v2";
@@ -47,7 +47,10 @@ export type CoreAbsentReason =
   /** the core would not be judged as observation-based work, so it was not added */
   | "not_observation_based"
   /** the founder's budget cannot fund the plan with one more mission in it, exactly */
-  | "budget_cannot_fund";
+  | "budget_cannot_fund"
+  /** the budget funded the builder's higher-priority flows first: the core was ranked below them for what this
+   *  builder came for, and the allocator funds by priority (`CoreDecision`) */
+  | "yielded";
 
 export interface MissionCoverage {
   missionKey: string;
@@ -93,9 +96,11 @@ export function attachCoreToGroundedPlan(
     scope: ValidationScope;
     corpus: string;
     modelHint: CoreHint | null;
+    /** where the core stands for this builder (its priority); absent, the old rule: it leads */
+    decision?: CoreDecision;
   },
 ): CoreAttachment {
-  const added = addCoreMission({ map: ctx.map, productUrl: ctx.productUrl, scope: ctx.scope, corpus: ctx.corpus, accepted: plan.missions, modelHint: ctx.modelHint });
+  const added = addCoreMission({ map: ctx.map, productUrl: ctx.productUrl, scope: ctx.scope, corpus: ctx.corpus, accepted: plan.missions, modelHint: ctx.modelHint, decision: ctx.decision });
   if (!added) return { plan, hint: null, absentReason: "gate_refused" };
   if (added.mission.verifiabilityClass !== "observation-based" || added.mission.groundingV1) return { plan, hint: null, absentReason: "not_observation_based" };
   // first, so it is the mission a builder and a tester meet first (the same place it takes on a legacy plan)

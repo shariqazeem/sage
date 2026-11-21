@@ -1,6 +1,6 @@
 import { detectInjection } from "@/lib/deputy/brain-core";
 import { CORE_MISSION_KEY } from "@/lib/core-test/shape";
-import type { CandidateMission, FieldTestSummary, MissionValidationReport, ProductMapV1, SourceRef } from "./schemas";
+import type { CandidateMission, FieldTestSummary, MissionPriority, MissionValidationReport, ProductMapV1, SourceRef } from "./schemas";
 import { anchorIssues, classifyVerifiability, validatePlanMissions, type ValidationScope } from "./validate-mission";
 
 /**
@@ -86,6 +86,72 @@ export function coerceCoreHint(raw: unknown, corpus: string): CoreHint | null {
   return { mainAction, startsAt: starts && starts.length <= 80 && observed(starts, corpus) ? starts : null, from: "model" };
 }
 
+/**
+ * WHERE THE CORE STANDS, DECIDED FOR THIS BUILDER (21 Nov 2026, the founder: "according to budget or anything, the
+ * agent should be intelligent enough to make decisions which are good for the purpose they most likely came for").
+ *
+ * The core mission used to be ranked by a fixed rule: first on a legacy plan, and on a grounded plan only where it
+ * displaced nothing. Now the architect reads what this builder most likely came for (their words, who it is for,
+ * the product's stage, and roughly how many answers the budget buys) and ranks it:
+ *   - "lead": the core is what they need most (whether strangers get it, how far a first visitor gets);
+ *   - "alongside": they named flows AND want first impressions;
+ *   - "yield": they named one flow or fix to test, and on a tight budget the money should go there first.
+ * The rank becomes the core's PRIORITY, and the frozen allocator does the rest: which missions a budget funds, and
+ * every amount. So the model decides WHERE, never HOW MUCH (CLAUDE.md, the operator invariant). Its two sentences
+ * are shown to the builder as Sage's read, checked first: plain words, no link, no instruction.
+ */
+export type CoreRank = "lead" | "alongside" | "yield";
+export const CORE_RANKS: readonly CoreRank[] = ["lead", "alongside", "yield"];
+
+export interface CoreDecision {
+  rank: CoreRank;
+  /** one plain sentence: what this builder most likely came to Sage for, or null */
+  purpose: string | null;
+  /** one short reason for the rank, pointing at their words or the product, or null */
+  why: string | null;
+  /** "default" when the architect gave no usable rank: the old rule, the core leads */
+  from: "model" | "default";
+}
+
+export const DEFAULT_CORE_DECISION: CoreDecision = { rank: "lead", purpose: null, why: null, from: "default" };
+
+/** The rank as the allocator reads it. */
+export const CORE_PRIORITY: Record<CoreRank, MissionPriority> = { lead: "high", alongside: "medium", yield: "low" };
+
+/** The rank in a builder's words, for the live trail and the page. */
+export const CORE_RANK_WORDS: Record<CoreRank, string> = {
+  lead: "it comes first",
+  alongside: "it sits beside the flows you named",
+  yield: "the flow you named comes first",
+};
+
+const PURPOSE_MAX = 200;
+const WHY_MAX = 180;
+
+/** A sentence Sage may show a builder as its own words: plain, short, no link, no markup, no instruction. */
+function plainSentence(raw: unknown, max: number): string | null {
+  if (typeof raw !== "string") return null;
+  const s = squash(raw.replace(/https?:\/\/\S+/gi, " ").replace(/[<>{}[\]`*_#|\\]/g, " "));
+  if (s.length < 12 || s.length > max || !/\p{L}{3,}/u.test(s)) return null;
+  if (detectInjection(s).length > 0) return null;
+  return s;
+}
+
+/**
+ * The architect's decision about the core, checked. `raw` is its whole answer; the decision lives under "core".
+ * A rank that is not one of the three is no decision at all (the old rule stands); a sentence that fails the
+ * check is dropped, never repaired.
+ */
+export function coerceCoreDecision(raw: unknown): CoreDecision {
+  const root = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+  const core = root?.core && typeof root.core === "object" && !Array.isArray(root.core) ? (root.core as Record<string, unknown>) : null;
+  if (!core) return DEFAULT_CORE_DECISION;
+  const said = typeof core.rank === "string" ? core.rank.trim().toLowerCase() : "";
+  const rank = (CORE_RANKS as readonly string[]).includes(said) ? (said as CoreRank) : null;
+  if (!rank) return DEFAULT_CORE_DECISION;
+  return { rank, purpose: plainSentence(core.purpose, PURPOSE_MAX), why: plainSentence(core.why, WHY_MAX), from: "model" };
+}
+
 type Accepted = Pick<CandidateMission, "title" | "priority" | "riskCategory" | "anchors">;
 
 function firstButton(ft: FieldTestSummary | null | undefined, corpus: string): string | null {
@@ -161,7 +227,7 @@ export interface CoreContext {
 }
 
 /** The mission itself. Fixed words; the product's name, its main action and its starting point are the only moving parts. */
-export function buildCoreMission(hint: CoreHint, ctx: CoreContext): CandidateMission {
+export function buildCoreMission(hint: CoreHint, ctx: CoreContext, rank: CoreRank = "lead"): CandidateMission {
   let host = ctx.targetSurface;
   try {
     host = new URL(ctx.targetSurface).hostname.replace(/^www\./, "");
@@ -197,7 +263,8 @@ export function buildCoreMission(hint: CoreHint, ctx: CoreContext): CandidateMis
     ],
     whyItMatters: `A builder cannot see their own product for the first time. This asks every tester the three things only a stranger can answer: what they took ${product} to be, how far they got trying to ${action}, and whether they would come back.`,
     sources: ctx.sources,
-    priority: "high",
+    // the architect's rank for THIS builder (lead, alongside, yield); the allocator turns it into what is funded
+    priority: CORE_PRIORITY[rank],
     riskCategory: "onboarding",
     effortMinutes: 8,
     conditions: ["A phone or a computer with a normal browser", "No account needed to begin"],
@@ -231,6 +298,8 @@ export function addCoreMission(input: {
   corpus: string;
   accepted: readonly CandidateMission[];
   modelHint: CoreHint | null;
+  /** where the core stands for this builder; absent, the old rule (it leads) */
+  decision?: CoreDecision;
 }): CoreAdded | null {
   const { map, scope, corpus, accepted } = input;
   if (accepted.some((m) => m.missionKey === CORE_MISSION_KEY)) return null;
@@ -239,7 +308,7 @@ export function addCoreMission(input: {
     ? [{ kind: "page", ref: targetSurface, observation: "The first screen Sage opened, and where a first-time visitor starts." }]
     : [{ kind: "founder", ref: "goal", observation: "The builder asked for this product to be tried by people." }];
   for (const hint of coreHintLadder(input.modelHint, accepted, map, corpus)) {
-    const mission = buildCoreMission(hint, { productName: map.productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt), sources });
+    const mission = buildCoreMission(hint, { productName: map.productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt), sources }, (input.decision ?? DEFAULT_CORE_DECISION).rank);
     const reports = validatePlanMissions([...accepted, mission], scope, corpus, map.observations);
     const report = reports[reports.length - 1]!;
     if (report.ok) return { mission: { ...mission, verifiabilityClass: classifyVerifiability(mission) }, hint, report };
