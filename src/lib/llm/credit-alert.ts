@@ -49,7 +49,7 @@ export function creditAlertText(e: CreditEvent, nowMs: number): string {
       `${e.host} refuses every call: "${e.message}"`,
       "Work is held for review, Post can't draft, and Telegram can't reply until it answers.",
       keyQuota
-        ? `Raise this key's spending limit on ${e.host} (or give Sage a key of its own) and Sage carries on by itself: held work is re-judged on the next sweep.`
+        ? `Raise this key's spending limit on ${e.host} (and top up the account if it is low), and Sage carries on by itself: held work is re-judged on the next sweep.`
         : `Top up ${e.host} and Sage carries on by itself: held work is re-judged on the next sweep.`,
     ].join("\n");
   }
