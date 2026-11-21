@@ -5,7 +5,7 @@
  * scores a fixed rubric so we can see where the P12–P17 machinery breaks beyond the four products it
  * has met. Standing pre-deploy check: re-run after any inspection/mission change.
  *
- *   node scripts/mission-eval-matrix.mjs [--base https://sagepays.xyz] [--nonce N] [--only category]
+ *   node scripts/mission-eval-matrix.mjs [--base https://sagepays.xyz] [--nonce N] [--only category] [--job <id>]
  *
  * `--nonce N` varies each URL's budget so a re-run creates FRESH jobs (the launch API dedupes on
  * url+budget+founder). Prints a per-URL line, the category×check grid, failure evidence, and the
@@ -17,6 +17,7 @@ const flag = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 && args
 const base = flag("base", "https://sagepays.xyz").replace(/\/+$/, "");
 const nonce = Number(flag("nonce", "0")) || 0;
 const only = flag("only", "");
+const existingJob = flag("job", "");
 
 // ── THE MATRIX — one real, live, stable public URL per category (documented picks) ──────────────
 // expectMode: what the field test SHOULD classify. expectLint: which verifiability class should
@@ -195,13 +196,18 @@ async function runOne(m, i) {
   const budget = 10 + i + nonce * 100;
   let job;
   try {
-    const res = await call("/api/launch", {
-      method: "POST",
-      body: JSON.stringify({ productUrl: m.url, budgetUsd: budget, goal: "Validate the core experience for a first-time user", targetUsers: "First-time visitors" }),
-    });
-    const j = await res.json();
-    if (!j.ok) return { ...m, error: `launch: ${j.error}` };
-    const id = j.job.id;
+    // --job <id> scores a job that already exists (with --only <category>), launching and paying for nothing:
+    // a slow inspection routinely finishes after the 1500 s row timeout, and it deserves the same checks.
+    let id = existingJob;
+    if (!id) {
+      const res = await call("/api/launch", {
+        method: "POST",
+        body: JSON.stringify({ productUrl: m.url, budgetUsd: budget, goal: "Validate the core experience for a first-time user", targetUsers: "First-time visitors" }),
+      });
+      const j = await res.json();
+      if (!j.ok) return { ...m, error: `launch: ${j.error}` };
+      id = j.job.id;
+    }
     // POLL BUDGET, from measurement not habit. This was 30 x 10s = 5 minutes, which is SHORTER than
     // the work: a real inspection runs ~240s typically and up to ~660s on a site that challenges
     // automated visitors (measured on prod — notion.so 231s, linear.app 633s). So the battery gave up
