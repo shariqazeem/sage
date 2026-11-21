@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { BURST_RETRIES, postChat, resetWireMemory } from "./wire";
+import { BURST_RETRIES, CAP_RETRIES, postChat, resetWireMemory, withSlot } from "./wire";
 
 /**
  * A provider's burst limit (CommonStack answers a quick run of calls with 429, then lets the next through)
@@ -43,6 +43,25 @@ describe("a burst 429", () => {
     const r = await postChat(P, { messages: [{ role: "user", content: "hi" }] }, { timeoutMs: 60_000, fetchImpl: s.fetchImpl });
     expect(r.status).toBe(402);
     expect(s.calls()).toBe(1);
+  });
+
+  it("a key at its stated cap (calls in flight) is learned AND waited out, longer than a burst", async () => {
+    resetWireMemory();
+    const capped = () => new Response(JSON.stringify({ error: { message: "Access key quota exceeded (cap 3)" } }), { status: 429, headers: { "retry-after": "0" } });
+    const s = sequence(capped, capped, capped, capped, ok);
+    const r = await postChat(P, { messages: [{ role: "user", content: "hi" }] }, { timeoutMs: 120_000, fetchImpl: s.fetchImpl });
+    expect(r.ok).toBe(true);
+    expect(s.calls()).toBe(CAP_RETRIES + 1);
+    // and the wire never runs more than the stated cap at once from then on
+    let inFlight = 0;
+    let max = 0;
+    await Promise.all(Array.from({ length: 6 }, () => withSlot(P, "background", async () => {
+      inFlight++;
+      max = Math.max(max, inFlight);
+      await new Promise((res) => setTimeout(res, 5));
+      inFlight--;
+    })));
+    expect(max).toBe(3);
   });
 
   it("hands a quota (a long Retry-After) straight back, never sleeping on it", async () => {
