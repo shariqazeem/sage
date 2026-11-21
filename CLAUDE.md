@@ -532,9 +532,37 @@ direct `chat/completions` fetch anywhere else). It:
   an empty account: one operator alert ("raise this key's spending limit"), 402 at once, and the sweep's probe,
   sized like real work (4,096 tokens), reopens it. An empty account and a long Retry-After still go straight back.
 
+- treats a BROKEN MODEL as broken (22 Nov 2026; DeepSeek V4 Flash answered 500 to 8 of 8 calls the day
+  before and every job paid its retries). Five 5xx in a row on one key AND model open a breaker: 503 at once
+  with no network call, one operator alert (`credit-alert.ts`), and after 60 s one real call is the probe (an
+  answer closes it; another 5xx doubles the wait, up to 15 min). The sweep probes it each tick too. Another
+  model on the same key is untouched; timeouts and 429s are not counted.
+
 Work that can wait a minute (the first look, the findings) asks through `completeSteadily`
 (`src/lib/llm/steady.ts`): a transient failure is retried with backoff, then the fallback is asked once. A
 shape miss or a 402 is thrown at once, so the caller's plain version still stands.
+
+**The core never stalls on a model (22 Nov 2026).** Measured 21 Nov: MiniMax M3 thought all 14,000 tokens away
+on the architect prompt, the ladder called that a truncation and asked it five times with more room, and two
+products sat at "generating_missions" for 1,500 s. Now:
+- **Think-only is its own failure** (`thoughtOnly` in `complete.ts`: finish "length" with no answer started).
+  It is never given more room. It is remembered per provider, model, lane and job tag (`model-health.ts`,
+  an hour, doubling to six; `LLM_OVERTHINK_COOLING_MS`); a new prompt version is a new tag. While it cools,
+  `completeSteadily`, the architect, the critic and the draft ask the fallback FIRST, but only when the
+  fallback is a different model (`distinctFallback`; on prod the shared chain and the fallback are the same).
+- **Mission design has one clock** (`withDeadline`, `deadline.ts`; `MISSION_DESIGN_BUDGET_MS`, default 7 min,
+  sized on MiniMax's 63 to 151 s architect). Every call inside gets at most what is left; at the deadline the
+  brain returns the best plan that is ready, gated as always, never a made-up one. An improvement round
+  starts only with 150 s left. Each architect round asks the fallback at most once.
+- **Hedging where a person waits**: the architect (`MISSION_HEDGE_AFTER_MS`, 150 s), the core-place question
+  (8 s) and the draft (`DRAFT_HEDGE_AFTER_MS`, 10 s) start the fallback beside a silent primary and take the
+  first answer (`hedged`). Never the judges: the payout judge keeps its own same-model hedge and its pinned
+  identity, and the observation judge only retries the SAME model once.
+- **In parallel**: critic batches, and the grounded planner beside the legacy one.
+- `tests/model-zoo/` is the offline battery: a fake provider with each measured behaviour, every lane run
+  against each on the fake clock (valid result or the plain version, a wall-clock budget, bounded calls, the
+  money rules). Run it after any change to the wire, a ladder or a profile: `npx vitest run tests/model-zoo`
+  (`ZOO_TABLE=1` prints the grid).
 Before it existed, only PAYOUT and CONCIERGE could pick a provider — every other lane
 could override the model NAME but not the key, so it was pinned to whatever the shared
 chain pointed at.
@@ -599,6 +627,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `OPERATOR_COVERS_GAS` † | `"1"` brings back the operator's gas cover (the launch stipend, the fee on a plan paid from the balance) | Off: every account pays its own network fee |
 | `LLM_MAX_CONCURRENCY` † | Requests one provider key may have in flight (the wire). `1` restores the old single lane. CommonStack's "(cap N)" refusals are a spending quota on the key, not a concurrency limit (see the wire) | 4 |
 | `LLM_DAILY_BUDGET_USD` † | A day's model spend per provider account (`spend.ts`): background design stops at 1×, drafting and the concierge at 1.5×, judgment at 2×; a refused call reads as an empty account (402) | No ceiling; the meter still books every answer to `var/llm-spend.json` (`LLM_SPEND_PATH`) |
+| `MISSION_DESIGN_BUDGET_MS` † / `MISSION_HEDGE_AFTER_MS` † / `DRAFT_HEDGE_AFTER_MS` † / `LLM_OVERTHINK_COOLING_MS` † | The whole mission design's wall clock; when the architect's and the draft's fallback start beside a silent primary (0 turns the architect's hedge off); how long a think-only model is passed over for that job | 420000 / 150000 / 10000 / 3600000 |
 | `<LANE>_REASONING_EFFORT` † | `low` / `medium` / `high`, sent as `reasoning_effort` on that lane's calls (a provider that refuses it is learned once) | Not sent |
 | `GITHUB_TOKEN` † | Read-only token for GitHub's API: the page reader (issues, PRs and their files, repos, gists), PR provenance, account age. Never logged | 60 calls an hour per server; past it, a merge check HOLDS rather than fails |
 | `VERIFY_RPC_<chainId>` † | RPC override for a verify-only chain (`src/lib/verify/chains.ts`: Ethereum, Base, Arbitrum, OP, Polygon, BNB, Avalanche, Linea, Scroll, testnets). Read-only; nothing is paid there | The public RPC in `chains.ts` |
