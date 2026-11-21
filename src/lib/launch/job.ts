@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { getInspectionJob, updateInspectionJob, resetInspectionForRetry, failStalledInspection, listStalledInspections } from "@/lib/db/inspection";
 import { createRevision, getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import { getCampaign } from "@/lib/db/campaigns";
+import { recordFirstLook } from "@/lib/first-look";
 import { inspectAndPlan } from "./pipeline";
 import { isWalletCanaryEligible, isValidFounderWallet, type CanaryIdentity } from "./mission-canary";
 import { getAgentWallet } from "@/lib/db/agent-wallets";
@@ -302,7 +303,13 @@ export async function runInspectionJob(jobId: string): Promise<void> {
         updateInspectionJob(jobId, stage as InspectionStatus, {});
       },
       0,
-      { inspectionId: jobId, canaryIdentity, priorObservations },
+      {
+        inspectionId: jobId,
+        canaryIdentity,
+        priorObservations,
+        // what Sage itself noticed, saved before the missions are designed (never awaited, never throws)
+        onMapped: (map) => void recordFirstLook(jobId, map, job.productUrl),
+      },
     );
 
     const serialized = serialize(result);

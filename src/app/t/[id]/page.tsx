@@ -1,4 +1,6 @@
 import "@/styles/test.css";
+// what Sage noticed, and what people found
+import "@/styles/test-core.css";
 // the sign-in doors, the World ID step and the stop control are the product's own, with their own styles
 import "@/styles/wallet-connect.css";
 import "@/styles/live.css";

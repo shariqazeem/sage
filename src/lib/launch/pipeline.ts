@@ -202,6 +202,10 @@ export async function inspectAndPlan(
     /** What EARLIER runs of this same job already observed. Unioned into this run's set, so a retry
      *  or a founder's clarification can only ever widen the evidence, never narrow it. */
     priorObservations?: import("./observed-facts").ObservationSetV1 | null;
+    /** Called once, the moment the product map is complete and BEFORE any mission is designed, so
+     *  what Sage itself noticed (its first look) can be shown while the missions are still being
+     *  written. Best-effort: whatever it does, it can never fail or delay the inspection. */
+    onMapped?: (map: ProductMapV1) => void;
   } = {},
 ): Promise<LaunchResult> {
   // ONE INTENT, ZERO FORMS AFTER IT — and zero MANDATORY forms before it either. A founder who gave
@@ -415,6 +419,14 @@ export async function inspectAndPlan(
       map,
       questions: map.openQuestions,
     });
+  }
+
+  // SAGE'S FIRST LOOK. The map is final here (field test, vision, limitations), and the mission
+  // design below takes minutes: hand the map over now so the builder has something true to read.
+  try {
+    opts.onMapped?.(map);
+  } catch {
+    /* the first look is a gift, never a dependency */
   }
 
   // 3b. Eyes V2 — OPTIONAL shadow replay of a safe observed transition (INSPECTION_REPLAY_MODE=shadow;

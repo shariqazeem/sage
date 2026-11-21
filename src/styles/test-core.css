@@ -1,0 +1,190 @@
+/**
+ * test-core.css: the two parts of a test's page a builder pays for (the core, 21 Nov 2026).
+ *
+ *   1. What Sage noticed (`sg-t-look-*`, `sg-t-read*`): its own first look, before money.
+ *   2. What people found (`sg-t-rep-*`): the report, after it.
+ *
+ * Same material as test.css: one column, hairlines, mono for values on objects. It aliases tokens and
+ * declares no palette value. Green and red do not appear here: nothing on these parts is a payout.
+ */
+
+/* ── the comprehension read: what it says, beside what the first screen shows ── */
+.sg-t-look {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+.sg-t-read {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.sg-t-read-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  min-width: 0;
+}
+.sg-t-read-side + .sg-t-read-side {
+  border-left: 1px dashed var(--border-strong);
+}
+.sg-t-read-side p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.sg-t-read-side .sg-t-read-for {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+.sg-t-read-line {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 10px;
+  margin: 0;
+  padding: 14px 18px;
+  border-top: 1px dashed var(--border-strong);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.sg-t-read-line > span:last-child {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+/* ── a problem Sage saw: where, the recorded text, the frame, one fix ────────── */
+.sg-t-look-list {
+  display: flex;
+  flex-direction: column;
+}
+.sg-t-look-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 132px;
+  gap: var(--s-4);
+  padding: 18px 0;
+  border-top: 1px solid var(--border);
+}
+.sg-t-look-item:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.sg-t-look-n {
+  padding-top: 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.sg-t-look-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sg-t-look-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.sg-t-look-where {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--ink-faint);
+}
+.sg-t-look-where > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sg-t-look-where > span:first-child {
+  color: var(--ink-muted);
+}
+.sg-t-look-rec {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.sg-t-look-fix {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+.sg-t-look-fix > b {
+  margin-right: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.sg-t-look-shot {
+  align-self: start;
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.sg-t-look-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top;
+}
+.sg-t-look-shot:hover {
+  border-color: var(--accent);
+}
+.sg-t-look-none {
+  margin: 0;
+  max-width: 36em;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  text-wrap: pretty;
+}
+@media (max-width: 599px) {
+  .sg-t-read {
+    grid-template-columns: 1fr;
+  }
+  .sg-t-read-side + .sg-t-read-side {
+    border-left: 0;
+    border-top: 1px dashed var(--border-strong);
+  }
+  .sg-t-look-item {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+  .sg-t-look-shot {
+    grid-column: 2;
+    max-width: 220px;
+  }
+}
