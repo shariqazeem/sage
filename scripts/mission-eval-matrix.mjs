@@ -81,6 +81,7 @@ const norm = (s) =>
  *  src/lib/launch/budget.ts. This is a ruler, and a ruler that disagrees with the product reports
  *  a healthy product broken (it has happened here before: a stale norm() showed 50% anchor
  *  integrity on a correct build). Change it in the same commit as the constant, never after. */
+const CORE_KEY = "core-first-try"; // src/lib/core-test/shape.ts CORE_MISSION_KEY
 const FLOOR_BASE = 500_000; // $0.50 (lowered from $3.00 on 2026-08-14)
 const EST_TOKENS_PER_IMAGE = 1370; // measured on the yara run (8206/6)
 const EST_BRAIN_TOKENS = 15000; // architect + critic per inspection (rough)
@@ -242,6 +243,9 @@ async function runOne(m, i) {
   const plan = job.plan;
   const missions = plan?.missions || [];
   const corpus = rebuildCorpus(map);
+  // which planner wrote the plan, and a grounded plan's coverage statement (jobToView's `planner`)
+  const planner = job.planner ?? null;
+  const planSource = planner?.source ?? "none";
 
   // anchor integrity: every accepted mission's anchors present in the observed corpus
   let anchored = 0;
@@ -305,8 +309,31 @@ async function runOne(m, i) {
           const budget = Number(plan?.totalBudgetBase ?? 0) / 1e6;
           return budget >= 15 && missions.length === 1 ? `~(1-mission-on-$${Math.round(budget)})` : "PASS";
         })(),
+    /**
+     * THE CORE MISSION, on every ready plan, whichever planner wrote it. Measured 21 Nov 2026: every
+     * legacy plan had it and every GROUNDED plan (plausible, play2048, yara.garden, GitLab, Uniswap)
+     * did not, and nothing in this grid showed it. A grounded plan with no core, or with a core its own
+     * record does not call observation-based and outside the replay covenant, is a FAIL; one that says
+     * why it has none (a budget too small for one more mission) is shown, not failed.
+     */
+    core: job.status !== "ready" || missions.length === 0 ? "n/a"
+      : (() => {
+          const n = missions.filter((x) => x.missionKey === CORE_KEY).length;
+          if (n > 1) return `FAIL(${n}-cores)`;
+          if (planSource !== "grounded_v2") return n === 1 ? "PASS" : "~(none:legacy)";
+          const cov = planner?.coverage;
+          if (!cov) return "FAIL(no-coverage)";
+          if (n === 0) return cov.coreAbsentReason === "budget_cannot_fund" ? "~(none:budget)" : `FAIL(none:${cov.coreAbsentReason ?? "unstated"})`;
+          const row = (cov.missions || []).find((x) => x.missionKey === CORE_KEY);
+          if (!cov.core || !row || row.replayCovenant !== "outside" || row.verifiabilityClass !== "observation-based") return "FAIL(core-coverage)";
+          if (cov.missionPlanDigest !== plan?.missionPlanDigest || planner?.planDigest !== plan?.missionPlanDigest) return "FAIL(digest)";
+          // the statement lists exactly the missions the plan carries
+          const stated = (cov.missions || []).map((x) => x.missionKey).sort().join("|");
+          if (stated !== missions.map((x) => x.missionKey).sort().join("|")) return "FAIL(coverage-missions)";
+          return "PASS";
+        })(),
   };
-  return { ...m, status: job.status, mode, statesN: ft?.states?.length ?? 0, visionN, category: map?.category, name: map?.productName, missions: missions.length, urlV, obsV, integrity, estTokens, checks, questions: job.result?.questions || [], truncations: ft?.truncations ?? [] };
+  return { ...m, status: job.status, mode, planSource, statesN: ft?.states?.length ?? 0, visionN, category: map?.category, name: map?.productName, missions: missions.length, urlV, obsV, integrity, estTokens, checks, questions: job.result?.questions || [], truncations: ft?.truncations ?? [] };
 }
 
 // ── run the battery (light concurrency; the prod server + LLM quota bound it) ──
@@ -331,7 +358,7 @@ for (const [i, m] of rows.entries()) {
   const r = await runOne(m, i);
   results.push(r);
   if (r.error) { console.log(`ERROR: ${r.error}`); continue; }
-  console.log(`${r.status} · mode ${r.mode} · states ${r.statesN} · vision ${r.visionN} · ${r.missions} missions (${r.urlV}url/${r.obsV}obs) · anchors ${r.integrity}% · ~${Math.round(r.estTokens / 1000)}k tok`);
+  console.log(`${r.status} · plan ${r.planSource} · mode ${r.mode} · states ${r.statesN} · vision ${r.visionN} · ${r.missions} missions (${r.urlV}url/${r.obsV}obs) · anchors ${r.integrity}% · ~${Math.round(r.estTokens / 1000)}k tok`);
   console.log(`      cat="${r.category}" name="${r.name}"${r.questions.length ? ` · Q: ${r.questions[0].slice(0, 80)}` : ""}`);
   // What the brain-view caps COST on this product. Not a failure — a fact that used to be invisible.
   // A product starved here (thousands of characters dropped) explains a thin plan far better than
@@ -340,7 +367,7 @@ for (const [i, m] of rows.entries()) {
 }
 
 // ── the grid ──
-const CHECKS = ["mode", "states", "loadingWaited", "category", "anchorInteg", "lintSplit", "needsInput", "templateLeak", "floor", "coverage"];
+const CHECKS = ["mode", "states", "loadingWaited", "category", "anchorInteg", "lintSplit", "needsInput", "templateLeak", "floor", "coverage", "core"];
 console.log(`\n${"═".repeat(90)}\nGRID (category × check)\n`);
 console.log(["category".padEnd(16), ...CHECKS.map((c) => c.slice(0, 9).padEnd(10))].join(""));
 for (const r of results) {

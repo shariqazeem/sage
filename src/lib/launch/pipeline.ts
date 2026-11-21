@@ -35,11 +35,20 @@ import {
 } from "./goal-journey";
 import { buildProductContext, derivePhases } from "./product-context";
 import {
-  canaryPlanCommitment,
+  deterministicGroundedPlanDigest,
   evaluateCanarySelection,
   resolveCanaryAuthority,
   type CanaryIdentity,
 } from "./mission-canary";
+import {
+  attachCoreToGroundedPlan,
+  buildGroundedCoverage,
+  groundedSelectionCommitment,
+  verifyGroundedSelection,
+  type CoreAttachment,
+  type GroundedCoverageV1,
+} from "./grounded-core";
+import { CORE_MISSION_KEY } from "@/lib/core-test/shape";
 import { compileVerificationPolicyV2 } from "./mission-probe-v2";
 import { allocateBudget, MIN_REWARD_BASE, TANGIBLE_MIN_REWARD_BASE } from "./budget";
 import { applySamplePolicy, planFairCapacityBase, splitCompletionsForSample } from "./sample-policy";
@@ -118,6 +127,9 @@ export interface GroundedSelectionProvenance {
   observationSetDigest: string;
   groundedPlanDigest: string;
   missionPlanDigest: string;
+  /** what the plan's verification covers, mission by mission, with the core mission named: it is
+   *  observation-based and outside any replay covenant (`grounded-core.ts`). Kept on the revision. */
+  coverage?: GroundedCoverageV1;
 }
 
 export interface CanaryPipelineOutcome {
@@ -142,6 +154,8 @@ export interface CanaryPipelineOutcome {
   verificationPolicyDigest?: string | null;
   /** true when the plan has ≥1 action criterion → autonomous payout requires complete replay coverage. */
   verificationPolicyRequired?: boolean;
+  /** the coverage statement the commitment binds (selected only). */
+  coverage?: GroundedCoverageV1;
 }
 
 /**
@@ -640,10 +654,49 @@ export async function inspectAndPlan(
   if (canaryDecision.status === "selected") {
     // compile the GROUNDED missions through the identical allocator+compiler, using the GROUNDED architect model
     // as the plan's modelVersion; exact base-unit equality is mandatory; commit the plan (provenance, not auth).
-    const g = compileMissions(
-      canaryDecision.plan.missions,
-      canaryDecision.plan.architectModel ?? brain.model,
-    );
+    //
+    // THE CORE JOINS HERE, and only here: after selection, before the digest, the budget compile, the
+    // policy and the commitment, so each of them describes the plan with its core in it. A legacy plan
+    // gets its core inside the mission brain; a grounded plan never passed through that step, and
+    // five interactive products shipped without the one mission that asks how far a stranger got.
+    const groundedModel = canaryDecision.plan.architectModel ?? brain.model;
+    let attached: CoreAttachment;
+    try {
+      attached = attachCoreToGroundedPlan(canaryDecision.plan, { map, productUrl: input.productUrl, scope, corpus, modelHint: brain.coreHint ?? null });
+    } catch {
+      // the core is added to a plan, never a reason one fails
+      attached = { plan: canaryDecision.plan, hint: null, absentReason: "gate_refused" };
+    }
+    // The plan as the canary selected it, compiled exactly as it always was. It is what ships when the
+    // core cannot join, and the measure of what the core may not cost.
+    let g = compileMissions(canaryDecision.plan.missions, groundedModel);
+    if (attached.hint) {
+      // THE CORE NEVER DISPLACES A GROUNDED MISSION. On a budget too small for every mission the frozen
+      // allocator funds the most important and drops the rest, and the core is important: on a small
+      // budget it would be kept and a mission the founder's goal needs dropped in its place. So the
+      // plan with the core is taken only when the money is exact, the core is in it once, and every
+      // mission the plan would have funded without the core is still funded. Otherwise the selected
+      // plan stands as it was and the record says the core is absent and why.
+      const withCore = compileMissions(attached.plan.missions, groundedModel);
+      const funded = new Set(withCore.ok && withCore.plan ? withCore.plan.missions.map((m) => m.missionKey) : []);
+      const keepsEverything = !g.ok || !g.plan || g.plan.missions.every((m) => funded.has(m.missionKey));
+      if (withCore.ok && withCore.plan && withCore.plan.allocatedBase === input.totalBudgetBase && funded.has(CORE_MISSION_KEY) && keepsEverything) g = withCore;
+      else attached = { plan: canaryDecision.plan, hint: null, absentReason: "budget_cannot_fund" };
+    }
+    // The record describes the missions that SHIP. When the allocator dropped one, the digest and the
+    // policy below are taken over the funded missions, never over a mission no tester will see.
+    const shipped = new Set(g.ok && g.plan ? g.plan.missions.map((m) => m.missionKey) : attached.plan.missions.map((m) => m.missionKey));
+    const selectedPlan = attached.plan.missions.every((m) => shipped.has(m.missionKey))
+      ? attached.plan
+      : { ...attached.plan, missions: attached.plan.missions.filter((m) => shipped.has(m.missionKey)) };
+    // over the missions as they now are; equal to the canary's own digest when nothing was added or dropped
+    const groundedDigest = deterministicGroundedPlanDigest(selectedPlan);
+    if (attached.hint && opts.inspectionId)
+      void recordFieldTestStep(opts.inspectionId, {
+        label: `adding the first-try mission every test carries — main action: ${attached.hint.mainAction}`,
+        screenshot: null,
+        url: input.productUrl,
+      });
     if (!g.ok || !g.plan)
       return out(
         "failed",
@@ -670,25 +723,7 @@ export async function inspectAndPlan(
           planSource: "none",
         },
       });
-    const commitment = canaryPlanCommitment({
-      planDigest: g.plan.missionPlanDigest,
-      budgetText: `${input.totalBudgetBase} base units @ ${input.tokenDecimals}dp`,
-      budgetBase: g.plan.totalBudgetBase.toString(),
-      revision: g.plan.revision,
-    });
-    const gp = canaryDecision.plan;
-    const provenance: GroundedSelectionProvenance = {
-      planSource: "grounded_v2",
-      architectModel: gp.architectModel,
-      architectProvider: gp.architectProvider,
-      architectContractVersion: gp.architectContractVersion,
-      criticModel: gp.criticModel,
-      criticProvider: gp.criticProvider,
-      criticContractVersion: gp.criticContractVersion,
-      observationSetDigest: gp.observationSetDigest,
-      groundedPlanDigest: canaryDecision.groundedDigest,
-      missionPlanDigest: g.plan.missionPlanDigest,
-    };
+    const gp = selectedPlan;
     // compile the VerificationPolicyV2 for the selected grounded plan. `policyRequired` = the plan has ≥1
     // action criterion (autonomous payout then needs COMPLETE replay coverage). An incomplete required policy
     // BLOCKS autonomous selection: the grounded plan may be shown, but a self-canary plan is never selectable
@@ -703,7 +738,9 @@ export async function inspectAndPlan(
           missionPlanDigest: g.plan.missionPlanDigest,
           productMapDigest: map.digest,
           set: map.observations,
-          missions: canaryDecision.plan.missions,
+          // the missions as selected, core included: it carries no action criterion, so the policy
+          // compiled here names none for it, and it binds the digest of the plan that has it
+          missions: selectedPlan.missions,
           replayReproduced,
           scope,
         })
@@ -723,6 +760,65 @@ export async function inspectAndPlan(
         },
       });
     }
+    // THE RECORD, taken last, over the plan as it is. The policy is attached if and only if it is
+    // required (see below); the coverage statement says, mission by mission, what is inside a replay
+    // covenant and what is judged on observation, and names the core as observation-based and outside;
+    // the commitment binds the compiled plan's digest, the budget, the revision and that statement.
+    const attachedPolicy = policyRequired ? (compiled?.policy ?? null) : null;
+    const coverage = buildGroundedCoverage({
+      plan: g.plan,
+      policy: attachedPolicy,
+      coreHintFrom: attached.hint?.from ?? null,
+      coreAbsentReason: attached.absentReason,
+    });
+    const planCommitment = groundedSelectionCommitment({
+      plan: g.plan,
+      founderBudgetBase: input.totalBudgetBase,
+      tokenDecimals: input.tokenDecimals,
+      coverageDigest: coverage.coverageDigest,
+    });
+    const provenance: GroundedSelectionProvenance = {
+      planSource: "grounded_v2",
+      architectModel: gp.architectModel,
+      architectProvider: gp.architectProvider,
+      architectContractVersion: gp.architectContractVersion,
+      criticModel: gp.criticModel,
+      criticProvider: gp.criticProvider,
+      criticContractVersion: gp.criticContractVersion,
+      observationSetDigest: gp.observationSetDigest,
+      groundedPlanDigest: groundedDigest,
+      missionPlanDigest: g.plan.missionPlanDigest,
+      coverage,
+    };
+    // Never hand a founder a record that does not describe its plan: everything above is recomputed
+    // from the missions and the compiled plan, and a disagreement stops the launch here.
+    const check = verifyGroundedSelection({
+      groundedPlan: selectedPlan,
+      plan: g.plan,
+      founderBudgetBase: input.totalBudgetBase,
+      tokenDecimals: input.tokenDecimals,
+      record: {
+        groundedDigest,
+        planDigest: g.plan.missionPlanDigest,
+        planCommitment,
+        coverage,
+        verificationPolicy: attachedPolicy,
+        verificationPolicyDigest: attachedPolicy?.policyDigest ?? null,
+        verificationPolicyRequired: policyRequired,
+      },
+    });
+    if (!check.ok)
+      return out("failed", `canary_blocked:selection_record_mismatch:${check.reason}`, {
+        map,
+        brain,
+        allocation: g.allocation,
+        canary: {
+          status: "blocked",
+          reason: `selection_record_mismatch:${check.reason}`,
+          planSource: "none",
+          planDigest: g.plan.missionPlanDigest,
+        },
+      });
     stamp("ready");
     return out("ready", null, {
       map,
@@ -734,9 +830,10 @@ export async function inspectAndPlan(
         status: "selected",
         reason: null,
         planSource: "grounded_v2",
-        groundedDigest: canaryDecision.groundedDigest,
+        groundedDigest,
         planDigest: g.plan.missionPlanDigest,
-        planCommitment: commitment.commitment,
+        planCommitment,
+        coverage,
         wallet: canaryDecision.wallet,
         provenance,
         // ATTACH A POLICY ONLY WHEN IT GOVERNS SOMETHING. `verifyReplayPermit` treats "a policy
@@ -754,8 +851,8 @@ export async function inspectAndPlan(
         // The invariant the permit relies on is now maintained at the source: a policy is stored if and
         // only if it is required. Nothing about the covenant is loosened — a policy that DOES carry
         // action criteria is attached and required exactly as before.
-        verificationPolicy: policyRequired ? (compiled?.policy ?? null) : null,
-        verificationPolicyDigest: policyRequired ? (compiled?.policy.policyDigest ?? null) : null,
+        verificationPolicy: attachedPolicy,
+        verificationPolicyDigest: attachedPolicy?.policyDigest ?? null,
         verificationPolicyRequired: policyRequired,
       },
     });

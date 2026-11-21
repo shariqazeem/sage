@@ -458,6 +458,13 @@ export interface JobView {
   failureReason: string | null;
   /** inspection output: the product map + questions (bigints stringified). */
   result: { map: unknown; questions: string[]; reason: string | null } | null;
+  /**
+   * Which planner wrote the generated plan, and, for a grounded plan, the coverage statement taken with
+   * it: per mission, whether it is judged on observation or sits inside a replay covenant, with the core
+   * mission named (`grounded-core.ts`). Mission keys, classes and digests only: nothing from what Sage
+   * observed. It describes the plan whose digest it carries (revision 1), not a later edit.
+   */
+  planner: { source: "legacy" | "grounded_v2"; planDigest: string | null; coverage: unknown } | null;
   /** the CURRENT revision's plan snapshot (serialized), or null. */
   plan: unknown;
   /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
@@ -477,7 +484,8 @@ export interface JobView {
 export function jobToView(job: InspectionJob): JobView {
   const current = getCurrentRevision(job.id);
   const approvedRow = getApprovedRevision(job.id);
-  const res = job.result as { map?: unknown; questions?: string[]; reason?: string | null } | null;
+  const res = job.result as { map?: unknown; questions?: string[]; reason?: string | null; plan?: unknown; canary?: { status?: string; planDigest?: string; coverage?: unknown } | null } | null;
+  const selected = res?.canary?.status === "selected" ? res.canary : null;
   return {
     id: job.id,
     status: job.status,
@@ -492,6 +500,11 @@ export function jobToView(job: InspectionJob): JobView {
     provider: job.provider,
     failureReason: job.failureReason,
     result: res ? { map: res.map ?? null, questions: res.questions ?? [], reason: res.reason ?? null } : null,
+    planner: res?.plan
+      ? selected
+        ? { source: "grounded_v2", planDigest: selected.planDigest ?? null, coverage: selected.coverage ?? null }
+        : { source: "legacy", planDigest: null, coverage: null }
+      : null,
     plan: current ? current.planJson : ((res as { plan?: unknown } | null)?.plan ?? null),
     corpusReadiness: computeCorpusReadiness(
       (res?.map ?? null) as ProductMapV1 | null,

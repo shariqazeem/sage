@@ -144,9 +144,27 @@ export interface CanaryPlanCommitment {
   budgetBase: string;
   revision: number;
 }
-export function canaryPlanCommitment(input: { planDigest: string; budgetText: string; budgetBase: string; revision: number }): CanaryPlanCommitment {
+export function canaryPlanCommitment(input: {
+  planDigest: string;
+  budgetText: string;
+  budgetBase: string;
+  revision: number;
+  /** the digest of the selection's coverage statement (`grounded-core.ts`). When given, the commitment binds
+   *  it too, so a coverage statement cannot be swapped under a commitment. Without it the commitment is
+   *  byte-identical to what it always was. */
+  coverageDigest?: string;
+}): CanaryPlanCommitment {
   const commitment = createHash("sha256")
-    .update(JSON.stringify({ v: "canary-plan-commitment-v1", planDigest: input.planDigest, budgetText: input.budgetText, budgetBase: input.budgetBase, revision: input.revision }))
+    .update(
+      JSON.stringify({
+        v: "canary-plan-commitment-v1",
+        planDigest: input.planDigest,
+        budgetText: input.budgetText,
+        budgetBase: input.budgetBase,
+        revision: input.revision,
+        ...(input.coverageDigest ? { coverageDigest: input.coverageDigest } : {}),
+      }),
+    )
     .digest("hex");
   return { commitment, planDigest: input.planDigest, budgetText: input.budgetText, budgetBase: input.budgetBase, revision: input.revision };
 }
