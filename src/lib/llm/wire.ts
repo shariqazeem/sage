@@ -465,9 +465,14 @@ function parseRetryAfterMs(h: string | null): number | null {
  */
 const CALL_CEILING_MS = 20 * 60_000;
 
-/** A burst 429 is waited out at most this many times per call (see postChat). */
-export const BURST_RETRIES = 3;
+/** A burst 429 is waited out once per entry, at most (see postChat). */
 const BURST_WAITS_MS = [4_000, 10_000, 20_000] as const;
+export const BURST_RETRIES = BURST_WAITS_MS.length;
+/** A 429 that STATES a cap ("Access key quota exceeded (cap 3)") means the key has that many calls in flight
+ *  already, counting every process on it; a slot frees when one of them finishes, and a mission design runs
+ *  for a minute or two, so these waits are longer. */
+const CAP_WAITS_MS = [5_000, 15_000, 30_000, 60_000] as const;
+export const CAP_RETRIES = CAP_WAITS_MS.length;
 /** a Retry-After above this is a quota block, returned to the caller at once (never slept on) */
 const BURST_RETRY_AFTER_MAX_MS = 10_000;
 /** Sleep that ends early when the call is aborted. */
@@ -564,19 +569,25 @@ export async function postChat(
           noteOutOfCredit(p, text, Date.now());
           return { ok: false, status: 402, text, retryAfterMs: null, sent, outOfCredit: true };
         }
-        // A BURST LIMIT, WAITED OUT (21 Nov 2026). CommonStack answers a short run of quick calls with 429 and
-        // then lets the next one through (measured: six rapid calls tripped it, the seventh a minute later
-        // answered). A caller that took that 429 as a failure dropped a whole mission design. So a plain 429
-        // (not an empty account, not a stated cap) waits and re-sends, at most three times, for the provider's
-        // own short Retry-After when it gives one or 4 s, 10 s, 20 s otherwise, and only while the call's own budget
-        // has room. The slot is held while waiting, which is itself what slows the burst down.
-        // A long Retry-After is a quota, not a burst: that one goes straight back to the caller, who classifies it.
+        // A BUSY KEY, WAITED OUT (21 Nov 2026). A caller that took a 429 as a failure dropped a whole mission
+        // design, and the first look and the findings fell back to their plain versions. Two kinds, measured on
+        // CommonStack the same day:
+        //   - "Access key quota exceeded (cap 3)": the key already has 3 calls in flight, counting every process
+        //     on it (five sent together: three refused at once, the others answered). The cap is learned above,
+        //     and the call waits for a slot to free: 5 s, 15 s, 30 s, 60 s;
+        //   - a plain 429 (a short burst limit): 4 s, 10 s, 20 s.
+        // Either way it waits only while the call's own budget has room, and for the provider's own short
+        // Retry-After when it gives one. Without one, up to a second of jitter, so calls refused together do
+        // not all come back at the same moment. The slot is held while waiting, which itself slows the burst.
+        // Never retried: an empty account (above), or a long Retry-After, which is a quota: that goes straight
+        // back to the caller, who classifies it.
         const retryAfter = res.status === 429 ? parseRetryAfterMs(headerOf(res, "retry-after")) : null;
-        if (res.status === 429 && bursts < BURST_RETRIES && statedCap(text) === null && (retryAfter === null || retryAfter <= BURST_RETRY_AFTER_MAX_MS)) {
-          const wait = retryAfter ?? BURST_WAITS_MS[bursts]!;
+        const waits = res.status === 429 && statedCap(text) !== null ? CAP_WAITS_MS : BURST_WAITS_MS;
+        if (res.status === 429 && bursts < waits.length && (retryAfter === null || retryAfter <= BURST_RETRY_AFTER_MAX_MS)) {
+          const wait = retryAfter ?? waits[bursts]! + Math.floor(Math.random() * 1_000);
           if (Date.now() - startedAt + wait < opts.timeoutMs - 5_000 && !controller.signal.aborted) {
             bursts += 1;
-            heal -= 1; // a burst wait is not a parameter heal: it must not use up the heals (bounded by BURST_RETRIES)
+            heal -= 1; // a busy-key wait is not a parameter heal: it must not use up the heals (bounded by the waits)
             await sleepFor(wait, controller.signal);
             if (!controller.signal.aborted) continue;
           }
