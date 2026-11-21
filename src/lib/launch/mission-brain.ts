@@ -318,6 +318,10 @@ export interface MissionBrainResult {
   /** S2 grounded-architect shadow telemetry (present only when MISSION_GROUNDING_MODE ≠ off). Advisory;
    *  it never changes `accepted` / the legacy plan. */
   groundingShadow?: GroundingShadowResult;
+  /** The architect's checked hint for the core mission (the product's main action), carried ONLY beside a
+   *  grounded candidate plan, so a selected grounded plan gets the same product-specific core mission the
+   *  legacy plan got (`grounded-core.ts`). Absent everywhere else: a legacy run's result is unchanged. */
+  coreHint?: CoreHint | null;
   /** WHY the architect failed, when it did — provider finish_reason / content shape / token count.
    *  Present only on a failure; a stored `reason` alone could not distinguish truncation from a
    *  malformed answer, so every occurrence needed a live reproduction. */
@@ -1022,6 +1026,7 @@ export async function runMissionBrain(
     accepted: r.accepted,
     reports: r.reports,
     ...(groundingShadow ? { groundingShadow } : {}),
+    ...(groundingShadow?.groundedCandidatePlan ? { coreHint } : {}),
     needsInputQuestions,
     model: arch.model,
     provider: arch.provider,

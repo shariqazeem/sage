@@ -354,8 +354,13 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
     process.env.MISSION_GROUNDING_MODE = "canary";
     process.env.MISSION_CANARY_ALLOWLIST = "0x1111111111111111111111111111111111111111";
     scriptProviders({ missions: [v2Mission()] }, { verdicts: [support("reach-start", 0, [startFact.id])] });
-    const plan = (await runMissionBrain(makeMap(), input, scope(), CORPUS)).groundingShadow!.groundedCandidatePlan!;
+    const brained = await runMissionBrain(makeMap(), input, scope(), CORPUS);
+    const plan = brained.groundingShadow!.groundedCandidatePlan!;
     expect(plan.strictSelectable).toBe(true);
+    // the core mission's hint travels beside a grounded candidate plan (and only there), so the pipeline can
+    // give a selected grounded plan its core; the grounded plan itself is handed over without one.
+    expect("coreHint" in brained).toBe(true);
+    expect(plan.missions.some((m) => m.missionKey === "core-first-try")).toBe(false);
 
     const identity: CanaryIdentity = { wallet: "0x1111111111111111111111111111111111111111", operatorAuthorized: true, source: "server_session" };
     const decision = evaluateCanarySelection({ mode: "canary", identity, plan });
@@ -387,6 +392,7 @@ describe("semantic-draft grounded architect — through the REAL runMissionBrain
       const r = await runMissionBrain(makeMap(), input, scope(), CORPUS);
       expect(architectV2Calls).toBe(0);
       expect(r.groundingShadow).toBeUndefined();
+      expect("coreHint" in r).toBe(false); // a legacy run's result carries nothing new
     });
   }
 });
