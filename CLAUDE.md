@@ -488,10 +488,25 @@ This is what makes a model/provider switch a config change rather than a code au
 **Moving every lane at once is one command on the VM:** `node scripts/vm/llm-route.mjs status|anthropic|commonstack`
 (then `pm2 restart sage --update-env`). It saves the lines it changes the first time
 (`~/.config/sage/llm-route-commonstack.env`), keeps a timestamped `.env` copy, leaves `LLM_FALLBACK_*` on the
-other account, and never prints a key. **Since 5 Nov 2026 prod runs every lane on Claude Sonnet 5.5 on
-Anthropic's own endpoint** (the founder's credit, expiring 11 Nov) because the CommonStack balance hit $0;
-`commonstack` moves it back once that account is topped up. The payout judge there is its own approved
-identity (`docs/deputy-promotions/2026-11-05-anthropic-claude-sonnet-5-5.md`).
+other account, and never prints a key.
+
+**Probe before you trust a route (22 Nov 2026):** `node scripts/vm/llm-route.mjs probe` asks each distinct
+provider and model one 16-token question, which passes even a nearly spent key quota. It names what is broken,
+out of credit, at its key spending limit, or an unknown model. `--answer` gives room for a real JSON answer and
+shows the vision models a red square, so a model that thinks past its budget, or is blind, says so. Run it before
+any battery and after any route change: on 20-21 Nov `status` looked right while every `anthropic/*` model on
+CommonStack, and DeepSeek V4 Flash, answered 500.
+
+**Prod (21 Nov) runs on CommonStack:**
+
+| Lane | Model |
+|---|---|
+| Mission design, the payout judge, the concierge, the observation judge | MiniMax M3 |
+| The shared chain (drafts, findings, the first look) and the fallback | GPT-5.4 mini |
+| Vision | Qwen3-VL, with Gemini 3.5 Flash as the backup eye |
+
+The Claude-direct route (5-11 Nov, on the founder's credit) is still one `anthropic` away. Its payout judge is
+an approved identity (`docs/deputy-promotions/2026-11-05-anthropic-claude-sonnet-5-5.md`).
 
 **Every model call goes through ONE wire** (`src/lib/llm/wire.ts`, 5 Nov 2026; a structural test refuses a
 direct `chat/completions` fetch anywhere else). It:
