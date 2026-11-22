@@ -240,3 +240,44 @@ describe("a mission never asks for a proof Sage cannot read", () => {
     expect(kindProofIssue(m({ evidenceRequirements: ["Include your API key in your answer so the call can be repeated."] }), "api", "observation-based")).toMatch(/hand over a key/);
   });
 });
+
+describe("what a tester reads before taking a place", () => {
+  it("every kind is told never to type a recovery phrase or a private key, in one calm line", async () => {
+    const { KIND_PLAYBOOK, NEVER_A_SECRET, testerCautions } = await import("./product-kind");
+    for (const kind of Object.keys(KIND_PLAYBOOK) as (keyof typeof KIND_PLAYBOOK)[]) {
+      const lines = testerCautions(kind);
+      expect(lines[0], kind).toBe(NEVER_A_SECRET);
+      expect(lines.length, kind).toBeLessThanOrEqual(3);
+      for (const l of lines) {
+        expect(l.length, l).toBeLessThanOrEqual(170);
+        expect(l, l).not.toMatch(/!|\b(?:warning|danger|scam|beware|risk|hack)/i);
+      }
+    }
+    expect(testerCautions(null)).toEqual([NEVER_A_SECRET]);
+  });
+
+  it("a dapp adds the empty wallet and where to stop; an install adds where it may come from", async () => {
+    const { testerCautions } = await import("./product-kind");
+    expect(testerCautions("wallet_dapp").slice(1)).toEqual([
+      "Use a wallet with nothing in it you would mind losing. A new, empty one is best.",
+      "Stop at the first request to confirm anything in your wallet. Stopping there earns the same.",
+    ]);
+    for (const kind of ["mobile_app", "browser_extension", "desktop_app"] as const) expect(testerCautions(kind)[1]).toMatch(/^Install it only from the address the mission names\./);
+    for (const kind of ["code_repo", "package"] as const) expect(testerCautions(kind)[1]).toMatch(/without administrator rights and without any real key or password of yours\.$/);
+  });
+
+  it("the first-try WORDS say it too, because a mission's conditions are never shown to a tester", async () => {
+    const { KIND_PLAYBOOK } = await import("./product-kind");
+    const step = (kind: keyof typeof KIND_PLAYBOOK) => {
+      const t = KIND_PLAYBOOK[kind].firstTry!;
+      return `${t.how("X", "do it", "")} ${t.stop}`;
+    };
+    expect(step("wallet_dapp")).toContain("Use a wallet with nothing in it you would mind losing (a new, empty one is best), and never type a recovery phrase or a private key anywhere.");
+    expect(step("wallet_dapp")).toContain("Stop at the first request to confirm anything in your wallet");
+    expect(step("mobile_app")).toContain("If your phone warns you about the app");
+    expect(step("browser_extension")).toContain("If your browser warns you about it");
+    expect(step("desktop_app")).toContain("If your computer warns that it cannot check the app");
+    expect(step("code_repo")).toContain("without administrator rights and without any real key or password of yours");
+    expect(step("package")).toContain("without any real key or password of yours");
+  });
+});

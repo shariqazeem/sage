@@ -15,6 +15,7 @@ import { MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 import { buildDeployBundle } from "@/lib/launch/deploy-plan";
 import { buildSettings, defaultDailyCap, DEFAULT_DURATION_SECONDS, launchClosedReason, loadApprovedPlan } from "@/lib/launch/deployment-service";
 import { computeV2SetupPreview } from "@/lib/campaigns/v2-setup";
+import { launchSafety } from "@/lib/safety";
 import { campaignSetupInput, recordDeployedVault } from "@/lib/privy/deploy-runner";
 import { OWN_WALLET_CHAIN_ID, VAULT_STATES, type ExpectedVault, type VaultFacts, type VaultStateName } from "./plan";
 import { prepareOwnWalletLaunch, recordOwnWalletLaunch, type OwnWalletDeps } from "./flow";
@@ -145,6 +146,10 @@ export const realOwnWalletDeps: OwnWalletDeps = {
   launchAllowed: (founder, budgetBase) => {
     const r = launchAllowed(founder, budgetBase);
     return r.ok ? { ok: true } : { ok: false, message: r.message, upgradeTo: r.upgradeTo };
+  },
+  launchSafety: (jobId) => {
+    const r = launchSafety(jobId);
+    return r.ok ? { ok: true } : { ok: false, message: r.message };
   },
   // The account launch's settings exactly (deploy-runner `settingsFor`): the whole budget as the daily
   // cap, 14 days. The wallet that signs owns the vault and is its guardian.

@@ -58,6 +58,8 @@ export interface JobView {
   /** what Sage read this builder came for, and where it put the first-try mission because of it (the server's
    *  `JobView.purpose`, `src/lib/launch/job.ts`); absent on older servers and when the architect gave none */
   purpose?: { line: string; rank: "lead" | "alongside" | "yield"; why: string | null } | null;
+  /** what the product safety screen found, when it found anything (the server's `JobView.safety`): one calm line */
+  safety?: { outcome: "hold" | "refused"; line: string } | null;
   /** P23 — whether this plan's corpus supports autonomous payouts (shown before the founder funds). */
   corpusReadiness: { observation: boolean; sources: number; autonomous: boolean } | null;
   revision: number;

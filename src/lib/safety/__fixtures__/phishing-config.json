@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "tolerance": 1,
+  "fuzzylist": ["cryptokitties.co", "etherscan.io", "metamask.io", "myetherwallet.com", "opensea.io", "uniswap.org"],
+  "whitelist": ["metamask.io", "opensea.io", "uniswap.org", "etherscan.io", "listed-by-mistake.example"],
+  "blacklist": [
+    "zkdrop-claims.example",
+    "wallet-rectify.example",
+    "openseoa.example",
+    "listed-by-mistake.example",
+    "metamask-secure.example"
+  ]
+}

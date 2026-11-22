@@ -1,4 +1,5 @@
 import "server-only";
+import { launchSafety } from "@/lib/safety";
 
 import { erc20Abi, formatEther, getAddress, parseUnits, type Address } from "viem";
 
@@ -541,6 +542,9 @@ export async function callAgentWalletTool(
           // A plan this chat started without a wallet belongs to the chat's namespace; its link carries a
           // one-time claim code so the builder can take it on the web (handover-claim.ts). The chat is
           // private, so only they hold it.
+          // A product Sage refuses is not handed over to be paid for (src/lib/safety/).
+          const handSafe = launchSafety(planId);
+          if (!handSafe.ok) return ok({ ok: false, payOnWeb: true, refused: true, message: handSafe.message });
           const owner = getInspectionJob(planId)?.founderWallet ?? "";
           const code = handedOverOwner(owner) ? handoverClaimCode(planId, owner) : null;
           if (handedOverOwner(owner) && !code) {
@@ -591,6 +595,9 @@ export async function callAgentWalletTool(
           );
         }
         const inspectionId = resolved;
+        // The product itself, before a cent moves (src/lib/safety/): a refused product never launches.
+        const safe = launchSafety(inspectionId);
+        if (!safe.ok) return ok({ ok: false, refused: true, message: safe.message });
         if (!autoApprove(inspectionId, b.founderAddress)) {
           return err("That plan can't be approved for launch — it may have changed since it was created; plan it again.");
         }

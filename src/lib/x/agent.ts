@@ -279,7 +279,7 @@ export async function runXAgent(nowSec: number = nowSeconds(), deps: XAgentDeps 
   const onRecord = subjectsOnRecord();
   for (const c of listLiveCampaigns()) {
     if (!more()) break;
-    if (c.sandbox || c.visibility !== "listed" || c.kind !== "testing") continue;
+    if (c.sandbox || c.visibility !== "listed" || c.safetyHold || c.kind !== "testing") continue;
     const subjectKey = `mission:${c.id}`;
     if (settled(onRecord.get(subjectKey))) continue;
     if (!sharingFor(c.id).postMission) continue; // no answer from the builder is a no
@@ -309,7 +309,7 @@ export async function runXAgent(nowSec: number = nowSeconds(), deps: XAgentDeps 
   const facts = deps.resultFacts ?? ((id: string) => resultFactsFor(id));
   for (const c of listCampaigns()) {
     if (!more()) break;
-    if (c.sandbox || c.kind !== "testing" || c.status === "draft") continue;
+    if (c.sandbox || c.safetyHold || c.kind !== "testing" || c.status === "draft") continue;
     const subjectKey = `result:${c.id}`;
     if (settled(onRecord.get(subjectKey))) continue;
     const stopped = ENDED.has(c.status);

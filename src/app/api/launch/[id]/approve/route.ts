@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { launchSafety } from "@/lib/safety";
 
 import { getSessionAddress } from "@/lib/auth/session";
 import { getInspectionJob } from "@/lib/db/inspection";
@@ -45,6 +46,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (typeof body.expectedRevision === "number" && body.expectedRevision !== current.revisionNumber) {
     return NextResponse.json({ ok: false, error: "This plan changed — reload before approving.", currentRevision: current.revisionNumber }, { status: 409 });
   }
+
+  // A product Sage refuses has no plan to approve (src/lib/safety/): said here, before anything is signed.
+  const safe = launchSafety(id);
+  if (!safe.ok) return NextResponse.json({ ok: false, error: safe.message }, { status: 403 });
 
   // recompute + verify every hash + exact budget — trust nothing stored.
   const verified = verifyPlanForApproval(deserializePlan(current.planJson), {

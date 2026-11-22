@@ -103,7 +103,7 @@ export async function postMissionsToChannel(
   let attempts = 0;
   for (const c of listLiveCampaigns()) {
     if (attempts >= MAX_CHANNEL_POSTS_PER_TICK) break;
-    if (c.sandbox || c.visibility !== "listed" || c.kind !== "testing") continue;
+    if (c.sandbox || c.visibility !== "listed" || c.safetyHold || c.kind !== "testing") continue;
     const subjectKey = `mission:${c.id}`;
     const existing = rowFor(subjectKey);
     // posted is final; a drafted row may have reached Telegram before a crash, so it is never resent

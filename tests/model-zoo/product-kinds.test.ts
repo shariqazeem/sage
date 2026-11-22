@@ -223,7 +223,7 @@ const ROWS: Row[] = [
     ],
     core: core("follow the quickstart and run the hello example", "Quickstart"),
     product: "quickqueue",
-    firstTry: ["read the README for about a minute. Do not install anything yet.", "Now, on your own computer, try to follow the quickstart and run the hello example, using only what the README tells you.", "note the last command you ran and the first line of what it printed"],
+    firstTry: ["read the README for about a minute. Do not install anything yet.", "Now, on your own computer, try to follow the quickstart and run the hello example, using only what the README tells you, without administrator rights and without any real key or password of yours.", "note the last command you ran and the first line of what it printed"],
     kept: ["run-the-quickstart"],
     refused: { "share-it-in-discord": /a chat is not a page/, "record-the-terminal": /screen recording/ },
   },
@@ -234,7 +234,7 @@ const ROWS: Row[] = [
     pages: { "https://pypi.org/project/tinytable/": "package" },
     core: core("install it and print a sample table"),
     product: "tinytable",
-    firstTry: ["read its description and README for about a minute. Do not install anything yet.", "Now, on your own computer, try to install it and print a sample table, using only what the page tells you."],
+    firstTry: ["read its description and README for about a minute. Do not install anything yet.", "Now, on your own computer, try to install it and print a sample table, using only what the page tells you, and without any real key or password of yours."],
     kept: [],
     refused: {},
   },
@@ -302,7 +302,7 @@ const ROWS: Row[] = [
     ],
     core: core("pick a habit and set a daily reminder"),
     product: "Tidepool Habits",
-    firstTry: ["read the listing for about a minute. Do not install anything yet.", "Now install Tidepool Habits on your own phone and try to pick a habit and set a daily reminder.", "If it asks for money, a card, or an account you do not want to make, stop there"],
+    firstTry: ["read the listing for about a minute. Do not install anything yet.", "Now install Tidepool Habits on your own phone and try to pick a habit and set a daily reminder.", "If your phone warns you about the app, or it asks for money, a card, or an account you do not want to make, stop there"],
     kept: ["set-a-daily-reminder"],
     refused: { "quote-whats-new": /pays for reading it/ },
   },
@@ -433,7 +433,7 @@ const ROWS: Row[] = [
     // a swap is never a first try: the action is then read from the mission the gate accepted
     core: core("swap m.USDC into the Stable Vault", "Connect Wallet"),
     product: "Hummus Vault: earn on Metis",
-    firstTry: ["look at the first screen for about ten seconds. Do not connect anything yet.", "Now try to connect a wallet and find the Positions page, starting from “Connect Wallet”.", "Stop at the first request to confirm anything in your wallet, or to add funds: that counts as where you stopped."],
+    firstTry: ["look at the first screen for about ten seconds. Do not connect anything yet.", "Now try to connect a wallet and find the Positions page, starting from “Connect Wallet”.", "Use a wallet with nothing in it you would mind losing (a new, empty one is best), and never type a recovery phrase or a private key anywhere.", "Stop at the first request to confirm anything in your wallet, or to add funds: that counts as where you stopped."],
     kept: ["find-your-positions"],
     refused: { "prove-it-on-chain": /transaction's hash/ },
   },
@@ -585,6 +585,9 @@ describe("every kind of product through the real pipeline, offline", () => {
     if (row.kind === "website") expect(map.productKind).toBeUndefined();
     else expect(map.productKind!.because.length).toBeGreaterThan(10);
     expect(map.category).toBeTruthy();
+    // 1b. THE SAFETY SCREEN ran on what Sage read, found nothing, and no model was told about it
+    expect(map.safety).toMatchObject({ outcome: "clear", signals: [] });
+    for (const ask of out.architectAsks) expect(ask.user).not.toContain('"safety"');
 
     // 2. THE FIRST TRY, in the kind's own fixed words, naming the product (never the platform it is listed on)
     const first = accepted.find((m) => m.missionKey === CORE_MISSION_KEY)!;
@@ -676,4 +679,59 @@ describe("every kind of product through the real pipeline, offline", () => {
 
     table.push(`${row.kind} | ${row.product} | ${plan.missions.length} | ${first.instructions.split("\n")[2]!.slice(0, 90)} | ${out.architectAsks.length} | ${inspection.observations.length}`);
   }, 60_000);
+});
+
+/**
+ * NEVER SEND A TESTER INTO HARM (src/lib/safety/). The same pipeline, on products it must not plan for as
+ * usual: a refused product ends before any model is asked and leaves no plan to launch; a held one is
+ * planned, with the hold on its map for the doors to read.
+ */
+describe("the product safety screen, in the pipeline", () => {
+  const base = { kind: "wallet_dapp" as ProductKind, core: core("connect a wallet", "Connect Wallet"), product: "", firstTry: [], kept: [], refused: {} };
+  const run = (row: Row, opts: Parameters<typeof inspectAndPlan>[4] = {}) =>
+    onFakeClock(() => inspectAndPlan({ productUrl: row.url, goal: "see whether strangers get it and can try it", targetUsers: "", totalBudgetBase: BUDGET, tokenDecimals: 6 }, "safety-row", () => {}, 1, opts));
+
+  it("REFUSED: a page with a recovery-phrase field ends the run with the plain reason, and no model is asked", async () => {
+    const row: Row = { ...base, name: "seed form", url: "https://dapp-fix-portal.xyz/", pages: { "https://dapp-fix-portal.xyz/": "harm-seed-form" } };
+    const out = outsideWorld(row);
+    const { value: r } = await run(row);
+    expect(r.stage).toBe("failed");
+    expect(r.reason).toBe("Sage can't run a test here: the page has a field that asks for a recovery phrase. Sage does not send testers to an address like that. If this is a mistake, tell us and a person at Sage will look.");
+    expect(r.plan).toBeNull();
+    expect(r.brain).toBeNull();
+    expect(r.map!.safety).toMatchObject({ outcome: "refused", subject: "dapp-fix-portal.xyz" });
+    expect(out.zoo.calls).toHaveLength(0);
+  });
+
+  it("REFUSED: a lookalike of a well-known brand that asks for a wallet", async () => {
+    const row: Row = { ...base, name: "lookalike", url: "https://app-uniswap-claim.xyz/", pages: { "https://app-uniswap-claim.xyz/": "harm-lookalike" } };
+    const out = outsideWorld(row);
+    const { value: r } = await run(row);
+    expect(r.stage).toBe("failed");
+    expect(r.reason).toContain("looks like Uniswap's name but is not one of Uniswap's addresses");
+    expect(out.zoo.calls).toHaveLength(0);
+  });
+
+  it("HELD: drainer wording on a connect screen does not end the run; the hold rides on the map for the doors", async () => {
+    const row: Row = { ...base, name: "drainer", url: "https://zkr-portal.xyz/", pages: { "https://zkr-portal.xyz/": "harm-drainer" } };
+    outsideWorld(row);
+    const { value: r } = await run(row);
+    // the run goes on exactly as it would for any dapp: a hold never ends it
+    expect(r.stage).not.toBe("failed");
+    expect(r.map!.safety).toMatchObject({ outcome: "hold", signals: [{ id: "drainer_words", severity: "hold" }] });
+  });
+
+  it("the durable job's own screen is the one that decides, and a screen that throws falls back to what Sage saw", async () => {
+    const row: Row = { ...base, name: "seed form", url: "https://dapp-fix-portal.xyz/", pages: { "https://dapp-fix-portal.xyz/": "harm-seed-form" } };
+    outsideWorld(row);
+    const asked: string[] = [];
+    // a person at Sage cleared this product: the server's screen says clear, and the plan is written
+    const { value: cleared } = await run(row, { screen: async (c) => { asked.push(c.url); return { version: 1, outcome: "clear", subject: "dapp-fix-portal.xyz", host: "dapp-fix-portal.xyz", hosts: ["dapp-fix-portal.xyz"], signals: [], lists: { phishing: "checked", safeBrowsing: "off", domainAge: "off" }, reviewed: { decision: "cleared", at: 5 }, checkedAt: 9 }; } });
+    expect(asked).toEqual(["https://dapp-fix-portal.xyz/"]);
+    expect(cleared.stage).not.toBe("failed");
+    expect(cleared.map!.safety!.reviewed).toEqual({ decision: "cleared", at: 5 });
+    const { value: thrown } = await run(row, { screen: async () => { throw new Error("the record could not be read"); } });
+    expect(thrown.stage).toBe("failed");
+    expect(thrown.map!.safety!.outcome).toBe("refused");
+  });
 });

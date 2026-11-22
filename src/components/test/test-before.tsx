@@ -331,6 +331,11 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
               </dl>
             ) : ready ? (
               <div className="sg-stack sg-gap-4">
+                {job.safety?.outcome === "hold" ? (
+                  <div className="sg-t-notice">
+                    <p>{job.safety.line}</p>
+                  </div>
+                ) : null}
                 {job.purpose ? <PurposeLine purpose={job.purpose} /> : null}
                 <div className="sg-t-missions">
                   {plan!.missions.map((m, i) => (

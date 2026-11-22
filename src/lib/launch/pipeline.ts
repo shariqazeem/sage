@@ -12,6 +12,7 @@ import "server-only";
 
 import { inspectProduct, rankPrimaryLinks, underPath } from "./inspect";
 import { kindFromUrl, kindHonestyLine, kindOfMap, playbookOf } from "./product-kind";
+import { builderSafetyLine, screenProduct, type ProductSafetyRecord, type ScreenInput } from "@/lib/safety/product-screen";
 import { fieldTestEnabled, runFieldTest } from "./field-test";
 import { inspectRepo } from "./github";
 import {
@@ -243,6 +244,12 @@ export async function inspectAndPlan(
      *  what Sage itself noticed (its first look) can be shown while the missions are still being
      *  written. Best-effort: whatever it does, it can never fail or delay the inspection. */
     onMapped?: (map: ProductMapV1) => void;
+    /**
+     * THE PRODUCT SAFETY SCREEN (src/lib/safety/). The durable job hands in the server's version, which also
+     * reads the phishing list, remembers a person's decision and tells the operator. With none handed in
+     * (a script, the suite) the same pure screen runs on what Sage saw, with no list.
+     */
+    screen?: (input: Pick<ScreenInput, "url" | "observations" | "fieldTest" | "kind">) => Promise<ProductSafetyRecord>;
   } = {},
 ): Promise<LaunchResult> {
   // ONE INTENT, ZERO FORMS AFTER IT — and zero MANDATORY forms before it either. A founder who gave
@@ -470,6 +477,23 @@ export async function inspectAndPlan(
       ...(repo.reason ? [`Repository: ${repo.reason}`] : []),
     ]),
   ];
+
+  // NEVER SEND A TESTER INTO HARM (src/lib/safety/product-screen.ts). The product itself is screened here,
+  // once Sage has looked and before a single mission is designed: a known phishing address, a copy of a
+  // well-known brand, a page that asks for a recovery phrase, drainer wording, a download shaped like
+  // malware. Deterministic, no model. The record rides on the map (after the hash, like the kind).
+  //   refused: the run ends here, with the plain reason. No plan exists, so no door can launch one.
+  //   hold:    the plan is written as usual; the doors keep the test away from the public (safety/index.ts).
+  const screenInput = { url: input.productUrl, observations: inspection.observations, fieldTest, kind: kindOfMap(map) };
+  let safety: ProductSafetyRecord;
+  try {
+    safety = await (opts.screen ?? ((c) => Promise.resolve(screenProduct({ ...c, now }))))(screenInput);
+  } catch {
+    // the server's screen could not run (its record, its lists): what Sage saw is still screened
+    safety = screenProduct({ ...screenInput, now });
+  }
+  map.safety = safety;
+  if (safety.outcome === "refused") return out("failed", builderSafetyLine(safety), { map });
 
   // Only ask "we couldn't inspect anything" when NEITHER the static crawl NOR the real browser saw a
   // thing. A bot-walled or client-rendered product yields 0 static pages but a rich field test — that

@@ -10,6 +10,11 @@
  *   node scripts/review.mjs release <submissionId>
  *   node scripts/review.mjs reject <submissionId> [why...]
  *
+ * A PRODUCT the safety screen held or refused (src/lib/safety/) is reviewed here too:
+ *   node scripts/review.mjs products
+ *   node scripts/review.mjs clear-product <host | host/path> [note...]    lifts the hold; its tests go public
+ *   node scripts/review.mjs refuse-product <host | host/path> [note...]   closes it to new launches
+ *
  * ENV
  *   SAGE_ADMIN_SECRET   required — must match the server's SAGE_ADMIN_SECRET.
  *   SAGE_ADMIN_URL      optional — default http://localhost:3000.
@@ -23,15 +28,18 @@ if (!secret) {
   console.error("Set SAGE_ADMIN_SECRET (must match the server's value).");
   process.exit(1);
 }
-if (!["list", "release", "reject"].includes(action) || !id) {
+const PRODUCT_ACTIONS = { products: "products", "clear-product": "clear_product", "refuse-product": "refuse_product" };
+const isProduct = action in PRODUCT_ACTIONS;
+if ((!["list", "release", "reject"].includes(action) && !isProduct) || (!id && action !== "products")) {
   console.error(
-    "Usage:\n  node scripts/review.mjs list <campaignId>\n  node scripts/review.mjs release <submissionId>\n  node scripts/review.mjs reject <submissionId> [why...]",
+    "Usage:\n  node scripts/review.mjs list <campaignId>\n  node scripts/review.mjs release <submissionId>\n  node scripts/review.mjs reject <submissionId> [why...]\n  node scripts/review.mjs products\n  node scripts/review.mjs clear-product <host | host/path> [note...]\n  node scripts/review.mjs refuse-product <host | host/path> [note...]",
   );
   process.exit(1);
 }
 
-const payload =
-  action === "list"
+const payload = isProduct
+  ? { action: PRODUCT_ACTIONS[action], product: id, why: rest.join(" ") || undefined }
+  : action === "list"
     ? { action, campaignId: id }
     : { action, submissionId: id, why: rest.join(" ") || undefined };
 
@@ -47,7 +55,16 @@ if (!res.ok) {
   process.exit(1);
 }
 
-if (action === "list") {
+if (action === "products") {
+  const products = json.products || [];
+  if (!products.length) console.log("No product is held or refused.");
+  for (const p of products) {
+    console.log(`  ${p.subject}  ${p.decision ? `[${p.decision} by a person]` : `[${p.outcome}, waiting]`}  ${p.heldTests.length ? `held tests: ${p.heldTests.join(", ")}` : ""}`);
+    for (const r of p.reasons) console.log(`      ${r}`);
+  }
+} else if (isProduct) {
+  console.log(action === "clear-product" ? `Cleared ${json.subject}. ${json.released} held test(s) are public again.` : `Refused ${json.subject}. New launches are closed; a test already live stays held and keeps paying.`);
+} else if (action === "list") {
   const held = json.held || [];
   if (!held.length) {
     console.log("Nothing is held for review.");

@@ -329,12 +329,12 @@ export const KIND_PLAYBOOK: Record<ProductKind, KindPlaybook> = {
       place: "the first screen",
       look: "look at the first screen for about ten seconds. Do not connect anything yet.",
       defaultAction: "connect a wallet and get as far as the step that asks for a signature",
-      how: (product, action, from) => `Now try to ${action}${from}. Connecting a wallet only shows ${product} your public address; use a wallet you are comfortable connecting.`,
+      how: (product, action, from) => `Now try to ${action}${from}. Connecting a wallet only shows ${product} your public address. Use a wallet with nothing in it you would mind losing (a new, empty one is best), and never type a recovery phrase or a private key anywhere.`,
       stop: "Stop at the first request to confirm anything in your wallet, or to add funds: that counts as where you stopped.",
       last: "the name of the screen or the words on the last button you used",
       where: "the screen or button",
-      conditions: ["A computer or phone with a wallet you already use (a browser wallet or a wallet app)", "No funds needed"],
-      disallowed: ["Do not confirm a signature or a transaction in your wallet", "Do not add or move funds", "Do not share a recovery phrase or a private key"],
+      conditions: ["A computer or phone with a wallet that holds nothing you would mind losing (a new, empty one is best)", "No funds needed"],
+      disallowed: ["Do not confirm a signature or a transaction in your wallet", "Do not add or move funds", "Never type a recovery phrase or a private key anywhere"],
       minutes: 8,
     },
   },
@@ -429,7 +429,7 @@ export const KIND_PLAYBOOK: Record<ProductKind, KindPlaybook> = {
       place: "the repository's README",
       look: "read the README for about a minute. Do not install anything yet.",
       defaultAction: "follow the README's quickstart until it runs",
-      how: (_product, action) => `Now, on your own computer, try to ${action}, using only what the README tells you.`,
+      how: (_product, action) => `Now, on your own computer, try to ${action}, using only what the README tells you, without administrator rights and without any real key or password of yours.`,
       stop: "If it needs a paid service, a secret you do not have, or an hour of setup, stop there: that counts as where you stopped.",
       last: "the last command you ran and the first line of what it printed",
       where: "the step of the README or the command",
@@ -449,7 +449,7 @@ export const KIND_PLAYBOOK: Record<ProductKind, KindPlaybook> = {
       place: "the package page",
       look: "read its description and README for about a minute. Do not install anything yet.",
       defaultAction: "install it and run the first example in its README",
-      how: (_product, action) => `Now, on your own computer, try to ${action}, using only what the page tells you.`,
+      how: (_product, action) => `Now, on your own computer, try to ${action}, using only what the page tells you, and without any real key or password of yours.`,
       stop: "If it needs a paid service or a secret you do not have, stop there: that counts as where you stopped.",
       last: "the last command you ran and the first line of what it printed",
       where: "the step of the README or the command",
@@ -490,7 +490,7 @@ export const KIND_PLAYBOOK: Record<ProductKind, KindPlaybook> = {
       look: "read the listing for about a minute. Do not install anything yet.",
       defaultAction: "open it and reach its main screen",
       how: (product, action) => `Now install ${product} on your own phone and try to ${action}.`,
-      stop: "If it asks for money, a card, or an account you do not want to make, stop there: that counts as where you stopped.",
+      stop: "If your phone warns you about the app, or it asks for money, a card, or an account you do not want to make, stop there: that counts as where you stopped.",
       last: "the name of the screen or the words on the last button you used",
       where: "the screen or button inside the app",
       conditions: ["Your own phone of the kind the listing is for", "Room and a connection to install an app"],
@@ -510,7 +510,7 @@ export const KIND_PLAYBOOK: Record<ProductKind, KindPlaybook> = {
       look: "read the listing for about a minute, including what it asks permission for. Do not install anything yet.",
       defaultAction: "open it from the toolbar and do the first thing it offers",
       how: (product, action) => `Now install ${product} in your own browser and try to ${action}.`,
-      stop: "If it asks for permissions you would not give, an account you do not want to make, or money, stop there: that counts as where you stopped.",
+      stop: "If your browser warns you about it, or it asks for permissions you would not give, an account you do not want to make, or money, stop there: that counts as where you stopped.",
       last: "the name of the screen or the words on the last button you used",
       where: "the screen or button of the extension",
       conditions: ["A desktop browser the listing is for"],
@@ -621,6 +621,32 @@ export const KIND_PLAYBOOK: Record<ProductKind, KindPlaybook> = {
 };
 
 export const playbookOf = (kind: ProductKind | null | undefined): KindPlaybook => KIND_PLAYBOOK[kind ?? "website"] ?? KIND_PLAYBOOK.website;
+
+/* ─────────────────────────────────────────── what a tester reads before a place ── */
+
+/** The one line every tester reads, whatever the product. */
+export const NEVER_A_SECRET = "Never type a recovery phrase or a private key anywhere. No real product asks for one, and no test on Sage does.";
+const INSTALLS: readonly ProductKind[] = ["mobile_app", "browser_extension", "desktop_app"];
+const RUNS_CODE: readonly ProductKind[] = ["code_repo", "package"];
+
+/**
+ * WHAT A TESTER READS BEFORE TAKING A PLACE (22 Nov 2026). Short, calm, and the same on every test of a
+ * kind: Sage screens the product (src/lib/safety/), and these lines are what protects a tester when a screen
+ * is wrong. A mission's `conditions` and `disallowed` are never shown to a tester, so the page says these.
+ */
+export function testerCautions(kind: ProductKind | null | undefined): string[] {
+  const k = kind ?? "website";
+  if (k === "wallet_dapp") {
+    return [NEVER_A_SECRET, "Use a wallet with nothing in it you would mind losing. A new, empty one is best.", "Stop at the first request to confirm anything in your wallet. Stopping there earns the same."];
+  }
+  if (INSTALLS.includes(k)) {
+    return [NEVER_A_SECRET, "Install it only from the address the mission names. If your phone, browser or computer warns you about it, stop there. Stopping there earns the same."];
+  }
+  if (RUNS_CODE.includes(k)) {
+    return [NEVER_A_SECRET, "Run it only as its own page says, without administrator rights and without any real key or password of yours."];
+  }
+  return [NEVER_A_SECRET];
+}
 
 /** The kind a stored product map carries, read defensively (older maps carry none: a website). */
 export function kindOfMap(map: { productKind?: unknown } | null | undefined): ProductKind {

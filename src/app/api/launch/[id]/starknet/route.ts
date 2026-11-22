@@ -1,4 +1,5 @@
 import { defaultAutonomyFor } from "@/lib/campaigns/autonomy-default";
+import { launchSafety } from "@/lib/safety";
 import { parseDirectTitle } from "@/lib/launch/direct-campaign";
 import { NextResponse } from "next/server";
 
@@ -87,6 +88,8 @@ export async function GET(
   if (!allowed.ok) {
     return NextResponse.json({ error: allowed.message, planLimit: { code: allowed.code, plan: allowed.plan, upgradeTo: allowed.upgradeTo } }, { status: 402 });
   }
+  const safe = launchSafety(id);
+  if (!safe.ok) return NextResponse.json({ error: safe.message }, { status: 403 });
 
   const planned = missions.map((m) => ({
     title: m.title,

@@ -1,5 +1,6 @@
 import "server-only";
 import type { InspectionJob } from "@/lib/db/schema";
+import { safetyOfMap } from "@/lib/safety/product-screen";
 import { getCurrentRevision } from "@/lib/db/plan-revisions";
 import { siteUrl } from "@/lib/site";
 import { testUrl } from "@/lib/site/test-url";
@@ -103,6 +104,8 @@ export function replyFor(job: InspectionJob | null, startedAt: number, nowSec: n
     composed ? { kind: "reply", composed } : { kind: "silent", reason: "the reply broke a writing rule" };
 
   if (job.status === "ready") {
+    // a product held for a safety review is never talked about in public (src/lib/safety/)
+    if (safetyOfMap((job.result as { map?: { safety?: unknown } } | null)?.map)?.outcome === "hold") return { kind: "silent", reason: "the product is held for a safety review" };
     const facts = draftedPlanFacts(job);
     if (!facts) return { kind: "silent", reason: "the drafted plan could not be read" };
     return said(replyReadyText({ domain, pages: job.pagesInspected, places: facts.places, totalBase: facts.totalBase, url }));

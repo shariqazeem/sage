@@ -79,6 +79,14 @@ export const campaigns = sqliteTable("campaigns", {
    * on legacy campaigns → they stay founder-approved (Step 0). The digest anchors the proof receipt.
    */
   privateCorpus: text("private_corpus", { mode: "json" }).$type<{ source: string; text: string }[]>(),
+  /**
+   * THE PRODUCT IS HELD FOR A SAFETY REVIEW (22 Nov 2026, `src/lib/safety/`). The host Sage's product screen
+   * was unsure about, written when the test is recorded. While it is set the test is never public: not on
+   * Earn, not shared on X or Telegram, not announced to the roster, and only the builder's own invited people
+   * may answer. A person at Sage clears it (the column goes back to null). It never touches a payout: a
+   * held test keeps paying the people already in it.
+   */
+  safetyHold: text("safety_hold"),
   privateCorpusDigest: text("private_corpus_digest"),
   /** distinct SOURCES in the pinned key — the campaign-eligibility signal (thin key → founder-only). */
   privateCorpusSources: integer("private_corpus_sources").notNull().default(0),
@@ -1993,3 +2001,27 @@ export const coreAnswers = sqliteTable(
   (t) => [index("core_answers_campaign_idx").on(t.campaignId)],
 );
 export type CoreAnswerRow = typeof coreAnswers.$inferSelect;
+
+/**
+ * THE PRODUCT SAFETY SCREEN'S RECORD, one row per product (22 Nov 2026, `src/lib/safety/`). What the screen
+ * last found there, whether the operator has been told (once per product and outcome), and a person's decision
+ * when one was made: `cleared` overrides a hold or a refusal for that product from then on, `refused` closes
+ * it. The signals are `SafetySignal[]` (`product-screen.ts`).
+ */
+export const productScreens = sqliteTable("product_screens", {
+  subject: text("subject").primaryKey(),
+  productUrl: text("product_url").notNull(),
+  /** the latest inspection that screened this host */
+  jobId: text("job_id"),
+  outcome: text("outcome").$type<"clear" | "hold" | "refused">().notNull(),
+  signals: text("signals", { mode: "json" }).$type<unknown>().notNull(),
+  firstSeenAt: integer("first_seen_at").notNull(),
+  lastSeenAt: integer("last_seen_at").notNull(),
+  /** the outcome the operator was last told about, so one product is one message */
+  alertedOutcome: text("alerted_outcome"),
+  alertedAt: integer("alerted_at"),
+  decision: text("decision").$type<"cleared" | "refused">(),
+  decidedAt: integer("decided_at"),
+  decisionNote: text("decision_note"),
+});
+export type ProductScreenRow = typeof productScreens.$inferSelect;

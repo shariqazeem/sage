@@ -540,6 +540,13 @@
       "when": 1794614400000,
       "tag": "0076_user_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1794700800000,
+      "tag": "0077_product_safety",
+      "breakpoints": true
     }
   ]
 }

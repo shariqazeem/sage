@@ -8,7 +8,8 @@ import { personWallets } from "@/lib/identity/person";
 import { aboveCeilingCopy, socialDoorArmed, socialDoorNeed, socialSignInCopy } from "@/lib/identity/social-door";
 import { identityFor } from "@/lib/db/identity";
 import { worldIdConfig } from "@/lib/identity/worldid";
-import { isPublicWork } from "@/lib/campaigns/visibility";
+import { isHeldForReview, isPublicWork } from "@/lib/campaigns/visibility";
+import { seatHolders } from "@/lib/people/seats";
 import { campaignWorkspace } from "@/lib/db/workspaces";
 import { isWorkspacePerson } from "@/lib/workspaces/person-role";
 import { countPaidByWalletsInCampaign } from "@/lib/db/campaigns";
@@ -58,6 +59,16 @@ export function checkSubmitDoor(campaign: Campaign, wallet: string, opts: { surf
         ? "Your wallet isn't on this job's recipient list — open your invite link first."
         : "This campaign pays a named recipient list, and your wallet isn't on it. Contact the operator.",
     };
+  }
+  // THE PRODUCT IS HELD FOR A SAFETY REVIEW (src/lib/safety/): the builder's own invited people may answer
+  // (a place from the test's link, a member of its workspace, a name on its list, which passed above), and
+  // nobody else until a person at Sage has looked. A stranger is told to come back, never why.
+  if (isHeldForReview(campaign) && !(Array.isArray(campaign.allowlist) && campaign.allowlist.length > 0)) {
+    const ws = campaignWorkspace(campaign);
+    const invited = (!!ws && isWorkspacePerson(ws.id, wallet)) || seatHolders(campaign.id).some((w) => sameChainAddress(w, wallet));
+    if (!invited) {
+      return { ok: false, status: 403, error: "This test is open only to people its builder invited for now. Sage is still reviewing the product; check back later." };
+    }
   }
   // ONE PERSON, ONE SLOT on public work: a one-time personhood proof (no name, no document, no country),
   // and the caps count people rather than wallets. Members-only work is untouched: the team chose its people.

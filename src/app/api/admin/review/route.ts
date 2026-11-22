@@ -6,6 +6,7 @@ import {
   rejectSubmission,
 } from "@/lib/campaigns/review-actions";
 import { autonomousResolutionStats } from "@/lib/campaigns/held-triage";
+import { decideProduct, listProductReviews } from "@/lib/safety";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,10 @@ export const maxDuration = 60;
  * reuses the SAME releaseSubmission the chat tools + decide route use — no money logic lives here,
  * and a release lands in the proven settle path. Gated on SAGE_ADMIN_SECRET: fail-closed (404)
  * when unset, exactly like the deputy sweep. Not the model's; this is the human operator's.
+ *
+ * The same door reviews a held PRODUCT (the safety screen, src/lib/safety/): `products` lists what the
+ * screen held or refused, `clear_product` lifts a hold or a refusal for one product (its held tests
+ * become public again), `refuse_product` closes it to new launches. Neither touches a payout.
  */
 function authorized(req: NextRequest): boolean {
   const secret = process.env.SAGE_ADMIN_SECRET?.trim();
@@ -29,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  let body: { action?: string; campaignId?: string; submissionId?: string; why?: string };
+  let body: { action?: string; campaignId?: string; submissionId?: string; why?: string; product?: string };
   try {
     body = await req.json();
   } catch {
@@ -56,5 +61,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(res, { status: res.ok ? 200 : 502 });
   }
 
-  return NextResponse.json({ error: "action must be list | release | reject" }, { status: 400 });
+  if (body.action === "products") {
+    return NextResponse.json({ ok: true, products: listProductReviews() });
+  }
+
+  if (body.action === "clear_product" || body.action === "refuse_product") {
+    const res = decideProduct(body.product ?? "", body.action === "clear_product" ? "cleared" : "refused", body.why);
+    return NextResponse.json(res, { status: res.ok ? 200 : 400 });
+  }
+
+  return NextResponse.json({ error: "action must be list | release | reject | products | clear_product | refuse_product" }, { status: 400 });
 }

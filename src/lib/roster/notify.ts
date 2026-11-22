@@ -50,7 +50,8 @@ export async function announceNewWork(nowSec = Math.floor(Date.now() / 1000)): P
   let sent = 0;
   if (roster.length === 0) return { campaigns, sent };
   for (const c of listLiveCampaigns()) {
-    if (c.sandbox || c.visibility !== "listed") continue;
+    // a test whose product is held for a safety review is announced to nobody (src/lib/safety/)
+    if (c.sandbox || c.visibility !== "listed" || c.safetyHold) continue;
     if (listCampaignEvents(c.id).some((e) => e.kind === ANNOUNCED)) continue;
     const work = alertableWork(c);
     const to = recipientsFor(work, roster, nowSec);

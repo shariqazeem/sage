@@ -35,6 +35,7 @@ import type { ValidationScope } from "./validate-mission";
 import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 import type { InspectionJob, InspectionStatus } from "@/lib/db/schema";
 import { CORE_RANKS, type CoreDecision, type CoreRank } from "./core-mission";
+import { safetyView, screenForJob } from "@/lib/safety";
 
 /**
  * P23 — the founder learns BEFORE funding whether this product supports autonomous payouts. Preview the
@@ -310,6 +311,8 @@ export async function runInspectionJob(jobId: string): Promise<void> {
         priorObservations,
         // what Sage itself noticed, saved before the missions are designed (never awaited, never throws)
         onMapped: (map) => void recordFirstLook(jobId, map, job.productUrl),
+        // the product safety screen with the server's lists, a person's decisions and the operator's alert
+        screen: (ctx) => screenForJob(jobId, ctx),
       },
     );
 
@@ -472,6 +475,11 @@ export interface JobView {
    * checked to be plain words, and a rank.
    */
   purpose: { line: string; rank: CoreRank; why: string | null } | null;
+  /**
+   * What the product safety screen found, when it found anything (src/lib/safety/): `hold` (invited people
+   * only until a person at Sage has looked) or `refused` (no test). One calm line for the builder.
+   */
+  safety: { outcome: "hold" | "refused"; line: string } | null;
   /** the CURRENT revision's plan snapshot (serialized), or null. */
   plan: unknown;
   /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
@@ -495,6 +503,29 @@ function purposeOf(res: unknown): JobView["purpose"] {
   if (!d || d.from !== "model" || !d.rank || !(CORE_RANKS as readonly string[]).includes(d.rank)) return null;
   if (typeof d.purpose !== "string" || !d.purpose.trim()) return null;
   return { line: d.purpose, rank: d.rank, why: typeof d.why === "string" && d.why.trim() ? d.why : null };
+}
+
+/**
+ * WHAT THE SAFETY SCREEN NOTICED IS THE BUILDER'S TO READ. A plan's page is readable by anyone holding its
+ * link, so for somebody else the reason is left out: they are told only that there is no test here. Sage
+ * never publishes a line about a builder's product that could read as an accusation.
+ */
+export function withoutSafetyDetail<V extends Pick<JobView, "safety" | "failureReason" | "result">>(view: V): V {
+  if (!view.safety) return view;
+  const refused = view.safety.outcome === "refused";
+  const said = "Sage did not run a test here.";
+  const map = view.result?.map && typeof view.result.map === "object" ? { ...(view.result.map as Record<string, unknown>), safety: undefined } : (view.result?.map ?? null);
+  return {
+    ...view,
+    safety: null,
+    failureReason: refused ? said : view.failureReason,
+    result: view.result ? { ...view.result, map, reason: refused ? said : view.result.reason } : view.result,
+  };
+}
+
+function safetyLineFor(job: InspectionJob): JobView["safety"] {
+  const v = safetyView(job);
+  return v && v.outcome !== "clear" ? { outcome: v.outcome, line: v.line } : null;
 }
 
 export function jobToView(job: InspectionJob): JobView {
@@ -522,6 +553,7 @@ export function jobToView(job: InspectionJob): JobView {
         : { source: "legacy", planDigest: null, coverage: null }
       : null,
     purpose: purposeOf(res),
+    safety: safetyLineFor(job),
     plan: current ? current.planJson : ((res as { plan?: unknown } | null)?.plan ?? null),
     corpusReadiness: computeCorpusReadiness(
       (res?.map ?? null) as ProductMapV1 | null,

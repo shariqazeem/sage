@@ -17,7 +17,9 @@ import { short } from "@/lib/format";
 import { seatLinkFor } from "@/lib/people/link-info";
 import { linkFor, seatHolders } from "@/lib/people/seats";
 import { findingsView, notPaidReason, type FindingsView } from "@/lib/report";
-import { sageReadsOnly } from "@/lib/launch/product-kind";
+import { kindOfMap, sageReadsOnly, testerCautions } from "@/lib/launch/product-kind";
+import { isHeldForReview } from "@/lib/campaigns/visibility";
+import { safetyView } from "@/lib/safety";
 import { firstLookView, type FirstLookView } from "./first-look";
 import { sharingFor, type Sharing } from "@/lib/sharing";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
@@ -69,6 +71,11 @@ export interface LiveOwner {
   explorerUrl: string;
   /** answers waiting for the builder's own yes or no */
   held: number;
+  /**
+   * The product is held for a safety review (src/lib/safety/): the calm line that says what Sage noticed and
+   * that only invited people take part until a person at Sage has looked. Null when it is not held.
+   */
+  review: string | null;
   /** the builder's link for their own people, when the test is for them only */
   seatLink: { url: string; seats: number; taken: number } | null;
   /** the exact words Sage would post when the test ends, from today's answers; null when there is nothing to say yet */
@@ -103,6 +110,8 @@ export interface LiveView {
   run: { steps: number; seconds: number | null } | null;
   /** what Sage read where it could not use the product itself ("the store listing"); null when it tried it */
   sageReads: string | null;
+  /** what a tester reads before taking a place: short and calm (product-kind.ts `testerCautions`) */
+  cautions: string[];
   /**
    * What Sage itself noticed. The owner's while the test is live: it holds things Sage saw, and a
    * tester must not read those before answering. Once the test is done and its findings are public,
@@ -227,6 +236,9 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
       vaultAddress: campaign.vaultAddress,
       explorerUrl: chainConfig(campaign.chainId).explorerUrl,
       held: listHeldSubmissions(campaign).length,
+      review: isHeldForReview(campaign)
+        ? (safetyView(lookJob)?.line || "Sage is reviewing this product. People you invite can still take part; public testers wait until a person at Sage has looked.")
+        : null,
       seatLink,
       resultPost: post ? post.text : null,
       users: firstUsersView(campaign, findings, { done: phase === "done", now }),
@@ -253,6 +265,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
     money: { fundedBase: e.totalFundedBase, paidBase: settledBase, unspentBase: Math.max(0, e.totalFundedBase - settledBase) },
     frames,
     run,
+    cautions: campaign.kind === "testing" ? testerCautions(lookJob ? kindOfMap((lookJob.result as { map?: { productKind?: unknown } } | null)?.map) : null) : [],
     sageReads: lookJob ? sageReadsOnly((lookJob.result as { map?: { productKind?: unknown } } | null)?.map ?? null, lookJob.productUrl) : null,
     firstLook: lookJob && (owner || (phase === "done" && sharing.findingsPublic && !lookJob.testAccountSealed)) ? firstLookView(lookJob) : null,
     findings,

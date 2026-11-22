@@ -331,6 +331,12 @@ export interface ProductMapV1 {
    */
   productKind?: import("./product-kind").ProductKindRecord | null;
   /**
+   * THE PRODUCT SAFETY SCREEN's record (src/lib/safety/product-screen.ts): clear, hold or refused, with the
+   * plain reason for each thing Sage noticed. Deterministic, no model. Left out of the map's hash (attached
+   * after it), so no plan hash moves. Absent on maps from before the screen existed.
+   */
+  safety?: import("@/lib/safety/product-screen").ProductSafetyRecord | null;
+  /**
    * Eyes V2 — the action-grounded, source-addressable observation set derived deterministically from the
    * field test (type-only reference to avoid a runtime cycle). ALSO excluded from `digest`, so it is
    * purely additive: an inspection without it produces byte-identical downstream hashes, and old artifacts

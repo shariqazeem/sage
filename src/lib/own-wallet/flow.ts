@@ -45,6 +45,8 @@ export interface OwnWalletDeps {
   /** the current revision compiled but NOT approved: for the budget and the vault address only */
   draftPlan(jobId: string, founder: string): DeploymentReadyPlan | null;
   launchAllowed(founder: string, budgetBase: bigint): LaunchCheckResult;
+  /** the product safety screen's door (src/lib/safety/): a refused product never launches */
+  launchSafety(jobId: string): { ok: true } | { ok: false; message: string };
   /** the account launch's settings (default daily cap and duration), owned and guarded by this wallet, on Metis */
   settings(plan: DeploymentReadyPlan, owner: `0x${string}`): SettingsResult;
   bundle(plan: DeploymentReadyPlan, settings: DeploymentSettings): DeployPlanBundle;
@@ -179,6 +181,9 @@ export async function prepareOwnWalletLaunch(
   if (!moneyIn) {
     const allowed = deps.launchAllowed(founder, budget);
     if (!allowed.ok) return refuse("plan_limit", allowed.message, { upgradeTo: allowed.upgradeTo ?? null });
+    // the product itself, at the same moment and under the same rule: before money, never after
+    const safe = deps.launchSafety(jobId);
+    if (!safe.ok) return refuse("not_ready", safe.message);
   }
 
   // THE RECORD IS CHECKED BEFORE THE MONEY MOVES (deploy-runner's rule): a plan that could not be

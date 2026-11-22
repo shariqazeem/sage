@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { launchSafety } from "@/lib/safety";
 
 import { getSessionAddress } from "@/lib/auth/session";
 import { claimInspectionJob } from "@/lib/db/inspection";
@@ -78,6 +79,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!allowed.ok) {
     return NextResponse.json({ ok: false, error: allowed.message, planLimit: { code: allowed.code, plan: allowed.plan, upgradeTo: allowed.upgradeTo } }, { status: 402 });
   }
+  // The product itself, before the founder signs anything (src/lib/safety/): a refused product never launches.
+  const safe = launchSafety(id);
+  if (!safe.ok) return NextResponse.json({ ok: false, error: safe.message }, { status: 403 });
 
   // Verify the EIP-712 signature binds THIS wallet to THIS plan.
   const now = Math.floor(Date.now() / 1000);

@@ -5,7 +5,7 @@ import path from "node:path";
 import type { InspectionJob } from "@/lib/db/schema";
 import { getCurrentRevision } from "@/lib/db/plan-revisions";
 import { sameFounder } from "@/lib/auth/founder";
-import { jobToView } from "@/lib/launch/job";
+import { jobToView, withoutSafetyDetail } from "@/lib/launch/job";
 import { kindOfMap, playbookOf, sageReadsOnly } from "@/lib/launch/product-kind";
 import { deserializePlan } from "@/lib/launch/serde";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
@@ -107,7 +107,9 @@ export function beforeView(job: InspectionJob, viewer: string | null): BeforeVie
   const whose = whoseIs(job, viewer);
   // the owner's first look at a fresh default-budget plan sets it to the default offer, once
   if (whose === "yours" && viewer) ensureDefaultOffer(job, viewer);
-  const view = jobToView(job) as unknown as JobView;
+  // what the safety screen noticed is the builder's to read; somebody else's view leaves the reason out
+  const full = jobToView(job);
+  const view = (whose === "other" || whose === "x" ? withoutSafetyDetail(full) : full) as unknown as JobView;
   const host = hostOf(job.productUrl) ?? job.productUrl;
   const map = ((job.result as { map?: StoredMap } | null)?.map ?? null) as StoredMap | null;
 

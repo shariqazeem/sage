@@ -1,4 +1,5 @@
 import { notifyWorkspaceNewWork } from "@/lib/telegram/workspace-notify";
+import { holdForCampaign } from "@/lib/safety";
 import { validateThreshold } from "./validate";
 import "server-only";
 
@@ -477,6 +478,9 @@ export async function attachV2Campaign(
           // The composer's invite-only toggle reached the plan and stopped there for weeks: no caller
           // handed it to this row, so every "invite-only" campaign deployed listed. Typed through now.
           visibility: input.visibility ?? "listed",
+          // THE PRODUCT SAFETY SCREEN (src/lib/safety/): a product held for review makes a held test, read
+          // here from the test's own inspection so no door has to remember to pass it. Held = never public.
+          safetyHold: holdForCampaign(preview.publicCampaignId),
           // What the obligation WAS in the founder's currency — beside the USD base that is the money.
           currency: input.denomination?.currency ?? null,
           localTotal: input.denomination?.localTotal ?? null,

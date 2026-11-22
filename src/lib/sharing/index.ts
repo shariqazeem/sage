@@ -1,7 +1,7 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { campaignSharing } from "@/lib/db/schema";
+import { campaigns, campaignSharing } from "@/lib/db/schema";
 import { nowSeconds } from "@/lib/db/keys";
 
 /**
@@ -23,8 +23,21 @@ export type Sharing = {
 
 export const QUIET: Sharing = Object.freeze({ postMission: false, postResult: false, findingsPublic: false });
 
-/** What the builder chose for this test; the quiet default when they never answered. */
+/**
+ * What may be shared about this test: the builder's answers, or the quiet default when they never answered.
+ *
+ * A test whose product is held for a safety review (`campaigns.safety_hold`, src/lib/safety/) is quiet
+ * whatever the builder chose: nothing is posted to X or the Telegram channel and its findings stay private
+ * until a person at Sage clears it. The builder's own answers are kept and apply again from that moment.
+ */
 export function sharingFor(campaignId: string): Sharing {
+  const held = db.select({ safetyHold: campaigns.safetyHold }).from(campaigns).where(eq(campaigns.id, campaignId)).get()?.safetyHold;
+  if (held) return { ...QUIET };
+  return chosenSharing(campaignId);
+}
+
+/** The builder's own answers, as stored. Only `setSharing` reads this; every other reader asks `sharingFor`. */
+function chosenSharing(campaignId: string): Sharing {
   const row = db.select().from(campaignSharing).where(eq(campaignSharing.campaignId, campaignId)).get();
   if (!row) return { ...QUIET };
   return { postMission: row.postMission, postResult: row.postResult, findingsPublic: row.findingsPublic };
@@ -35,7 +48,7 @@ export function sharingFor(campaignId: string): Sharing {
  * switch never flips another. The caller has already checked that the session owns the campaign.
  */
 export function setSharing(campaignId: string, patch: Partial<Sharing>, now = nowSeconds()): Sharing {
-  const next: Sharing = { ...sharingFor(campaignId), ...pickBooleans(patch) };
+  const next: Sharing = { ...chosenSharing(campaignId), ...pickBooleans(patch) };
   db.insert(campaignSharing)
     .values({ campaignId, ...next, updatedAt: now })
     .onConflictDoUpdate({ target: campaignSharing.campaignId, set: { ...next, updatedAt: now } })

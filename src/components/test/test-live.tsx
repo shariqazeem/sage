@@ -123,6 +123,17 @@ export function TestLive({ initial }: { initial: LiveView }) {
         {/* the tester's door comes first for everyone who is not the owner */}
         {!owner && !done ? (
           <Stage state="now" title="Take a place" meta={`${places.left} of ${places.total} left`} id="place">
+            {/* what every tester reads before a place: short and calm (product-kind.ts testerCautions) */}
+            {view.cautions.length > 0 ? (
+              <div className="sg-stack sg-gap-2">
+                <span className="sg-label">Before you start</span>
+                {view.cautions.map((line) => (
+                  <p className="sg-small" key={line}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+            ) : null}
             <TesterDoor view={view} onChanged={read} />
           </Stage>
         ) : null}
@@ -200,6 +211,11 @@ export function TestLive({ initial }: { initial: LiveView }) {
                   Read {view.owner.held === 1 ? "it" : "them"}
                 </ButtonLink>
               </div>
+            </div>
+          ) : null}
+          {owner && view.owner?.review ? (
+            <div className="sg-t-notice">
+              <p>{view.owner.review}</p>
             </div>
           ) : null}
           {owner && view.owner?.seatLink ? <SeatLink link={view.owner.seatLink} /> : null}

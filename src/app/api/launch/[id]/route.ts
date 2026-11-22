@@ -3,7 +3,7 @@ import { after } from "next/server";
 
 import { getFounderAddress, sameFounder } from "@/lib/auth/founder";
 import { getInspectionJob } from "@/lib/db/inspection";
-import { jobToView, reapStalledJob, runInspectionJob } from "@/lib/launch/job";
+import { jobToView, withoutSafetyDetail, reapStalledJob, runInspectionJob } from "@/lib/launch/job";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,5 +37,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         ? "yours"
         : "other";
 
-  return NextResponse.json({ ok: true, job: jobToView(fresh), ownership });
+  // what the safety screen noticed is the builder's to read (job.ts `withoutSafetyDetail`)
+  const view = jobToView(fresh);
+  return NextResponse.json({ ok: true, job: ownership === "other" ? withoutSafetyDetail(view) : view, ownership });
 }

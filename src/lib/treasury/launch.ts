@@ -1,4 +1,5 @@
 import "server-only";
+import { launchSafety } from "@/lib/safety";
 import { getAddress } from "viem";
 import { getWebTreasury, getWebTreasuryOn } from "./web";
 import { treasuryChainId } from "@/lib/privy/onboarding";
@@ -92,6 +93,9 @@ export async function launchFromTreasury(founderAddress: string, jobId: string, 
   if (paused) return { ok: false, reason: "network_paused", message: paused };
   const job = getInspectionJob(jobId);
   if (!job || !sameFounder(job.founderWallet, founderAddress)) return { ok: false, reason: "not_yours", message: "That plan isn't yours." };
+  // The product itself, before a cent moves (src/lib/safety/): a refused product never launches.
+  const safe = launchSafety(jobId);
+  if (!safe.ok) return { ok: false, reason: "not_ready", message: safe.message };
   if (!autoApprove(jobId, getAddress(founderAddress))) return { ok: false, reason: "not_ready", message: "This plan isn't ready to launch — it may have changed since it was planned; plan it again." };
   const loaded = loadApprovedPlan(jobId);
   if (!loaded) return { ok: false, reason: "not_ready", message: "Couldn't load the approved plan." };

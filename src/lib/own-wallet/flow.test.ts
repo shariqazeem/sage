@@ -88,6 +88,7 @@ function deps(over: Partial<OwnWalletDeps> = {}): OwnWalletDeps {
     approvedPlan: () => say("approvedPlan", approved ? loaded : null),
     draftPlan: () => say("draftPlan", plan),
     launchAllowed: () => say("launchAllowed", { ok: true as const }),
+    launchSafety: () => say("launchSafety", { ok: true as const }),
     settings: () => say("settings", { ok: true as const, settings }),
     bundle: () => say("bundle", bundle()),
     recordErrors: () => say("recordErrors", []),
@@ -134,6 +135,21 @@ describe("prepare: what the wallet may sign", () => {
     const r = await prepareOwnWalletLaunch(OWNER, "job1", { approve: true }, deps({ launchAllowed: () => ({ ok: false, message: "Free launches one job at a time.", upgradeTo: "pro" }) }));
     expect(r).toEqual({ ok: false, reason: "plan_limit", message: "Free launches one job at a time.", upgradeTo: "pro" });
     expect(JSON.stringify(r)).not.toContain("0xc1");
+  });
+
+  it("THE PRODUCT IS ASKED BEFORE MONEY MOVES: a refused product gets the plain reason, no calls, nothing recorded", async () => {
+    const r = await prepareOwnWalletLaunch(OWNER, "job1", { approve: true }, deps({ launchSafety: () => ({ ok: false, message: "Sage can't run a test here. Nothing was sent." }) }));
+    expect(r).toMatchObject({ ok: false, reason: "not_ready", message: "Sage can't run a test here. Nothing was sent." });
+    expect(JSON.stringify(r)).not.toContain("0xc1");
+    expect(log).not.toContain("record");
+  });
+
+  it("never asks about the product again once the wallet's money is in the vault (a live test keeps going)", async () => {
+    for (const s of ["funded", "active"] as const) {
+      log = [];
+      const r = await prepareOwnWalletLaunch(OWNER, "job1", { approve: true }, deps({ vaultState: async () => s, launchSafety: () => ({ ok: false, message: "no" }) }));
+      expect(r.ok).toBe(true);
+    }
   });
 
   it("checks the plan's limits on a vault that is only created (nothing has moved yet)", async () => {
