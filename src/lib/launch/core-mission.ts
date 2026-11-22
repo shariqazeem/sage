@@ -69,8 +69,14 @@ const ACTION_MAX = 72;
 const ACTION_MAX_WORDS = 10;
 
 /** A first word that makes the phrase something a person DOES. */
-const DOING_VERB =
-  /^(start|create|make|build|send|post|publish|write|add|open|find|search|play|try|use|book|browse|explore|join|sign up|register|set up|run|launch|deploy|draw|upload|share|invite|connect|pick|choose|select|compare|filter|follow|complete|finish|take|watch|listen|generate|design|plan|track|check|get|give|ask|talk|chat|download|install|enter|fill|submit|view|reach|walk|schedule|record|edit|save|import|export|scan|learn|configure|customi[sz]e)\b/i;
+const VERBS =
+  "start|create|make|build|send|post|publish|write|add|open|find|search|play|try|use|book|browse|explore|join|sign up|register|set up|run|launch|deploy|draw|upload|share|invite|connect|pick|choose|select|compare|filter|follow|complete|finish|take|watch|listen|generate|design|plan|track|check|get|give|ask|talk|chat|download|install|enter|fill|submit|view|reach|walk|schedule|record|edit|save|import|export|scan|learn|configure|customi[sz]e";
+const DOING_VERB = new RegExp(`^(?:${VERBS})\\b`, "i");
+/**
+ * A mission's TITLE may start with a few more. A button labelled "Switch to light theme" is not what a product
+ * is for, but a mission the gate accepted called "Apply a size filter" names a real thing to do.
+ */
+const TITLE_VERB = new RegExp(`^(?:${VERBS}|navigate|click|apply|change|adjust|switch|type|sort|move|visit|go to|restyle|pan|zoom|trigger)\\b`, "i");
 /** Things the core mission must never send a stranger to do, whatever a model suggests. */
 const NEVER =
   /\b(buy|purchase|pay|checkout|subscribe|deposit|withdraw|transfer|bridge|swap|stake|mint|sign (a|the|any) (transaction|message)|private key|seed phrase|password|delete|hack|exploit)\b/i;
@@ -80,13 +86,13 @@ const squash = (s: string): string => s.replace(/\s+/g, " ").trim();
 const observed = (text: string, corpus: string): boolean => text.trim().length >= 3 && anchorIssues({ anchors: [text] }, corpus).length === 0;
 
 /** A phrase a mission may carry as its main action: plain, short, something a person does, and safe. */
-export function usableAction(raw: unknown): string | null {
+export function usableAction(raw: unknown, verbs: RegExp = DOING_VERB): string | null {
   if (typeof raw !== "string") return null;
   let s = squash(raw.replace(/https?:\/\/\S+/gi, " ").replace(/[^\p{L}\p{N} '’\-&/]/gu, " "));
   s = s.replace(/^(to|try to|please)\s+/i, "");
   if (s.length < ACTION_MIN || s.length > ACTION_MAX) return null;
   if (s.split(" ").length > ACTION_MAX_WORDS) return null;
-  if (!DOING_VERB.test(s) || NEVER.test(s)) return null;
+  if (!verbs.test(s) || NEVER.test(s)) return null;
   if (detectInjection(s).length > 0) return null;
   return s[0]!.toLowerCase() + s.slice(1);
 }
@@ -193,9 +199,13 @@ const realWords = (s: string): Set<string> => new Set((s.toLowerCase().match(/\p
  */
 export function startsWhereItSays(hint: CoreHint | null): CoreHint | null {
   if (!hint?.startsAt) return hint;
-  const action = realWords(hint.mainAction);
-  const shared = [...realWords(hint.startsAt)].some((w) => action.has(w));
-  return shared ? hint : { ...hint, startsAt: null };
+  return sharesAWord(hint.mainAction, hint.startsAt) ? hint : { ...hint, startsAt: null };
+}
+
+/** Two phrases share a real word, or the start of one: "draw a shape" and "Start drawing!" do. */
+function sharesAWord(a: string, b: string): boolean {
+  const wa = [...realWords(a)];
+  return [...realWords(b)].some((w) => wa.some((x) => x === w || w.startsWith(x) || x.startsWith(w)));
 }
 
 /**
@@ -216,12 +226,45 @@ const DOOR_ONLY =
   /^(get started|start( now| free| for free| here| today)?|sign up( free| for free| now| today)?|register( now)?|join( now| free| us)?|try( it)?( now| free| for free| out)?|launch( the)? app|open( the)? app|enter( the)? app|go to( the)? app|use( the)? app|create( an| your)? account|get( the)? app|download( now)?|install( now)?|continue|explore|learn more|read more|see more|find out more|watch( the)? (demo|video)|get( a)? demo|book( a)? (demo|call)|request( a)? demo|talk to (sales|us)|contact( us| sales)?|view (pricing|plans|docs)|(see|compare|choose) (pricing|plans|a plan)|get in touch|follow us|share)$/i;
 const NOT_THE_PRODUCT = /\b(pricing|demo|sales|docs?|documentation|blog|newsletter|github|twitter|discord|telegram|linkedin|youtube|cookies?|privacy|terms|log ?in|sign ?in|careers|press)\b/i;
 
+/**
+ * WHAT EVERY STORED PLAN TAUGHT THE LADDER (22 Nov 2026). The ladder was run with no model over the 911 ready
+ * plans production kept, and its answers were read. What read wrong, and the rule each got:
+ *   - a keyboard shortcut inside the label ("Open Ctrl+O" became "try to open ctrl o", 155 plans; "Search ⌘ K"):
+ *     a label that carries a shortcut names a key, so it is neither an action nor a place to start;
+ *   - the page's own furniture ("Open Menu Icon", "Toggle theme", "Skip to Content", "Send feedback"): chrome,
+ *     never what the product is for;
+ *   - more doors that name no action ("Start free trial", "Create new account", "Sign up with …", "Try Web
+ *     App"), and "Open Source", which is a description and not a verb;
+ *   - a label in capitals ("INVITE YOUR TEAM" became "invite YOUR team"): lowered whole;
+ *   - a page title taken whole as a heading ("Search - Brand" became "try to search - Brand"): a heading with
+ *     a separator is read part by part, never whole;
+ *   - the first control as a starting point whatever it was ("starting from “Skip to Content”", an email
+ *     address, a counter, a menu heading: 496 plans): a starting point is now a door ("Get started", "Launch
+ *     app") or something a person does ("Play tutorial"), or one that shares a word with the action. With none,
+ *     the mission names no starting point, which is always true;
+ *   - a mission's title as the action ("build a kite and verify it appears in the gallery", "First-time
+ *     visitor searches the library", "reach core experience and have a real exchange"): the part about checking is cut,
+ *     a leading "First-time visitor" is dropped and its verb put back in the plain form, a title that only
+ *     repeats "the core experience" is passed over, and the words are put in sentence case.
+ */
+const SHORTCUT = /(?:\b(?:ctrl|cmd|alt|shift)\b\s*(?:\+|-)?\s*[\p{L}\p{N}]\b)|[⌘⌥⇧⌃]|\b(?:ctrl|cmd)\s?\+/iu;
+const CHROME = /\b(menu|icon|navigation|sidebar|theme|toggle|dark mode|light mode|skip to|feedback|cookies?|language|notifications?|close|dismiss|scroll)\b/i;
+/** A door a newcomer walks through to begin: fine as a place to start, even though it names no action. */
+const ENTRY_DOOR =
+  /^(get started|start( now| free| for free| here| today| building| exploring| free trial| your free trial| my free trial| a free trial)?|sign up( free| for free| now| today)?|register( now)?|join( now| free)?|try( it)?( now| free| for free| out)?|(try|launch|open|enter|go to|use)( the| our)?( web)? app|create( an| a| your)?( new| free)? account|play( now)?|begin|let'?s go|enter)$/i;
+const MORE_DOORS =
+  /^(start( your| my| a)? free trial|try( it)? free for \d+ days|create( a)? new account|sign up with .+|continue with .+|(try|launch|open|enter|go to|use)( the| our)?( web)? app|open source|get code|add yourself)$/i;
+
 const SLOGAN =
   /\b(faster|better|smarter|easier|simpler|effortless(ly)?|seamless(ly)?|instantly|in (seconds|minutes)|today|now|business|productivity|workflows?|future|world|everything|anything|more|10x|supercharge|unlock|revenue|growth|at scale|next level|like never before|without the|the smart way)\b/i;
 
 /** The action in sentence case: a button's Title Case reads wrong mid-sentence. The product's own name and short capitals stay. */
 function midSentence(action: string, productName: string | null | undefined): string {
-  const own = new Set((productName ?? "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
+  // a name is a few words; a "name" that is really the page's slogan would keep every word of it in capitals
+  const nameWords = (productName ?? "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const own = new Set(nameWords.length <= 3 ? nameWords : []);
+  // a label set all in capitals carries no capitals worth keeping
+  if (!/\p{Ll}/u.test(action.slice(1))) return action.toLowerCase();
   return action
     .split(" ")
     .map((w, i) => ((i > 0 && own.has(w.toLowerCase())) || /^[\p{Lu}\p{N}]{2,5}$/u.test(w) ? w : w.toLowerCase()))
@@ -231,7 +274,8 @@ function midSentence(action: string, productName: string | null | undefined): st
 export function primaryCallToAction(ft: FieldTestSummary | null | undefined, screen: FirstScreen | null | undefined, corpus: string): CoreHint | null {
   for (const raw of firstControls(ft, screen)) {
     const label = squash(raw ?? "");
-    if (label.length < 6 || label.length > 40 || NAV_WORDS.test(label) || DOOR_ONLY.test(label) || NOT_THE_PRODUCT.test(label)) continue;
+    if (label.length < 6 || label.length > 40 || NAV_WORDS.test(label) || DOOR_ONLY.test(label) || MORE_DOORS.test(label) || NOT_THE_PRODUCT.test(label)) continue;
+    if (SHORTCUT.test(label) || CHROME.test(label)) continue;
     const action = usableAction(label);
     if (!action || action.split(" ").length < 2 || !observed(label, corpus)) continue;
     return { mainAction: midSentence(action, screen?.productName), startsAt: label, from: "primary-cta" };
@@ -245,30 +289,75 @@ export function headingAction(ft: FieldTestSummary | null | undefined, screen: F
   for (const raw of headings) {
     const heading = squash(raw);
     if (!heading) continue;
-    for (const part of [heading, ...heading.split(/\s*[:|·.!?—–]\s*|\s+-\s+/)]) {
-      if (DOOR_ONLY.test(squash(part)) || NOT_THE_PRODUCT.test(part)) continue;
+    // a heading with a separator is a title in parts ("Search - Brand"): read part by part, never whole
+    const parts = heading.split(/\s*[:|·.!?—–]\s*|\s+-\s+/).filter(Boolean);
+    for (const part of parts.length > 1 ? parts : [heading]) {
+      if (DOOR_ONLY.test(squash(part)) || MORE_DOORS.test(squash(part)) || NOT_THE_PRODUCT.test(part) || SHORTCUT.test(part)) continue;
       const action = usableAction(part);
       if (!action || action.split(" ").length < 3 || SLOGAN.test(action)) continue;
       const mainAction = midSentence(action, screen?.productName);
       // a starting control only when it is where this action starts (it shares a real word with it)
       const start = firstControls(ft, screen)
         .map((c) => squash(c ?? ""))
-        .find((c) => c.length >= 3 && c.length <= 40 && !NAV_WORDS.test(c) && !NEVER.test(c) && observed(c, corpus) && !!startsWhereItSays({ mainAction, startsAt: c, from: "heading" })?.startsAt);
+        .find((c) => c.length >= 3 && c.length <= 40 && !NAV_WORDS.test(c) && !NEVER.test(c) && !SHORTCUT.test(c) && !CHROME.test(c) && observed(c, corpus) && !!startsWhereItSays({ mainAction, startsAt: c, from: "heading" })?.startsAt);
       return { mainAction, startsAt: start ?? null, from: "heading" };
     }
   }
   return null;
 }
 
-function firstButton(ft: FieldTestSummary | null | undefined, corpus: string, screen?: FirstScreen | null): string | null {
+/**
+ * Where a newcomer starts, when nothing better named it: the first control that is a door ("Get started",
+ * "Launch app"), something a person does ("Play Tutorial"), or that shares a word with the action it starts
+ * ("Connect wallet" for a dapp's "connect a wallet and …"). Anything else is passed over: the first control on a
+ * page is as often a skip link, a counter or somebody's email address as it is the way in.
+ */
+function firstButton(ft: FieldTestSummary | null | undefined, corpus: string, action: string, screen?: FirstScreen | null): string | null {
   const labels = firstControls(ft, screen);
   for (const raw of labels) {
     const label = squash(raw ?? "");
     if (label.length < 3 || label.length > 40 || NAV_WORDS.test(label) || NEVER.test(label)) continue;
     if (!/\p{L}{3,}/u.test(label) || detectInjection(label).length > 0) continue;
+    if (SHORTCUT.test(label) || CHROME.test(label) || /@|https?:|\d\s*\/\s*\d/.test(label)) continue;
+    const plain = label.replace(/[^\p{L}\p{N} '’-]/gu, " ").replace(/\s+/g, " ").trim();
+    const door = ENTRY_DOOR.test(plain);
+    const does = !door && !DOOR_ONLY.test(plain) && !MORE_DOORS.test(plain) && !NOT_THE_PRODUCT.test(plain) && plain.split(" ").length >= 2 && usableAction(plain) !== null;
+    // (the sentence that fits anything shares its words with everything: "Product" is not where it starts)
+    if (!door && !does && !(action !== GENERIC_ACTION && sharesAWord(action, label))) continue;
     if (observed(label, corpus)) return label;
   }
   return null;
+}
+
+const TITLE_SUBJECT = /^(?:(?:a|the)\s+)?(?:first[- ]time|new|brand[- ]new|logged[- ]out)\s+(?:\p{L}+\s+)?(?:visitors?|users?|players?|customers?|readers?)\s*(?:[:,—–-]\s*)?(?:(?:can|is able to|successfully)\s+)*/iu;
+const TITLE_TAIL =
+  /\s*(?:[,;(—–]|\s-\s|\band\s+(?:verify|verifies|report|reports|confirm|confirms|prove|describe|observe|check|note|see|sees|say|list|quote|read|reads|identify)\b|\bthen\b|\bas\s+an?\s+(?:first[- ]time|brand[- ]new|new)\b|\bfor\s+a\s+first[- ]time\b|\bend[- ]to[- ]end\b|\bas\s+documented\b|\bpart\s+\d).*$/i;
+/** A title that only hands the goal's own filler back: no more an action than the sentence that fits anything. */
+const CIRCULAR = /\b(?:core|main|primary)\s+(?:experience|flow|feature|journey)\b|\bfounder'?s\s+journey\b|\bthe\s+target\b|\bmain\s+screen\s+of\b|\bprove\s+the\s+result\b|\b(?:account|paid|wallet)\s+step\b/i;
+
+/**
+ * The main action an accepted mission's title names, or null. A title is written for a card, so the part about
+ * checking is cut ("… and verify it appears"), a leading "First-time visitor" is dropped with its verb put back
+ * in the plain form ("searches" to "search"), and the words go in sentence case.
+ */
+export function actionFromTitle(title: string, productName?: string | null): string | null {
+  let t = squash(title ?? "");
+  if (!t || CIRCULAR.test(t)) return null;
+  const subject = TITLE_SUBJECT.exec(t);
+  if (subject) {
+    t = t.slice(subject[0].length);
+    const [verb = "", ...rest] = t.split(" ");
+    const plain = [verb.replace(/ies$/i, "y"), verb.replace(/es$/i, ""), verb.replace(/s$/i, "")].find((v) => v !== verb && TITLE_VERB.test(v) && TITLE_VERB.exec(v)![0].length === v.length);
+    if (plain) t = [plain, ...rest].join(" ");
+  }
+  t = squash(t.replace(TITLE_TAIL, ""));
+  const action = usableAction(t, TITLE_VERB);
+  if (!action || action.split(" ").length < 2) return null;
+  // Only a title set in Title Case is lowered. In a sentence-case title a capital is deliberate: "find the
+  // Positions page" names a page called Positions, and lowering it would un-name it.
+  const long = action.split(" ").slice(1).filter((w) => /^\p{L}{4,}$/u.test(w));
+  const titleCase = long.length > 0 && long.filter((w) => /^\p{Lu}/u.test(w)).length / long.length >= 0.6;
+  return titleCase ? midSentence(action, productName) : action;
 }
 
 /**
@@ -276,16 +365,19 @@ function firstButton(ft: FieldTestSummary | null | undefined, corpus: string, sc
  * mission that reads as something a person does, then the product's first button, then the sentence
  * that fits anything. The gate picks the first one whose mission it accepts.
  */
-export function coreHintLadder(model: CoreHint | null, accepted: readonly Accepted[], map: Pick<ProductMapV1, "fieldTest">, corpus: string, kind: ProductKind = "website", screen?: FirstScreen | null): CoreHint[] {
+export function coreHintLadder(model: CoreHint | null, accepted: readonly Accepted[], map: Pick<ProductMapV1, "fieldTest"> & { productName?: string | null }, corpus: string, kind: ProductKind = "website", screen?: FirstScreen | null): CoreHint[] {
   const out: CoreHint[] = [];
+  const productName = screen?.productName ?? map.productName ?? null;
   // the sentence that fits any product of this kind: "start it and use its main command" for a bot
   const generic = playbookOf(kind).firstTry?.defaultAction ?? GENERIC_ACTION;
   if (model) out.push(model);
   const rank = (m: Accepted) => (m.riskCategory === "critical_journey" ? 0 : m.riskCategory === "onboarding" ? 1 : 2) * 3 + (m.priority === "high" ? 0 : m.priority === "medium" ? 1 : 2);
   for (const m of [...accepted].sort((a, b) => rank(a) - rank(b))) {
-    const action = usableAction(m.title);
+    const action = actionFromTitle(m.title, productName);
     if (!action) continue;
-    const start = (m.anchors ?? []).map(squash).find((a) => a.length <= 40 && !NAV_WORDS.test(a) && observed(a, corpus)) ?? null;
+    // an anchor is a starting point only when it is where THIS action starts (it shares a word with it): an
+    // anchor is merely something Sage saw, and "starting from “Country”" for a login sends a tester nowhere
+    const start = (m.anchors ?? []).map(squash).find((a) => a.length >= 3 && a.length <= 40 && !NAV_WORDS.test(a) && !SHORTCUT.test(a) && sharesAWord(action, a) && observed(a, corpus)) ?? null;
     out.push({ mainAction: action, startsAt: start, from: "accepted-mission" });
     break;
   }
@@ -297,7 +389,7 @@ export function coreHintLadder(model: CoreHint | null, accepted: readonly Accept
     const heading = headingAction(map.fieldTest, screen, corpus);
     if (heading) out.push(heading);
   }
-  const button = firstButton(map.fieldTest, corpus, screen);
+  const button = firstButton(map.fieldTest, corpus, generic, screen);
   if (button) out.push({ mainAction: generic, startsAt: button, from: "first-button" });
   out.push({ mainAction: generic, startsAt: null, from: "generic" });
   return out;
@@ -315,6 +407,9 @@ export function coreAnchors(map: Pick<ProductMapV1, "fieldTest" | "productKind">
     ...(first?.visibleTextExcerpt ?? "").split("\n").slice(0, 6),
     ...(page?.visibleTextExcerpt ?? "").split("\n").slice(0, 6),
     ...(page?.ctas ?? []).slice(0, 3),
+    // the first screen's own controls: no longer a starting point unless they are a door (see `firstButton`),
+    // but still words Sage read there, which is all an anchor has to be
+    ...(first?.notableElements ?? []).slice(0, 8).map((e) => e.text),
     // what Sage read on the product's page when no browser ran (a listing read as plain HTML)
     ...(map.productKind?.seen ?? []),
     // ...and the landing page's own words, on a website read with no browser and no model

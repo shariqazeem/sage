@@ -298,6 +298,13 @@ const fieldWords = (raw: string): string => raw.replace(/([a-z])([A-Z])/g, "$1 $
 
 /** Words that ASK for a secret, and are not a warning: "enter your 12-word recovery phrase". */
 const ASKS_SECRET = /\b(?:enter|type|paste|input|provide|submit|import|fill\s+in)\s+(?:in\s+)?(?:your|the|a)?\s*(?:(?:12|24|twelve|twenty[\s-]four)[\s-]*word\s+)?(?:seed|recovery|secret\s+recovery|mnemonic|backup)\s+(?:phrase|words?)\b|\b(?:enter|type|paste|input|provide|submit|import)\s+(?:in\s+)?(?:your|the|a)?\s*(?:wallet(?:'s)?\s+)?private\s+key\b|\bimport\s+(?:your\s+)?wallet\s+(?:using|with)\s+(?:your\s+|a\s+)?(?:seed|recovery|private|mnemonic)/gi;
+/**
+ * ...nor the title of a help article: "How to import a recovery phrase into the X Wallet" explains a thing, it
+ * does not ask for one. Measured on every stored plan: that one help-centre heading held a well-known exchange's
+ * own app on 17 of its 24 inspections, the only product of 57 the screen stopped, and a false one. A page that
+ * really asks still has the field, which is checked apart from these words.
+ */
+const HOW_TO_BEFORE = /\b(?:how\s+(?:to|do\s+i|can\s+i|do\s+you)|learn\s+(?:how\s+)?to|guide\s+to|steps?\s+to|instructions?\s+(?:for|to|on))\s+(?:safely\s+|securely\s+)?$/i;
 const WARNING_BEFORE = /\b(?:never|don'?t|do\s+not|not|won'?t|will\s+never|no\s+one|nobody|should\s+not|shouldn'?t|without|instead\s+of|avoid|beware|scam\w*|phish\w*)\b[^.!?\n]{0,60}$/i;
 
 const INSTALLER = /\.(?:exe|msi|dmg|pkg|apk|appimage|deb|rpm|bat|cmd|scr|ps1|jar|iso|msix|xapk)(?:$|[?#])/i;
@@ -457,7 +464,7 @@ export function screenProduct(input: ScreenInput): ProductSafetyRecord {
   else if (key) add({ id: "secret_field", severity: crypto ? "refuse" : "hold", reason: "the page has a field that asks for a private key", seen: key.raw });
   for (const m of text.matchAll(ASKS_SECRET)) {
     const before = text.slice(Math.max(0, (m.index ?? 0) - 80), m.index ?? 0);
-    if (WARNING_BEFORE.test(before)) continue;
+    if (WARNING_BEFORE.test(before) || HOW_TO_BEFORE.test(before)) continue;
     add({ id: "asks_for_secret", severity: "hold", reason: "the page asks visitors to enter a recovery phrase or a private key", seen: m[0].slice(0, 80) });
     break;
   }

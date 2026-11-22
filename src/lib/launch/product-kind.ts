@@ -152,13 +152,19 @@ const APP_BUILDER_HOSTS = [
   "base44.app", "createxyz.app", "created.app", "same-app.com", "emergent.sh", "rork.app", "framer.app", "webflow.io", "bubbleapps.io", "streamlit.app", "hf.space",
 ];
 
-const WALLET_CTA = /\bconnect(?:\s+(?:a|your))?\s+wallet\b|\bconnect metamask\b|\bwallet\s?connect\b|\b(?:launch|enter|open) dapp\b/i;
+const WALLET_CTA = /\bconnect(?:\s+(?:a|your|to|to\s+a|to\s+your))?\s+wallet\b|\bconnect metamask\b|\bwallet\s?connect\b|\b(?:launch|enter|open) dapp\b/i;
 const WALLET_WALL = /connect-wallet required|connect\s+(?:a\s+|your\s+)?wallet\s+to\s+(?:continue|access|view|start|use|get started|launch|create)/i;
 const WAITLIST = /\bjoin (?:the |our )?wait(?:ing)?[\s-]?list\b|\bwait(?:ing)?[\s-]?list\b|\bcoming soon\b|\blaunching soon\b|\bget early access\b|\brequest (?:early )?access\b|\bsign up for early access\b|\bnotify me\b|\bbe the first to (?:know|try)\b|\bearly access\b/i;
 const HAS_A_PRODUCT = /\b(?:log ?in|sign ?in|sign ?up|dashboard|open (?:the )?app|launch (?:the )?app|pricing|add to cart|download|start free|get started|try (?:it )?(?:now|free)|connect wallet|docs|documentation)\b/i;
 const CHAT = /\bhow can i help\b|\bwhat can i help\b|\bask (?:me )?anything\b|\bmessage [\p{L}\d]{2,20}(?:…|\.\.\.)|\btype (?:a|your) (?:message|question|prompt)\b|\bchat with (?:our |an? |the )?(?:ai|assistant|bot|model)\b|\bwhat(?:'|’)s on your mind\b/iu;
 const DESKTOP = /\bdownload for (?:mac|macos|windows|linux)\b|\bdownload (?:the )?(?:mac|macos|windows|linux|desktop) (?:app|version|installer)\b|\b(?:mac|macos|windows|linux) (?:app|installer|download)\b|\.(?:dmg|exe|msi|appimage)\b/i;
-const STORE_BADGE = /\bdownload on the app store\b|\bget it on google play\b|\bavailable on (?:the )?(?:app store|google play)\b|\bget the app\b|\bdownload the app\b/i;
+const STORE_BADGE = /\bdownload on the app store\b|\bget it on google play\b|\bavailable on (?:the )?(?:app store|google play)\b/i;
+/**
+ * "Get the app" alone is a line in many a footer. It makes a product a phone app only when Sage's browser found
+ * next to nothing to use: measured on a stored job, a social profile page where the browser walked 14 screens
+ * was called a phone app for those three words, and its first try would have told people to install something.
+ */
+const STORE_HINT = /\bget the app\b|\bdownload the app\b/i;
 const API_KEY = /\bapi keys?\b|\bget (?:an |your )?(?:api )?key\b|\baccess tokens?\b/i;
 const API_SHAPE = /\bapi reference\b|\brest api\b|\bgraphql api\b|\bendpoints?\b|\bcurl\b|\bsdks?\b|\bwebhooks?\b|\brate limits?\b/i;
 
@@ -225,7 +231,7 @@ export function detectProductKind(input: { url: string; observations: readonly P
 
   if (CHAT.test(`${head} • ${controls}`) || /^chat\./.test(host)) return { kind: "ai_chat", because: "the first screen is a box to ask a question in", seen };
   if (DESKTOP.test(`${head} • ${controls}`)) return { kind: "desktop_app", because: "the page offers a download for a computer", seen };
-  if (STORE_BADGE.test(text) && !/\b(?:log ?in|sign ?in|sign ?up|open (?:the )?app|launch (?:the )?app|dashboard)\b/i.test(controls))
+  if ((STORE_BADGE.test(text) || (STORE_HINT.test(text) && statesSeen <= 2)) && !/\b(?:log ?in|sign ?in|sign ?up|open (?:the )?app|launch (?:the )?app|dashboard)\b/i.test(controls))
     return { kind: "mobile_app", because: "the page sends visitors to an app store and offers nothing to use in the browser", seen };
   if ((/\bapis?\b/i.test(head) || /^(?:api|developers?)\./.test(host)) && API_KEY.test(text) && API_SHAPE.test(text)) return { kind: "api", because: "the page describes an API used with a key", seen };
 

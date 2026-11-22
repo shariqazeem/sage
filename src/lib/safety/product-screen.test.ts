@@ -159,6 +159,20 @@ describe("legitimate products come out clear", () => {
     expect(r).toMatchObject({ outcome: "hold", signals: [{ id: "asks_for_secret" }] });
   });
 
+  // Read from every stored plan (22 Nov 2026): one help-centre heading held a well-known exchange's own app on 17
+  // of its 24 inspections, the only product of 57 the screen stopped. A title that explains is not an ask.
+  it("the title of a help article about importing a phrase is not an ask", () => {
+    const html = "<title>Riverswap</title><h1>Swap anything</h1><h3>How to import a recovery phrase into the Riverswap Wallet</h3><p>Follow step-by-step instructions for adding an existing wallet.</p><h3>Learn how to import your private key safely</h3><button>Connect wallet</button>";
+    const r = screenProduct({ url: "https://app.riverswap.xyz/", observations: [extractObservation({ url: "https://app.riverswap.xyz/", status: 200, html })], kind: "wallet_dapp", phishing: LIST });
+    expect(r.signals).toEqual([]);
+  });
+
+  it("...but the same words as an instruction are still held", () => {
+    const html = "<title>Riverswap</title><h1>Restore</h1><p>How to continue: import your recovery phrase below.</p><button>Connect wallet</button>";
+    const r = screenProduct({ url: "https://riverswap-restore.xyz/", observations: [extractObservation({ url: "https://riverswap-restore.xyz/", status: 200, html })], kind: "wallet_dapp", phishing: LIST });
+    expect(r).toMatchObject({ outcome: "hold", signals: [{ id: "asks_for_secret" }] });
+  });
+
   it('a field called "seed" on a page that is not about wallets is not a recovery phrase', () => {
     const html = '<title>World generator</title><h1>Make a world</h1><form><input name="seed"><button>Generate</button></form>';
     expect(screenProduct({ url: "https://worldgen.games/", observations: [extractObservation({ url: "https://worldgen.games/", status: 200, html })], kind: "website", phishing: LIST }).outcome).toBe("clear");

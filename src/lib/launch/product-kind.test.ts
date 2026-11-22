@@ -101,6 +101,8 @@ describe("what Sage saw decides, on an ordinary address", () => {
   it("a Connect wallet control is a dapp", () => {
     expect(kindOf("https://app.hummusvault.xyz/", { ctas: ["Docs", "Connect Wallet"] })).toBe("wallet_dapp");
     expect(kindOf("https://app.hummusvault.xyz/", { snippets: ["Connect your wallet to view your positions."] })).toBe("wallet_dapp");
+    // read from a stored plan: the button said "Connect to Wallet", and the dapp was taken for a plain website
+    expect(kindOf("https://app.hummusvault.xyz/", { ctas: ["Trade now", "Connect to Wallet"] })).toBe("wallet_dapp");
     // the word "wallet" in the copy is not a wall
     expect(kindOf("https://paylater.app/", { snippets: ["Works with every wallet and card you already have."] })).toBe("website");
   });
@@ -119,6 +121,16 @@ describe("what Sage saw decides, on an ordinary address", () => {
   it("a download for a computer, a page that only points at an app store, and an API with a key", () => {
     expect(kindOf("https://notchnotes.app/", { ctas: ["Download for Mac", "Download for Windows"] })).toBe("desktop_app");
     expect(kindOf("https://tidepool.app/", { ctas: ["Download on the App Store", "Get it on Google Play"] })).toBe("mobile_app");
+    // "Get the app" alone is a footer line. Read from a stored plan: a profile page where Sage's browser walked
+    // fourteen screens was called a phone app for those words, and its first try would have said "install it".
+    const walked = (n: number): FieldTestSummary => ({
+      ran: true, startUrl: "https://chirp.example/somebody", mode: "interactive", classification: null, limitation: null, durationMs: 1, pages: [],
+      states: Array.from({ length: n }, (_, i) => ({ trigger: i === 0 ? "initial load" : `clicked "Tab ${i}"`, screenshot: null, visibleTextExcerpt: `Posts\nReplies\nScreen ${i}`, notableElements: [{ tag: "a", text: "Follow", role: "link" }], pixelDeltaPct: 40, url: "https://chirp.example/somebody" })),
+    });
+    expect(kindOf("https://chirp.example/somebody", { snippets: ["Get the app"] }, walked(14))).toBe("website");
+    expect(kindOf("https://chirp.example/", { snippets: ["Get the app"] }, walked(1))).toBe("mobile_app");
+    // a real store badge still decides, however much there was to click
+    expect(kindOf("https://tidepool.app/", { snippets: ["Download on the App Store"] }, walked(14))).toBe("mobile_app");
     // a web app that also has phone apps is still a web app
     expect(kindOf("https://tidepool.app/", { ctas: ["Log in", "Download on the App Store"] })).toBe("website");
     expect(kindOf("https://api.weathergrid.dev/", { title: "The WeatherGrid API", snippets: ["Sign up for a free API key, then call the forecast endpoint with curl."] })).toBe("api");
