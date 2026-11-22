@@ -14,6 +14,7 @@ import {
 } from "./goal-journey";
 import type { ObservedFactV1, ActionTransitionV1 } from "./observed-facts";
 import type { CandidateMission, CriterionGroundingV1 } from "./schemas";
+import { isPlaceholderTarget } from "./mission-quality";
 
 /**
  * The deterministic GOAL → MISSION compiler.
@@ -383,9 +384,12 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
    * So the fallback is now the product itself rather than a placeholder. Guarding each use site is
    * how this recurred; a label that is honest wherever it lands cannot leak in the first place.
    */
+  // ...and a target the journey NAMED with the goal's own filler ("core experience", "the target") is no more
+  // resolved than none at all: 44 stored missions asked testers to reach "core experience" (mission-quality.ts).
+  const namedTarget = targetCp?.targetEntity && !isPlaceholderTarget(targetCp.targetEntity) ? targetCp.targetEntity : undefined;
   const entityLabel =
     resolvedEntity?.label ??
-    targetCp?.targetEntity ??
+    namedTarget ??
     (() => {
       try {
         return `the main screen of ${new URL(input.productUrl).host.replace(/^www\./, "")}`;
@@ -498,7 +502,7 @@ export function compileGoalMission(input: CompileGoalInput): CompileGoalResult {
       return "the product";
     }
   })();
-  const entityResolved = !!(resolvedEntity?.label ?? targetCp?.targetEntity);
+  const entityResolved = !!(resolvedEntity?.label ?? namedTarget);
   const title = delegated
     ? `Experience ${host} as a first-time visitor — and report what you find`
     : entityResolved

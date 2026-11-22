@@ -552,6 +552,12 @@ export type MissionValidationCode =
   | "unsupported_evidence_type"
   | "worthless_presence_check"
   | "volatile_criterion"
+  // read from every stored plan (mission-quality.ts): a place nobody can find, the tester's own details,
+  // developer tools, and a card that hands over its own answers
+  | "unnamed_target"
+  | "asks_personal_detail"
+  | "needs_developer_tools"
+  | "answer_on_the_card"
   | "unanchored_claim"
   | "prompt_injection_content"
   // Eyes V2 grounding gate (only fires when a mission carries a design-time grounding map):

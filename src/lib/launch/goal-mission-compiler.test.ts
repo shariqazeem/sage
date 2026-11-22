@@ -16,6 +16,7 @@ import { allocateBudget, MIN_REWARD_BASE } from "./budget";
 import type { ProductContextV1, EntityInstanceV1 } from "./product-context";
 import type { ObservedFactV1, ActionTransitionV1 } from "./observed-facts";
 import fixture from "./__fixtures__/yara-production-run.json";
+import { namesNoTarget } from "./mission-quality";
 
 /**
  * DETERMINISTIC GOAL→MISSION COMPILER — proven by REPLAYING retained production observations with zero
@@ -500,5 +501,23 @@ describe("an unresolved entity never ships the internal placeholder", () => {
     if (!r.ok) return;
     const all = [r.compiled.mission.title, r.compiled.mission.objective, ...(r.compiled.mission.criteria ?? [])].join(" ");
     expect(all).not.toMatch(/\breach the target\b/i);
+  });
+  /**
+   * ...AND A TARGET NAMED WITH THE GOAL'S OWN FILLER IS NO MORE RESOLVED (22 Nov 2026). Read from every stored
+   * plan: 44 shipped missions asked testers to reach "core experience", because the journey handed the default
+   * goal's words back as the thing to find. A filler label now falls through to the product's main screen, and
+   * the gate refuses the quoted placeholder wherever one still appears (mission-quality.ts).
+   */
+  it("a target the journey called \"core experience\" is written as the product's main screen", () => {
+    const base = unresolvedInput();
+    const input = { ...base, journey: { ...base.journey, checkpoints: base.journey.checkpoints.map((c) => ({ ...c, targetEntity: "core experience" })) } };
+    const r = compileGoalMission(input as Parameters<typeof compileGoalMission>[0]);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const m = r.compiled.mission;
+    const asked = [...m.criteria, ...m.evidenceRequirements, m.instructions].join("\n");
+    expect(asked).not.toMatch(/["“]core experience["”]/i);
+    expect(asked).toContain("the main screen of yara.garden");
+    expect(namesNoTarget(m)).toBeNull();
   });
 });

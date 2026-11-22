@@ -13,6 +13,7 @@ import { detectInjection } from "@/lib/deputy/brain-core";
 import { validateMissionSpec } from "@/lib/campaigns/mission-spec";
 import { detectUnsupportedEvidence } from "./evidence-capabilities";
 import { validateMissionGrounding } from "./mission-grounding";
+import { missionQualityIssues } from "./mission-quality";
 import type { ObservationSetV1 } from "./observed-facts";
 import { norm } from "./schemas";
 import type {
@@ -494,6 +495,11 @@ export function validateMission(m: CandidateMission, scope: ValidationScope, cor
   // diverges from it and they are wrongly held. Anchor on stable facts instead.
   if (dependsOnVolatileState(m))
     add("volatile_criterion", "criteria", "mission hinges on a value that changes over time (availability, a live count, seats, current price) — a later submission cannot match the pinned corpus; anchor on a stable fact");
+
+  // 10c. WHAT A CAREFUL TESTER WOULD STOP AT (mission-quality.ts, measured on every stored plan): a place with no
+  // name ("the target"), a question about the tester's own email or password, a reading only the browser's
+  // developer tools give, and a card whose evidence questions hand over their own answers.
+  for (const issue of missionQualityIssues(m)) issues.push(issue);
 
   // 11. ANCHOR GATE (anti-hallucination core) — when a corpus is supplied, every mission anchor MUST be
   // a verbatim substring of what Sage actually observed. A mission about a "Zoom Control" that was never
