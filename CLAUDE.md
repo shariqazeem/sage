@@ -481,8 +481,12 @@ if you must touch them, that suite must stay green.
   The words every surface uses are in `src/lib/launch/no-model.ts` (no imports, so a client component may read it).
   - **The plan.** When design ends with no plan because NO MODEL ANSWERED (`NO_MODEL_REASONS`), a website gets the
     first-try mission alone, as the kinds people try already did (`firstTryAlone`, `mission-brain.ts`). Never when a
-    model answered and the gate refused its missions, or answered in a shape nobody could read: those are answers,
-    and the builder is asked as before.
+    model answered with an empty plan, or the gate refused its missions: those are answers, and the builder is
+    asked as before.
+  - **A design nobody could read** (a wrong shape, broken JSON, an answer cut off: `UNREADABLE_REASONS`) is run
+    again once, as before (`RETRYABLE_FAILURES`, `job.ts`). When the retry ends the same way there is nothing left
+    to try, so on that last run only (`lastTry`) it counts as no answer and the first try alone is the test. It
+    was 20 of the 62 jobs production ever failed.
   - **The main action** is then read from the product's own words, with two rungs on the ladder that need no model
     (`core-mission.ts`): the first call to action whose label is something a person does (`primaryCallToAction`;
     "Get started" and "Pricing" name no action), then the heading's verb (`headingAction`; a slogan is passed
@@ -550,6 +554,40 @@ if you must touch them, that suite must stay green.
   awkward honest addresses must screen clear (`false-alarms.test.ts`). Every tester reads, before a place: never
   type a recovery phrase or a private key anywhere; on a dapp, use a wallet with nothing you would mind losing
   (`testerCautions`, and the first-try words say it too, because a mission's `conditions` are never shown).
+- **The core, read against every plan Sage ever made (22 Nov 2026).** Production kept 1,156 inspection jobs (946
+  ready, 148 asked a question, 62 failed; 2,397 missions). Today's deterministic code was run over all of them,
+  with no model and no network, and what it still passed was read. The measure is kept:
+  `PLANS_CORPUS=/path/to/sage-plans.jsonl.gz npx vitest run tests/plans-corpus/measure.live` (the export is
+  private production data: never in the repo, a fixture or this file; `tests/plans-corpus/reconstruct.ts` says
+  what a stored job cannot tell, chiefly that the static read is not stored, so anchors and scope are
+  approximate there). What it changed:
+  - **Four gate rules** (`src/lib/launch/mission-quality.ts`, in `validateMission`), each added only after
+    counting on the whole corpus what it catches and what it would wrongly refuse. They read the mission's own
+    words, never the corpus:
+    - `unnamed_target`: a criterion or evidence question that sends the tester to "the target" or "core
+      experience", Sage's own placeholder quoted as if it were on the screen (70 caught on 17 products, 0 wrongly
+      refused). The goal compiler no longer writes it either (`isPlaceholderTarget`).
+    - `asks_personal_detail`: an evidence question whose answer is the tester's own email, password or phone
+      number; answers are read by the builder and quoted in findings (5 caught, 0 wrongly refused).
+    - `needs_developer_tools`: what the mission is paid for can only be read from the browser's developer tools
+      (31 caught; 4 of them developer-docs missions where one question of several needs the tools). A passing
+      "no console errors" beside a real task, and the tools offered as one way among others, are NOT refused: 34
+      good missions on 13 products read that way.
+    - `answer_on_the_card`: every evidence question hands over its own answer ("Quote the text 'Well done!'")
+      (9 caught, 0 wrongly refused).
+    Measured and not added (false refusals not near zero): "the first headline" on a news site, yes-or-no-only
+    evidence, another browser or a phone-width window.
+  - **The main-action ladder** (`core-mission.ts`): a label that carries a keyboard shortcut, the page's own
+    furniture ("Toggle theme", "Skip to Content") and more doors ("Start free trial") name no action; a heading
+    with a separator is read part by part; a starting point is a door, something a person does, or a control
+    that shares a word with the action, and otherwise the mission names none (it used to name the first control
+    whatever it was, on 496 of 911 stored plans); an accepted mission's title gives the action without its
+    checking tail, its "First-time visitor" subject or the goal's filler (`actionFromTitle`).
+  - **The kind**: "Connect to Wallet" is a dapp; "Get the app" alone makes a phone app only where Sage's browser
+    found next to nothing to use. **The safety screen**: the title of a help article ("How to import a recovery
+    phrase into the X Wallet") is not an ask; it had held one well-known dapp, the only product of 57 stopped.
+  - Still true, and counted beside it for the founder: when a model answered and every mission was refused, the
+    builder is asked (65 of the 148 questions; a first try alone would have been an honest test on 7 of them).
 - **Reaching a person is opt-in, always.** The roster (`src/lib/roster/`) messages only people who
   asked, at most one campaign per person per cooldown, never about work they already did, and never
   about a campaign with no claimable slots. Being paid is not consent.
@@ -818,6 +856,7 @@ died of contention is indistinguishable in the grid from a row that died of a de
 | **P-VERIFY** | the deterministic verification contracts | `VERIFY_LIVE=1 npx vitest run verify-contracts.live` |
 | **Starknet dry-run** | whether the Cairo rail would actually PAY — runs the real `request_payout` against the live vault and commits nothing | `STARKNET_DRYRUN=1 npx vitest run payout-dryrun.live` (VM: needs the operator key) |
 | **P-OPERATOR** | the standing mandate's one model decision — WHERE to buy the next work: in-set only, never prices it, does not buy the same silence twice, escalates past a filled read | `OPERATOR_EVAL=1 OPERATOR_RUNS=3 npx vitest run decide-eval.live` (VM: the MISSION lane's key) |
+| **Every stored plan** | today's deterministic core against every inspection job production kept: who was asked and would now get a test, why jobs failed and what happens now, every mission through today's gate (with the kind's proof rule, the real-try readiness and the safety screen), and the first-try mission for every ready plan. No model, no network; counts on the console, the per-job report beside the export | `PLANS_CORPUS=/path/to/sage-plans.jsonl.gz npx vitest run tests/plans-corpus/measure.live` (the export is private: never commit it) |
 | **Metis launch fork** | whether an account launch on Metis would go through and pay, before real money tries: production's own bundle (create → approve → fund → activate) from the account's REAL balances on a local anvil fork, then the real operator pays the mission and a second person is refused (code 7). No model, nothing broadcast; prints each step's gas and METIS at today's price | `METIS_FORK=1 npx vitest run metis-launch-fork.live` (anywhere with Foundry's `anvil`; `METIS_FORK_ACCOUNT` for another account) |
 
 **A battery must import production's own prompt/tools, never a copy** (`systemPrompt`, `TG_TOOLS`,
