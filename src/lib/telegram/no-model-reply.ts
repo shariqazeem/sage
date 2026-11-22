@@ -15,7 +15,9 @@ export type NoModelWhy = "not_configured" | "out_of_credit" | "not_answering";
 
 const REASON: Record<NoModelWhy, string> = {
   not_configured: "the model I think with is not switched on here",
-  out_of_credit: "the model I think with is out of credit today",
+  // said to anyone who messages the bot, so it names no account or money: the operator hears the real reason
+  // (credit-alert.ts), and to a person the effect is the same as a model that is not answering
+  out_of_credit: "the model I think with is not available today",
   not_answering: "the model I think with is not answering right now",
 };
 

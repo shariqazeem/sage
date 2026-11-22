@@ -192,7 +192,7 @@ describe("the concierge with an empty account", () => {
     );
     const reply = await runConcierge("chat6", "can you test my app at getdrops.app with $10?", () => {}, "prid:test");
     expect(calls).toBe(1);
-    expect(reply).toMatch(/^I can't chat right now: the model I think with is out of credit today\./);
+    expect(reply).toMatch(/^I can't chat right now: the model I think with is not available today\./);
     expect(reply).toContain("Sage still works without it, on the web:");
     expect(reply).toContain("Test a product: paste its link at ");
     expect(reply).toContain("Your tests, and answers waiting for you: ");
