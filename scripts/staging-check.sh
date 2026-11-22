@@ -69,7 +69,9 @@ case "$cmd" in
     [[ "$nonce" =~ ^[0-9]+$ ]] && [ "$nonce" -lt 100 ] || { echo "the nonce must be a whole number below 100"; exit 2; }
     "${SSH[@]}" "test -e $ST" || { echo "no staging copy: run 'up' first"; exit 2; }
     "${SSH[@]}" "cd $ST && test ! -e var/pgen$nonce.log" || { echo "var/pgen$nonce.log exists on the copy: pick another nonce"; exit 2; }
-    "${SSH[@]}" "cd $ST && setsid nohup node --env-file=.env scripts/mission-eval-matrix.mjs --base http://localhost:3100 --nonce $nonce $* > var/pgen$nonce.log 2>&1 < /dev/null & echo started"
+    # the cd stands alone: joined with && the whole list is backgrounded, its shell keeps ssh's output open, and
+    # this command waits for the battery to end (seen on its first run)
+    "${SSH[@]}" "cd $ST; setsid nohup node --env-file=.env scripts/mission-eval-matrix.mjs --base http://localhost:3100 --nonce $nonce $* > var/pgen$nonce.log 2>&1 < /dev/null & echo started"
     echo "running in the background. Check 'signed in as' and a non-zero token cost before believing any row:"
     echo "  scripts/staging-check.sh watch $nonce"
     ;;
