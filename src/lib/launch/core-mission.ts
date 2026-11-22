@@ -90,6 +90,9 @@ export function usableAction(raw: unknown, verbs: RegExp = DOING_VERB): string |
   if (typeof raw !== "string") return null;
   let s = squash(raw.replace(/https?:\/\/\S+/gi, " ").replace(/[^\p{L}\p{N} '’\-&/]/gu, " "));
   s = s.replace(/^(to|try to|please)\s+/i, "");
+  // a button that says "Try Plausible" is an action of using it: "Now try to try plausible" read as a stammer
+  // (P-GEN, plausible.io, 23 Nov 2026), so the tester is asked to use it
+  s = s.replace(/^try\s+(?!to\b)/i, "use ");
   if (s.length < ACTION_MIN || s.length > ACTION_MAX) return null;
   if (s.split(" ").length > ACTION_MAX_WORDS) return null;
   if (!verbs.test(s) || NEVER.test(s)) return null;

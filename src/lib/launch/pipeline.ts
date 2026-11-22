@@ -568,11 +568,17 @@ export async function inspectAndPlan(
       : undefined,
     runGroundedShadow,
     lastTry: opts.lastTry === true,
-    // the landing page as the static read saw it: only read when no model answers and the first-try mission
-    // has to name its main action from the product's own words (core-mission.ts)
-    firstScreen: inspection.observations[0]
-      ? { title: inspection.observations[0].title, headings: inspection.observations[0].headings, ctas: inspection.observations[0].ctas }
-      : null,
+    // the landing page's own words: only read when no model answers and the first-try mission has to name its
+    // main action from them (core-mission.ts). The browser's first page when it ran, because that is what the map
+    // keeps and the judge checks answers against; the static read only when no browser ran. Its text is not kept
+    // on the map, so a starting point or an anchor taken from it cannot be checked later (found by P-GEN on
+    // plausible.io, 23 Nov 2026: "try Plausible" read from the static page, anchor integrity 0%).
+    firstScreen: (() => {
+      const page = fieldTest?.pages?.[0];
+      if (page) return { title: page.title ?? null, headings: page.h1 ? [page.h1] : [], ctas: page.ctas ?? [] };
+      const o = inspection.observations[0];
+      return o ? { title: o.title, headings: o.headings, ctas: o.ctas } : null;
+    })(),
   });
   stamp("reviewing");
   // compile a candidate mission set → exact allocation → canonical MissionPlanV1 (MissionSpecV1 + vault hashes).

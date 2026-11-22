@@ -72,6 +72,9 @@ describe("the main action a mission may carry", () => {
   it("is a short plain phrase a person does", () => {
     expect(usableAction("Start a drop")).toBe("start a drop");
     expect(usableAction("  to create a board. ")).toBe("create a board");
+    // a "Try X" button is an action of using X: never "Now try to try X" (P-GEN, plausible.io, 23 Nov 2026)
+    expect(usableAction("Try Plausible")).toBe("use Plausible");
+    expect(usableAction("try to send a drop")).toBe("send a drop");
     expect(usableAction("play the first level")).toBe("play the first level");
   });
   it("is never a purchase, a wallet step, a link, an instruction, a noun or an essay", () => {
