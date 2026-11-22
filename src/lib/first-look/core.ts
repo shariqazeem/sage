@@ -226,7 +226,10 @@ export function ledgerOf(fieldTest: FieldTestSummary | null | undefined, host: s
     if (text) out.push({ kind: "landing", step: 1, frame: fileOf(p.screenshot), url: str(p.url), text: cutAtWord(text, EVIDENCE_TEXT_MAX), times: 1 });
   }
 
-  // requests to the product's own site that failed, then console errors, page by page
+  // requests to the product's own site that failed, then console errors, page by page. The same
+  // failed request on a second page is the same missing piece: counted on its first line, not listed
+  // again (one broken call in a shared header would otherwise fill the look and hide everything else).
+  const requests = new Map<string, Raw>();
   pages.forEach((p, i) => {
     const frame = fileOf(p.screenshot);
     const seenReq = new Set<string>();
@@ -237,7 +240,14 @@ export function ledgerOf(fieldTest: FieldTestSummary | null | undefined, host: s
       const key = `${status} ${url.split("?")[0]}`;
       if (seenReq.has(key)) continue;
       seenReq.add(key);
-      out.push({ kind: "request", step: states.length === 0 ? i + 1 : null, frame, url: str(p.url), text: cutAtWord(`${status} ${pathOf(url, host)}`, EVIDENCE_TEXT_MAX), times: 1 });
+      const before = requests.get(key);
+      if (before) {
+        before.times += 1;
+        continue;
+      }
+      const line: Raw = { kind: "request", step: states.length === 0 ? i + 1 : null, frame, url: str(p.url), text: cutAtWord(`${status} ${pathOf(url, host)}`, EVIDENCE_TEXT_MAX), times: 1 };
+      requests.set(key, line);
+      out.push(line);
     }
     const errors = new Map<string, number>();
     for (const e of Array.isArray(p.consoleErrors) ? p.consoleErrors : []) {
@@ -314,16 +324,78 @@ export function ledgerOf(fieldTest: FieldTestSummary | null | undefined, host: s
 
 /* ─────────────────────────────────────────────────── Sage's own plain words ── */
 
-const ORDER: Record<LookProblem["kind"], number> = { request: 0, console: 1, "no-change": 2, wall: 3, slow: 4, unreachable: 5, blank: 6, visual: 7 };
+/** The status a failed request's line begins with ("500 /v1/feed" → 500). */
+const statusOf = (e: Evidence): number => Number(/^\d{3}/.exec(e.text)?.[0] ?? 0);
+/** A picture, a font, a stylesheet, a source map: a missing one rarely stops anybody. */
+const isAsset = (e: Evidence): boolean => /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|eot|css|map)$/i.test(e.text.split("?")[0]!);
+
+/**
+ * WHAT A BUILDER SHOULD READ FIRST. The look leads with what a newcomer would run into, in the order
+ * it would cost them: the product's own server failing, a button that does nothing, a missing piece
+ * of the page, a wall, an error in the page's own code, what the eyes saw wrong, a wait. Last come the
+ * things that are often nothing: a control only Sage could not press, a page that needs its scripts,
+ * a request refused because the visitor is signed out, a missing picture or font.
+ */
+function weight(e: Evidence): number {
+  switch (e.kind) {
+    case "request": {
+      const status = statusOf(e);
+      if (status >= 500) return 0;
+      return status === 401 || status === 403 || isAsset(e) ? 9 : 2;
+    }
+    case "no-change":
+      return 1;
+    case "wall":
+      return 3;
+    case "console":
+      return 4;
+    case "visual":
+      return 5;
+    case "slow":
+      return 6;
+    case "unreachable":
+      return 7;
+    case "blank":
+      return 8;
+    default:
+      return 10;
+  }
+}
+
+/** What a failed request means, by its status, in words a builder can act on. Nothing but the recorded line is read. */
+function requestWords(e: Evidence, where: string): { title: string; fix: string } {
+  const status = statusOf(e);
+  const asked = e.text.replace(/^\d{3}\s*/, "") || "something";
+  const often = e.times > 1 ? `, on ${e.times} pages` : "";
+  if (status >= 500) {
+    return {
+      title: `The server failed a request on ${where}: ${e.text}`,
+      fix: `${where} asks for ${asked} and the server answers ${status}${often}. That is the product failing, not the visitor's browser: look at the server's log for that address.`,
+    };
+  }
+  if (status === 401 || status === 403) {
+    return {
+      title: `A request on ${where} was refused: ${e.text}`,
+      fix: `${where} asks for ${asked} and is refused (${status})${often}. That is normal for a visitor who has not signed in, so check only that the page shows nothing broken because of it.`,
+    };
+  }
+  if (status === 404 || status === 410) {
+    return {
+      title: `A request on ${where} failed: ${e.text}`,
+      fix: `${where} asks for ${asked} and it is not there (${status})${often}. Put it back, or remove the call, so the page isn't missing a piece.`,
+    };
+  }
+  return {
+    title: `A request on ${where} failed: ${e.text}`,
+    fix: `Something ${where} asks for answers ${e.text.split(" ")[0]}${often}. Restore it, or remove the call, so the page isn't missing a piece.`,
+  };
+}
 
 function plainWords(e: Evidence, host: string): { title: string; fix: string } {
   const where = pathOf(e.url, host);
   switch (e.kind) {
     case "request":
-      return {
-        title: `A request on ${where} failed: ${e.text}`,
-        fix: `Something ${where} asks for answers ${e.text.split(" ")[0]}. Restore it, or remove the call, so the page isn't missing a piece.`,
-      };
+      return requestWords(e, where);
     case "console":
       return {
         title: e.times > 1 ? `${where} logs the same error ${e.times} times` : `${where} logs an error in the browser`,
@@ -364,12 +436,12 @@ function plainWords(e: Evidence, host: string): { title: string; fix: string } {
   }
 }
 
-/** One problem per recorded thing, worst first, in Sage's own words. Pure. */
+/** One problem per recorded thing, the one a newcomer would hit first at the top (`weight`), in Sage's own words. Pure. */
 export function plainProblems(evidence: readonly Evidence[], host: string): LookProblem[] {
   return evidence
     .filter((e): e is Evidence & { kind: LookProblem["kind"] } => e.kind !== "landing")
     .map((e, i) => ({ e, i }))
-    .sort((a, b) => ORDER[a.e.kind] - ORDER[b.e.kind] || b.e.times - a.e.times || a.i - b.i)
+    .sort((a, b) => weight(a.e) - weight(b.e) || b.e.times - a.e.times || a.i - b.i)
     .slice(0, MAX_PROBLEMS)
     .map(({ e }, i) => ({ id: `P${i + 1}`, kind: e.kind, ...plainWords(e, host), evidence: [e.id], wordedBy: "sage" as const }));
 }

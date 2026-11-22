@@ -116,7 +116,11 @@ describe("Sage's plain first look", () => {
     expect(look.steps).toBe(6);
     expect(look.seconds).toBe(61);
     expect(look.trail[1]).toMatchObject({ n: 2, note: "Clicked “Start a drop”", frame: 1 });
-    expect(look.problems.map((p) => p.kind)).toEqual(["request", "console", "console", "no-change", "slow", "unreachable", "visual"]);
+    // what a newcomer would hit first leads: the server failing, then the button that does nothing
+    expect(look.problems.map((p) => p.kind)).toEqual(["request", "no-change", "console", "console", "visual", "slow", "unreachable"]);
+    expect(look.problems[0]).toMatchObject({ title: "The server failed a request on drops.example: 500 /v1/feed" });
+    expect(look.problems[0]!.fix).toBe("drops.example asks for /v1/feed and the server answers 500. That is the product failing, not the visitor's browser: look at the server's log for that address.");
+    expect(look.problems[1]!.title).toBe("Pressing “Continue” changed nothing Sage could see");
     const ids = new Set(look.evidence.map((e) => e.id));
     for (const p of look.problems) {
       expect(p.evidence.length).toBeGreaterThan(0);
@@ -126,6 +130,36 @@ describe("Sage's plain first look", () => {
       expect(p.wordedBy).toBe("sage");
     }
     expect(look.read).toMatchObject({ says: "Send a gift to anyone with a link.", firstScreen: "A dark page with a large headline and one orange button.", looksFor: ["gifting app", "crypto users"], strangerReads: null, verdict: null });
+  });
+
+  it("says what a failed request means by its status, counts one seen on two pages once, and puts the harmless ones last", () => {
+    const page = run().pages[0]!;
+    const req = (path: string, status: number) => ({ url: `https://${HOST}${path}`, status });
+    const ft = run({
+      states: [run().states[0]!],
+      visionObservations: [],
+      pages: [
+        { ...page, consoleErrors: ["TypeError: x is undefined"], brokenRequests: [req("/api/me", 401), req("/logo.png", 404), req("/api/plans", 404)] },
+        { ...page, url: `https://${HOST}/pricing`, consoleErrors: [], brokenRequests: [req("/api/me", 401), req("/api/plans?x=1", 404)] },
+      ],
+    });
+    const look = plainFirstLook(map(ft), HOST);
+    // one line per missing piece, however many pages ask for it
+    expect(look.evidence.filter((e) => e.kind === "request").map((e) => [e.text, e.times])).toEqual([["401 /api/me", 2], ["404 /logo.png", 1], ["404 /api/plans", 2]]);
+    // the missing piece of the page leads; a refusal for being signed out and a missing picture come last
+    expect(look.problems.map((p) => p.title)).toEqual([
+      "A request on drops.example failed: 404 /api/plans",
+      "drops.example logs an error in the browser",
+      "A request on drops.example was refused: 401 /api/me",
+      "A request on drops.example failed: 404 /logo.png",
+    ]);
+    expect(look.problems[0]!.fix).toBe("drops.example asks for /api/plans and it is not there (404), on 2 pages. Put it back, or remove the call, so the page isn't missing a piece.");
+    expect(look.problems[2]!.fix).toContain("That is normal for a visitor who has not signed in");
+    // every number in Sage's own words is one it recorded
+    for (const p of look.problems) {
+      const e = look.evidence.find((x) => x.id === p.evidence[0])!;
+      expect(numbersHeldBy(`${p.title} ${p.fix}`, [e.text, String(e.times), String(e.step ?? "")])).toBe(true);
+    }
   });
 
   it("says nothing was wrong when nothing was recorded, and never invents a problem", () => {
