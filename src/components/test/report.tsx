@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Pill } from "@/components/sage/pill";
 import { short } from "@/lib/format";
 import type { FindingsView } from "@/lib/report";
-import { CHANGE_WORDS, type ChangedProblem, type Ratio } from "@/lib/report/changed";
+import { CHANGE_WORDS } from "@/lib/report/change-words";
+import type { ChangedProblem, Ratio } from "@/lib/report/changed";
 import { count } from "@/lib/site/when";
 
 /**

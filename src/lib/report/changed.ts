@@ -1,6 +1,7 @@
 import { OTHER_NOTES, type PaidAnswer } from "./core";
 import { hitBy, signatureOf, type PlainContext } from "./plain";
 import type { CoreReport, RankedFinding } from "./product";
+import { CHANGE_WORDS, type ProblemChange } from "./change-words";
 
 /**
  * WHAT CHANGED SINCE YOUR LAST TEST: the pure half (the core, 22 Nov 2026).
@@ -22,7 +23,7 @@ export interface Ratio {
   n: number;
   of: number;
 }
-export type ProblemChange = "gone" | "fewer" | "still";
+export { CHANGE_WORDS, type ProblemChange };
 
 export interface ChangedLine {
   key: "understood" | "finished" | "again";
@@ -54,7 +55,6 @@ export const SMALL_SAMPLE = 5;
 export const THIN_PROBLEM = 2;
 export const MAX_PROBLEMS_THEN = 3;
 
-export const CHANGE_WORDS: Record<ProblemChange, string> = { gone: "Gone this time", fewer: "Fewer people hit it", still: "Still hit" };
 
 /**
  * The same product, by its address: the host without "www." and the path without a trailing slash.
