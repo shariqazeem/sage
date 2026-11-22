@@ -425,6 +425,38 @@ if you must touch them, that suite must stay green.
 - **An agent key is its owner, and never lifts a limit.** A workspace key acts as the owner who minted it, with only
   the scopes they ticked (read, plan, launch); identity is bound server-side (a caller's `founderOverride` or
   `clientRef` is dropped), the plan, the account's per-job limit and the vault still decide, and revoking is immediate.
+- **Sage never sends a tester into harm, and the product is screened before money moves (22 Nov 2026).** The work
+  policy refuses harmful WORK; the product safety screen (`src/lib/safety/`) screens the PRODUCT. It is
+  deterministic, has no model, and runs in the pipeline once Sage has looked and before a mission is designed; its
+  record rides on the map (`map.safety`, after the hash; never sent to a model). It checks:
+  - MetaMask's open phishing list (`phishing-list.ts`: fetched at most daily to `var/`, never in a test) and, with a
+    key, Google Safe Browsing;
+  - lookalikes of well-known brands (`brands.ts`: another alphabet, digits for letters, the brand beside "claim",
+    "support" or "wallet", the brand's real domain spelled inside another);
+  - a recovery-phrase or private-key field, and words that ask for one (a warning about one is not one);
+  - drainer wording on a screen that asks for a wallet, and an address named for a claim or an airdrop;
+  - a download kept on a file-sharing service or an unrelated host, a password for an archive, "turn off your
+    antivirus";
+  - optionally a domain registered in the last 30 days that asks for a wallet or an install.
+
+  Three outcomes:
+  - **clear:** as it always was.
+  - **hold:** suspicious, not certain. It launches, and the test is recorded held (`campaigns.safety_hold`): never
+    public (`isPublicWork`: not on Earn, the board or the sitemap), never shared (`sharingFor` is quiet: no X, no
+    Telegram channel, findings private), never announced to the roster, never answered on X, and only the builder's
+    invited people may answer (a place from its link, its workspace, its named list). The operator hears once, and
+    clears or refuses it: `node scripts/review.mjs products | clear-product | refuse-product`.
+  - **refused:** certain harm (on the phishing list and not whitelisted, a recovery-phrase field, a strong
+    lookalike that asks for a wallet). The run ends with the plain reason, so no plan exists to launch.
+
+  `launchSafety` runs beside `launchAllowed` at EVERY door that starts a job, and at the web approval and the
+  Telegram hand-over, before money moves and never after (a structural test holds the list). It also asks the
+  phishing list again as the server has it now. No settlement path reads any of it (tested): a live test keeps
+  paying its testers. What Sage noticed is the builder's to read, never an accusation, and never shown to anyone
+  else with the link. A false refusal is a failure too: every saved page, every P-GEN address and a list of
+  awkward honest addresses must screen clear (`false-alarms.test.ts`). Every tester reads, before a place: never
+  type a recovery phrase or a private key anywhere; on a dapp, use a wallet with nothing you would mind losing
+  (`testerCautions`, and the first-try words say it too, because a mission's `conditions` are never shown).
 - **Reaching a person is opt-in, always.** The roster (`src/lib/roster/`) messages only people who
   asked, at most one campaign per person per cooldown, never about work they already did, and never
   about a campaign with no claimable slots. Being paid is not consent.
@@ -653,6 +685,7 @@ value hard-fails). Vars marked † are read directly via `process.env` and are *
 | `<LANE>_REASONING_EFFORT` † | `low` / `medium` / `high`, sent as `reasoning_effort` on that lane's calls (a provider that refuses it is learned once) | Not sent |
 | `GITHUB_TOKEN` † | Read-only token for GitHub's API: the page reader (issues, PRs and their files, repos, gists), PR provenance, account age. Never logged | 60 calls an hour per server; past it, a merge check HOLDS rather than fails |
 | `VERIFY_RPC_<chainId>` † | RPC override for a verify-only chain (`src/lib/verify/chains.ts`: Ethereum, Base, Arbitrum, OP, Polygon, BNB, Avalanche, Linea, Scroll, testnets). Read-only; nothing is paid there | The public RPC in `chains.ts` |
+| `SAFE_BROWSING_API_KEY` † / `PRODUCT_SCREEN_RDAP` † / `PHISHING_LIST` † / `PHISHING_LIST_PATH` † | The product safety screen's outside lists (`src/lib/safety/`). A Google Safe Browsing key adds its verdict (the key travels in a header; only the product's address is sent). `PRODUCT_SCREEN_RDAP=1` asks rdap.org for a domain's age. `PHISHING_LIST=off` stops the daily fetch of MetaMask's list; the path is where its copy is kept | No Google check; no domain age; the list is fetched daily to `var/phishing-list.json`. With no list the screen records "unavailable" and every other check still runs |
 | `IDENTITY_DOOR=social` † / `IDENTITY_SOCIAL_CEILING_USD` † | The tester door (20 Nov 2026, `src/lib/identity/social-door.ts`): public work opens to a wallet whose owner signed in with Google or X (read from Privy's verified record into `person_identities`) or from their own Telegram chat, one place per person (the same account on a second wallet is LINKED, never a second person). Above the ceiling (default $5) World ID is still required. `IDENTITY_DOOR=1` keeps meaning World ID for everyone | `1`: World ID for everyone (prod until the relaunch) |
 | `X_AGENT` † (`off`/`dry`/`live`), `X_API_KEY`/`_SECRET` †, `X_ACCESS_TOKEN`/`_SECRET` †, `X_DAILY_BUDGET_USD` †, `X_REPLIES` †, `X_INSPECTIONS_DAILY_CAP` † | Sage on X (`src/lib/x/`): posts a test's mission and result only with the builder's yes (`campaign_sharing`), and with `X_REPLIES=on` (after X approves the bot) answers a post that tags it with a link by drafting a test owned by that X account (`claim-x`). Every post is written down before it is sent, inside a daily ceiling at X's pay-per-use prices ($0.20 a post with a link). `live` without all four keys runs as `dry`. `node scripts/vm/x-agent.mjs` prints the day | Off |
 | `TELEGRAM_MISSIONS_CHAT_ID` † | Sage's public Telegram channel of open tests (`src/lib/telegram/missions-channel.ts`): a shared test is posted once, with a Take a place button. The bot must be an admin | No channel posts |
@@ -702,7 +735,7 @@ key the API ignores, and several rounds of "defects" turned out to be the harnes
 read tool before acting, and self-corrects once when a turn claims an action it did not take.
 A one-shot battery scores both as failures a founder never experiences.
 
-Scripts in `scripts/`: `recount.mjs` (PUBLIC: recounts Sage's numbers from the chain; dependency-free), `lane-audit.mjs` (prints the provider each LLM lane resolves to — partial
+Scripts in `scripts/`: `review.mjs` (held work, and a product the safety screen held or refused), `recount.mjs` (PUBLIC: recounts Sage's numbers from the chain; dependency-free), `lane-audit.mjs` (prints the provider each LLM lane resolves to — partial
 lane config is silently ignored, which is how two lanes sat on a metered key for weeks),
 `redteam-brain.mjs` (LIVE, non-CI red-team — the semantic attacks
 the regex layer can't catch), `deputy-watch.mjs` (sweep watcher), `mcp-conformance.mjs`,
