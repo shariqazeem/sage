@@ -1,6 +1,7 @@
 import { enforceQuotes, NOTE_CHARS, UNTRUSTED_NOTE_CLOSE, UNTRUSTED_NOTE_OPEN } from "@/lib/deputy/brain-core";
 import { numbersHeldBy, plainSentence } from "@/lib/first-look/core";
 import { unfenced } from "@/lib/launch/gig-draft";
+import type { Reached } from "@/lib/core-test/shape";
 import type { StoredFinding } from "@/lib/db/schema";
 
 /**
@@ -13,7 +14,9 @@ import type { StoredFinding } from "@/lib/db/schema";
  *   - a quote that is not an exact substring of THAT person's own answer is dropped;
  *   - a title is at most 60 characters of plain words;
  *   - every paid answer is in at least one finding.
- * With no model the same answers become findings one by one, so the report is never a dead end.
+ * And a model's GROUP has to hold up too (22 Nov 2026): one that cites no exact words of its own
+ * people, or that puts people who stopped on different rungs into one problem, is dropped, and those
+ * answers are grouped in code instead (`plain.ts`). With no model at all, `plain.ts` groups them all.
  */
 
 export const FINDING_KINDS = ["stuck", "bug", "liked", "idea", "other"] as const;
@@ -52,7 +55,7 @@ export function verbatim(quote: unknown, evidence: string): string | null {
 }
 
 /** Cut at a word boundary. The result is always a prefix of the input, so it stays an exact substring. */
-function cutAtWord(s: string, max: number): string {
+export function cutAtWord(s: string, max: number): string {
   if (s.length <= max) return s;
   const head = s.slice(0, max);
   const space = head.lastIndexOf(" ");
@@ -96,16 +99,6 @@ function quoteOf(a: PaidAnswer): { submissionId: string; text: string }[] {
   return q ? [{ submissionId: a.id, text: q }] : [];
 }
 
-/** No model: every paid answer is its own finding, titled and quoted from its own first words. */
-export function plainFindings(answers: readonly PaidAnswer[]): Finding[] {
-  return answers.map((a) => ({
-    title: firstClause(a.text) || NO_WORDS,
-    kind: "other" as const,
-    submissionIds: [a.id],
-    quotes: quoteOf(a),
-  }));
-}
-
 /**
  * Every paid answer appears in at least one finding. Answers no finding holds go into "Other
  * notes", each with its own first sentence. Also used at read time, so an answer paid after the
@@ -131,12 +124,13 @@ export function enforceGroups(
   proposal: unknown,
   answers: readonly PaidAnswer[],
   ctx: ReportContext = EMPTY_CONTEXT,
-): { findings: Finding[]; kept: number; droppedQuotes: number; understood: Understood[]; droppedExtras: string[] } {
+): { findings: Finding[]; groups: Finding[]; kept: number; droppedQuotes: number; droppedGroups: string[]; understood: Understood[]; droppedExtras: string[] } {
   const byId = new Map(answers.map((a) => [a.id, a]));
   const droppedExtras: string[] = [];
   const root = asRecord(proposal);
   const groups = Array.isArray(proposal) ? proposal : Array.isArray(root?.groups) ? root.groups : Array.isArray(root?.findings) ? root.findings : [];
   const findings: Finding[] = [];
+  const droppedGroups: string[] = [];
   let droppedQuotes = 0;
   for (const raw of groups.slice(0, MAX_FINDINGS)) {
     const g = asRecord(raw);
@@ -159,24 +153,29 @@ export function enforceGroups(
       seen.add(key);
       quotes.push({ submissionId: owner.id, text });
     }
-    // a finding always carries someone's exact words when any of its people wrote some
-    if (quotes.length === 0) {
-      for (const id of ids) {
-        const q = quoteOf(byId.get(id)!);
-        if (q.length) {
-          quotes.push(...q);
-          break;
-        }
-      }
-    }
     const kind = FINDING_KINDS.find((k) => k === g.kind) ?? "other";
-    const title = plainTitle(g.title) || (quotes[0] ? firstClause(quotes[0].text) : "") || OTHER_NOTES;
+    const said = ids.map((id) => byId.get(id)!.text);
+    // A GROUP STANDS ON ITS PEOPLE'S EXACT WORDS. One that cites none (every quote invented, altered or
+    // somebody else's, or no quote at all) shows no sign the model read these answers, so the group is
+    // dropped and its people are grouped in code. People who wrote nothing have nothing to cite.
+    if (quotes.length === 0 && said.some((t) => t.trim().length > 0)) {
+      droppedGroups.push(`no exact words: "${plainTitle(g.title)}"`);
+      continue;
+    }
+    // WHERE A PERSON STOPPED IS THEIR OWN TAP. A problem that holds people from two different rungs is
+    // two problems the model merged, so it is dropped and its people are grouped in code.
+    if ((kind === "stuck" || kind === "bug") && rungOf(ids, ctx.rungs) === "mixed") {
+      droppedGroups.push(`mixed rungs: "${plainTitle(g.title)}"`);
+      continue;
+    }
+    // a title is words, never a count: a number its people did not write is a number the model wrote
+    const proposed = plainTitle(g.title);
+    const title = (proposed && numbersHeldBy(proposed, said) ? proposed : "") || (quotes[0] ? firstClause(quotes[0].text) : "") || OTHER_NOTES;
     const finding: Finding = { title, kind, submissionIds: ids, quotes };
     // A FIX is a suggestion, so it is held to the first look's own standard: plain words, no link, no
     // instruction, and no number its people's own words do not hold.
     if (g.fix !== undefined) {
       const fix = plainSentence(g.fix, FIX_MAX);
-      const said = ids.map((id) => byId.get(id)!.text);
       if (fix && numbersHeldBy(fix, said)) finding.fix = fix;
       else droppedExtras.push(`fix on "${title}"`);
     }
@@ -205,7 +204,7 @@ export function enforceGroups(
     labelled.add(id);
     understood.push({ submissionId: id, read });
   }
-  return { findings: cover(findings, answers), kept: findings.length, droppedQuotes, understood, droppedExtras };
+  return { findings: cover(findings, answers), groups: findings, kept: findings.length, droppedQuotes, droppedGroups, understood, droppedExtras };
 }
 
 /* ───────────────────────────────────────────── the product report's extras ── */
@@ -226,6 +225,24 @@ export interface ReportContext {
   sageProblems: { id: string; text: string }[];
   /** the first-impression part of each core answer, by submission id */
   impressions: ReadonlyMap<string, string>;
+  /** the rung each core answer's person tapped, by submission id */
+  rungs?: ReadonlyMap<string, Reached>;
+}
+
+/**
+ * The rung every stopped member of a group shares: null when none of them stopped (they finished, or
+ * did not tap), and "mixed" when they stopped in different places. "Never found the start" is not
+ * "began and could not finish", so a problem never holds both.
+ */
+export function rungOf(ids: readonly string[], rungs: ReadonlyMap<string, Reached> | undefined): Exclude<Reached, "finished"> | null | "mixed" {
+  const stopped = new Set(
+    ids.flatMap((id) => {
+      const r = rungs?.get(id);
+      return r && r !== "finished" ? [r] : [];
+    }),
+  );
+  if (stopped.size > 1) return "mixed";
+  return [...stopped][0] ?? null;
 }
 export const EMPTY_CONTEXT: ReportContext = { says: null, sageProblems: [], impressions: new Map() };
 
@@ -277,7 +294,8 @@ Rules:
 - title: at most 60 characters, plain words, no links, saying what people ran into ("Couldn't find where to sign up").
 - kind: one of "stuck" (could not get past something), "bug" (something broke), "liked" (praise), "idea" (a request or suggestion), "other".
 - submissionIds: the ids of the answers that say this. Use only ids you were given. An answer may be in more than one group. Put every answer in at least one group.
-- quotes: for each group, one short quote from one to three of its answers. Copy each quote character for character from that answer: one sentence or less, no changes, no ellipses, no fixing typos. A quote that is not exactly in the answer is thrown away.
+- quotes: for each group, one short quote from one to three of its answers. Copy each quote character for character from that answer: one sentence or less, no changes, no ellipses, no fixing typos. A quote that is not exactly in the answer is thrown away, and a group with no exact quote is thrown away with it.
+- One group is ONE problem. Do not put people who got stuck in different places, or on different things, into the same group. A group that mixes them is thrown away.
 - Never write how many people said something, never write a money amount, and never add anything the answers do not say.`;
 
 /** The user turn: each answer inside the untrusted markers, with anything that could forge a marker removed. */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { cover, enforceGroups, firstClause, firstSentence, OTHER_NOTES, plainFindings, plainTitle, reportUser, TITLE_MAX, verbatim, type PaidAnswer } from "./core";
+import { cover, enforceGroups, firstClause, firstSentence, OTHER_NOTES, plainTitle, reportUser, TITLE_MAX, verbatim, type PaidAnswer } from "./core";
+import { plainFindings } from "./plain";
 
 /**
  * The builder paid for these findings, so nothing in them may be the model's invention: not a count,
@@ -24,19 +25,47 @@ describe("a model's proposal is only a proposal", () => {
     expect(out.findings[0]!.quotes).toEqual([{ submissionId: "s2", text: "took me two minutes to find" }]);
   });
 
-  it("drops a quote that is real but belongs to a different person", () => {
+  it("drops a group that cites no exact words of its own people: a real quote from the wrong person is not one", () => {
     const out = enforceGroups(
       { groups: [{ title: "Sign up", kind: "stuck", submissionIds: ["s1", "s2"], quotes: [{ submissionId: "s1", text: "took me two minutes to find" }] }] },
       answers,
     );
     expect(out.droppedQuotes).toBe(1);
-    // the finding still carries someone's exact words: the first sentence of its first person
-    expect(out.findings[0]!.quotes).toEqual([{ submissionId: "s1", text: "I couldn't find the sign up button on mobile." }]);
+    expect(out.kept).toBe(0);
+    expect(out.groups).toEqual([]);
+    expect(out.droppedGroups).toEqual(['no exact words: "Sign up"']);
+    // its people are still in the report: the caller groups them in code
+    expect(out.findings.flatMap((f) => f.submissionIds).sort()).toEqual(["s1", "s2", "s3"]);
+  });
+
+  it("drops a group with no quote at all, and keeps one whose people wrote nothing to quote", () => {
+    expect(enforceGroups({ groups: [{ title: "Sign up", kind: "stuck", submissionIds: ["s1", "s2"], quotes: [] }] }, answers).kept).toBe(0);
+    const silent: PaidAnswer[] = [{ id: "q1", text: "" }, { id: "q2", text: "  " }];
+    expect(enforceGroups({ groups: [{ title: "Said nothing", kind: "other", submissionIds: ["q1", "q2"], quotes: [] }] }, silent).kept).toBe(1);
+  });
+
+  it("drops a problem that puts people who stopped on different rungs together, and keeps praise that does", () => {
+    const rungs = new Map<string, "first-screen" | "found-start" | "started" | "finished">([["s1", "first-screen"], ["s2", "started"], ["s3", "finished"]]);
+    const ctx = { says: null, sageProblems: [], impressions: new Map(), rungs };
+    const quotes = [{ submissionId: "s1", text: "I couldn't find the sign up button on mobile." }];
+    const mixed = enforceGroups({ groups: [{ title: "Sign up is hard to find", kind: "stuck", submissionIds: ["s1", "s2"], quotes }] }, answers, ctx);
+    expect(mixed.kept).toBe(0);
+    expect(mixed.droppedGroups).toEqual(['mixed rungs: "Sign up is hard to find"']);
+    // one stopped rung, beside someone who finished: one problem
+    expect(enforceGroups({ groups: [{ title: "Sign up is hard to find", kind: "stuck", submissionIds: ["s1", "s3"], quotes }] }, answers, ctx).kept).toBe(1);
+    // praise is not a problem: where people stopped does not split it
+    expect(enforceGroups({ groups: [{ title: "Nice", kind: "liked", submissionIds: ["s1", "s2"], quotes }] }, answers, ctx).kept).toBe(1);
+  });
+
+  it("never shows a number the model put in a title", () => {
+    const quotes = [{ submissionId: "s2", text: "took me two minutes to find" }];
+    const out = enforceGroups({ groups: [{ title: "8 of 10 people could not sign up", kind: "stuck", submissionIds: ["s1", "s2"], quotes }] }, answers);
+    expect(out.findings[0]!.title).toBe("took me two minutes to find");
   });
 
   it("counts people from distinct ids, whatever number the model wrote", () => {
     const out = enforceGroups(
-      { groups: [{ title: "Sign up is hard to find", kind: "stuck", count: 9, people: 9, submissionIds: ["s1", "s2", "s2", "s3", "s1"], quotes: [] }] },
+      { groups: [{ title: "Sign up is hard to find", kind: "stuck", count: 9, people: 9, submissionIds: ["s1", "s2", "s2", "s3", "s1"], quotes: [{ submissionId: "s2", text: "took me two minutes to find" }] }] },
       answers,
     );
     expect(out.findings).toHaveLength(1);
@@ -58,7 +87,7 @@ describe("a model's proposal is only a proposal", () => {
   });
 
   it("puts every paid answer in at least one finding", () => {
-    const out = enforceGroups({ groups: [{ title: "Fast dashboard", kind: "liked", submissionIds: ["s3"], quotes: [] }] }, answers);
+    const out = enforceGroups({ groups: [{ title: "Fast dashboard", kind: "liked", submissionIds: ["s3"], quotes: [{ submissionId: "s3", text: "it loaded fast" }] }] }, answers);
     const held = new Set(out.findings.flatMap((f) => f.submissionIds));
     expect([...held].sort()).toEqual(["s1", "s2", "s3"]);
     const other = out.findings.find((f) => f.title === OTHER_NOTES)!;
@@ -99,16 +128,19 @@ describe("verbatim", () => {
 });
 
 describe("the plain engine", () => {
-  it("makes each paid answer its own finding from its own first words", () => {
+  it("groups the two people who hit the same thing, in their own words (plain.test.ts measures it)", () => {
     const out = plainFindings(answers);
-    expect(out).toHaveLength(3);
+    expect(out).toHaveLength(2);
     expect(out[0]).toEqual({
       title: "I couldn't find the sign up button on mobile",
-      kind: "other",
-      submissionIds: ["s1"],
-      quotes: [{ submissionId: "s1", text: "I couldn't find the sign up button on mobile." }],
+      kind: "stuck",
+      submissionIds: ["s1", "s2"],
+      quotes: [
+        { submissionId: "s2", text: "Sign up was hidden behind the menu, took me two minutes to find." },
+        { submissionId: "s1", text: "I couldn't find the sign up button on mobile." },
+      ],
     });
-    expect(out[2]!.title).toBe("Loved the dashboard");
+    expect(out[1]).toMatchObject({ title: "What people liked", kind: "liked", submissionIds: ["s3"] });
     for (const f of out) for (const q of f.quotes) expect(answers.find((a) => a.id === q.submissionId)!.text).toContain(q.text);
   });
 

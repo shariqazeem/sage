@@ -119,7 +119,7 @@ describe("the model's extras, checked", () => {
   });
 
   it("never reads a number of people from the model", () => {
-    const out = enforceGroups({ groups: [{ title: "Continue does nothing", kind: "stuck", count: 40, people: 40, submissionIds: ["s1", "s1", "nope"], quotes: [] }], understood: { yes: 9, of: 10 } }, ANSWERS, CTX);
+    const out = enforceGroups({ groups: [{ title: "Continue does nothing", kind: "stuck", count: 40, people: 40, submissionIds: ["s1", "s1", "nope"], quotes: [{ submissionId: "s1", text: ANSWERS[0]!.text.slice(0, 20) }] }], understood: { yes: 9, of: 10 } }, ANSWERS, CTX);
     expect(new Set(out.findings[0]!.submissionIds).size).toBe(1);
     expect(out.understood).toEqual([]);
   });

@@ -2,11 +2,14 @@ import Link from "next/link";
 import { Pill } from "@/components/sage/pill";
 import { short } from "@/lib/format";
 import type { FindingsView } from "@/lib/report";
+import { CHANGE_WORDS, type ChangedProblem, type Ratio } from "@/lib/report/changed";
 import { count } from "@/lib/site/when";
 
 /**
- * WHAT PEOPLE FOUND, AS A PRODUCT REPORT. Four parts, in the order a builder asks them:
+ * WHAT PEOPLE FOUND, AS A PRODUCT REPORT. Its parts, in the order a builder asks them:
  *
+ *   0. Since your last test      only when this builder tested the same product before: the same
+ *                                counts then and now, and what became of the problems people hit.
  *   1. Did they understand it?   X of N, and each person's own sentence.
  *   2. The main action           how many finished, and where the rest stopped.
  *   3. What they ran into        ranked by people, in their words, with a fix and "Sage saw this too".
@@ -15,7 +18,7 @@ import { count } from "@/lib/site/when";
  * It draws only what it is given. Every number arrived already counted from rows (paid answers, taps,
  * one checked label per first impression); a part with nothing to count says so, or is not drawn.
  */
-type View = Pick<FindingsView, "findings" | "core" | "fixFirst" | "paid">;
+type View = Pick<FindingsView, "findings" | "core" | "fixFirst" | "paid"> & { changed?: FindingsView["changed"] };
 type Quote = { submissionId: string; text: string };
 
 const READ_WORDS = { yes: "Understood", partly: "Partly", no: "Did not" } as const;
@@ -56,6 +59,64 @@ function Big({ n, of, words }: { n: number; of: number; words: string }) {
       </b>
       <span>{words}</span>
     </p>
+  );
+}
+
+/** "3 of 10 → 7 of 10": the same count in the last test and in this one. */
+function ThenNow({ then, now }: { then: Ratio; now: Ratio }) {
+  return (
+    <span className="sg-t-rep-then" role="img" aria-label={`${then.n} of ${then.of} then, ${now.n} of ${now.of} now`}>
+      <span aria-hidden>
+        {then.n} of {then.of}
+      </span>
+      <i aria-hidden>→</i>
+      <b aria-hidden>
+        {now.n} of {now.of}
+      </b>
+    </span>
+  );
+}
+
+const CHANGE_TONE: Record<ChangedProblem["change"], "neutral" | "ink" | "accent"> = { gone: "ink", fewer: "ink", still: "accent" };
+
+function Changed({ changed }: { changed: NonNullable<View["changed"]> }) {
+  return (
+    <section className="sg-t-rep-sec" aria-labelledby="rep-changed">
+      <h3 className="sg-t-rep-h" id="rep-changed">
+        Since your last test
+      </h3>
+      <p className="sg-small">
+        The same counts in <Link href={changed.previous.path}>your last test of this product</Link> and in this one{changed.live ? ", so far" : ""}. Counted from what people tapped and wrote, by the same rules both times.
+      </p>
+      {changed.lines.length > 0 ? (
+        <ul className="sg-t-rep-changes">
+          {changed.lines.map((l) => (
+            <li key={l.key}>
+              <span className="sg-t-rep-change-label">{l.label}</span>
+              <ThenNow then={l.then} now={l.now} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {changed.problems.length > 0 ? (
+        <>
+          <span className="sg-label">What people hit last time</span>
+          <ul className="sg-t-rep-changes">
+            {changed.problems.map((p, i) => (
+              <li key={`${p.title}:${i}`}>
+                <span className="sg-t-rep-change-label">
+                  {p.title}
+                  <Pill tone={CHANGE_TONE[p.change]}>{CHANGE_WORDS[p.change]}</Pill>
+                </span>
+                <ThenNow then={p.then} now={p.now} />
+                {p.caution ? <span className="sg-t-rep-change-note">{p.caution}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {changed.small ? <p className="sg-small">{changed.small}</p> : null}
+    </section>
   );
 }
 
@@ -161,22 +222,24 @@ function RanInto({ view }: { view: View }) {
           const receipts = f.people.filter((p) => p.receipt);
           const first = f.quotes[0];
           // an answer laid out by itself is named by its own first words: the quote says it once
-          const named = !first || !first.text.startsWith(f.title.replace(/…$/, "").trim());
+          // (a finding of several people always carries its title: it is the name of what they share)
+          const named = f.count > 1 || !first || !first.text.toLowerCase().startsWith(f.title.replace(/…$/, "").trim().toLowerCase());
           return (
             <article className="sg-t-finding" key={`${f.title}:${i}`}>
-              <div className="sg-t-finding-count" aria-label={count(f.count, "person", "people")}>
+              <div className="sg-t-finding-count" aria-label={`${f.count} of ${count(f.of, "person", "people")}`}>
                 {f.count}
-                <small>{f.count === 1 ? "person" : "people"}</small>
+                <small>of {f.of}</small>
               </div>
               <div className="sg-t-finding-main">
-                {named || f.sageSaw ? (
+                {named || f.sageSaw || f.stoppedOn ? (
                   <h4 className="sg-t-finding-title">
                     {named ? f.title : null}
                     {KIND_WORDS[f.kind] ? <Pill>{KIND_WORDS[f.kind]}</Pill> : null}
+                    {f.stoppedOn ? <Pill>{f.stoppedOn}</Pill> : null}
                     {f.sageSaw ? <Pill tone="ink">Sage saw this too</Pill> : null}
                   </h4>
                 ) : null}
-                <Quotes quotes={f.quotes} />
+                <Quotes quotes={f.quotes} show={f.count > 1 ? 2 : 1} />
                 {f.sageSaw && f.sageTitle ? <p className="sg-t-rep-sage">In its own run, Sage noted: {f.sageTitle}.</p> : null}
                 {f.fix ? (
                   <p className="sg-t-look-fix">
@@ -231,6 +294,7 @@ function FixFirst({ view }: { view: View }) {
 export function Report({ view }: { view: View }) {
   return (
     <div className="sg-t-rep">
+      {view.changed ? <Changed changed={view.changed} /> : null}
       {view.core ? <Understood core={view.core} /> : null}
       {view.core ? <MainAction core={view.core} /> : null}
       <RanInto view={view} />

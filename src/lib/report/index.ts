@@ -10,21 +10,27 @@ import { completeSteadily } from "@/lib/llm/steady";
 import { reasonSentencePublic } from "@/lib/deputy/reason-copy";
 import { summarizeSettled } from "@/lib/telegram/format";
 import { listCoreAnswers } from "@/lib/core-test/answers";
-import { CORE_MISSION_KEY, splitCoreAccount } from "@/lib/core-test/shape";
+import { CORE_MISSION_KEY, REACHED_REPORT, splitCoreAccount, type Reached } from "@/lib/core-test/shape";
 import { getMissionByKey } from "@/lib/db/campaigns";
-import { getInspectionJobByCampaign } from "@/lib/db/inspection";
+import { getInspectionJobByCampaign, listInspectionJobs } from "@/lib/db/inspection";
+import { v2Economics } from "@/lib/campaigns/v2-economics";
+import { sharingFor } from "@/lib/sharing";
+import { testPath } from "@/lib/site/test-path";
 import { firstLookFor } from "@/lib/first-look";
-import { cover, enforceGroups, plainFindings, REPORT_SYSTEM, reportUser, type Finding, type FindingKind, type PaidAnswer, type ReportContext, type Understood } from "./core";
+import { enforceGroups, REPORT_SYSTEM, reportUser, rungOf, type Finding, type FindingKind, type PaidAnswer, type ReportContext, type Understood } from "./core";
+import { coverPlainly, plainFindings, type PlainContext } from "./plain";
+import { productKey, whatChanged, type Changed } from "./changed";
 import { listKeepPosted, type KeepPostedContact } from "./keep-posted";
 import { kindHonestyLine } from "@/lib/launch/product-kind";
-import { coreReport, fixFirst, mainActionOf, rankFindings, type CoreReport, type FixFirst, type SageProblem } from "./product";
+import { coreReport, fixFirst, mainActionOf, rankFindings, type CoreReport, type CoreTaps, type FixFirst, type RankedFinding, type SageProblem } from "./product";
 
 /**
  * WHAT N PEOPLE FOUND (relaunch, 20 Nov 2026): the report a builder paid for.
  *
  * Built from PAID answers only. A model on the REPORT lane proposes the groups and `core.ts` decides
  * what is shown; with no model (no key, out of credit, over the day's budget, an unusable answer) the
- * same answers are laid out one by one, and the row says which engine built it. Counts, people and
+ * same answers are grouped in code (`plain.ts`: by the rung people stopped on, the things their
+ * sentences share and Sage's own notes), and the row says which engine built it. Counts, people and
  * money are read from the submissions and the journal on every read: none of them is ever stored
  * from, or written by, a model.
  */
@@ -109,6 +115,21 @@ export function productContext(campaignId: string, paid: readonly Submission[] =
   };
 }
 
+/**
+ * What the plain grouping may know beyond the words: the rung each paid core answer's person tapped,
+ * and Sage's own notes. Taps on answers that are not paid core answers are never read.
+ */
+export function plainContext(product: Pick<ProductContext, "ctx" | "coreHash">, paid: readonly Submission[], taps: ReadonlyMap<string, CoreTaps>): PlainContext & { rungs: Map<string, Reached> } {
+  const rungs = new Map<string, Reached>();
+  if (product.coreHash) {
+    for (const s of paid) {
+      const tap = s.missionIdHash?.toLowerCase() === product.coreHash ? taps.get(s.id) : undefined;
+      if (tap) rungs.set(s.id, tap.reached);
+    }
+  }
+  return { rungs, sageProblems: product.ctx.sageProblems };
+}
+
 /** Ask the model to group the answers. Null on ANY failure: the caller then builds plainly. */
 async function grouped(title: string, answers: PaidAnswer[], ctx: ReportContext, deps: BuildDeps): Promise<{ findings: Finding[]; understood: Understood[]; engine: string } | null> {
   if (answers.length < MIN_ANSWERS_FOR_MODEL || !modelConfigured(deps)) return null;
@@ -118,8 +139,10 @@ async function grouped(title: string, answers: PaidAnswer[], ctx: ReportContext,
     const res = await completeSteadily(complete, { system: REPORT_SYSTEM, user: reportUser(title, answers, ctx), maxTokens: 2600, temperature: 0.2, lane: "REPORT", tag: "report", maxWaitMs: 90_000 }, { attempts: 3, budgetMs: 90_000, label: "report" });
     const out = enforceGroups(res.json, answers, ctx);
     if (out.droppedExtras.length > 0) console.warn("[report] dropped:", out.droppedExtras.slice(0, 6).join(" | "));
+    if (out.droppedGroups.length > 0) console.warn("[report] groups that did not hold up, grouped in code instead:", out.droppedGroups.slice(0, 6).join(" | "));
     if (out.kept === 0) return null;
-    return { findings: out.findings, understood: out.understood, engine: (res.responseModel ?? res.model) || "model" };
+    // the model's own groups that held up; whoever they leave out is grouped in code by the caller
+    return { findings: out.groups, understood: out.understood, engine: (res.responseModel ?? res.model) || "model" };
   } catch (e) {
     // out of credit and over-budget arrive here as llm_status_402; the report is built without a model
     console.warn("[report] grouping fell back to plain:", e instanceof Error ? e.message : String(e));
@@ -138,11 +161,14 @@ export interface BuiltFindings {
 export async function buildFindings(campaignId: string, deps: BuildDeps = {}, now = nowSeconds()): Promise<BuiltFindings> {
   const paid = paidAnswers(campaignId);
   const answers = paid.map(answerOf);
-  const model = await grouped(getCampaign(campaignId)?.title ?? "", answers, productContext(campaignId, paid).ctx, deps);
-  // the answers may have grown while the model was thinking; cover what it never saw
-  const latest = paidAnswers(campaignId).map(answerOf);
+  const product = productContext(campaignId, paid);
+  const model = await grouped(getCampaign(campaignId)?.title ?? "", answers, { ...product.ctx, rungs: plainContext(product, paid, listCoreAnswers(campaignId)).rungs }, deps);
+  // the answers may have grown while the model was thinking; whoever it never saw is grouped in code
+  const latestRows = paidAnswers(campaignId);
+  const latest = latestRows.map(answerOf);
+  const plain = plainContext(product, latestRows, listCoreAnswers(campaignId));
   const built: BuiltFindings = {
-    findings: model ? cover(model.findings, latest) : plainFindings(latest),
+    findings: model ? coverPlainly(model.findings, latest, plain) : plainFindings(latest, plain),
     engine: model ? model.engine : PLAIN_ENGINE,
     paidAnswers: latest.length,
     builtAt: now,
@@ -231,8 +257,12 @@ export interface FindingPerson {
 export interface FindingView {
   title: string;
   kind: FindingKind;
-  /** distinct people behind this finding: the length of `people`, counted in code. */
+  /** distinct people behind this finding (by wallet), counted in code. */
   count: number;
+  /** the people it is out of: everyone paid in this test. "3 of 10". */
+  of: number;
+  /** where these people stopped, when everyone in it who stopped tapped the same rung ("Stopped on the first screen") */
+  stoppedOn: string | null;
   people: FindingPerson[];
   quotes: { submissionId: string; text: string }[];
   /** one suggested fix: a model's checked sentence, else Sage's own fix for the matching problem; null when there is none */
@@ -261,6 +291,11 @@ export interface FindingsView {
   core: CoreReport | null;
   /** the top three things to fix, by how many people hit each */
   fixFirst: FixFirst[];
+  /**
+   * What changed since this builder's last finished test of the same product; null when there is none,
+   * or when this reader may not see the earlier test's findings.
+   */
+  changed: ChangedView | null;
   /** the model id that grouped the findings, or "plain". */
   engine: string;
   /** when the stored findings were built (epoch seconds); null when nothing is stored yet. */
@@ -293,6 +328,97 @@ export function notPaidReason(sub: Pick<Submission, "id" | "rejectReason">, view
   return NOT_ACCEPTED;
 }
 
+/** The comparison with the builder's last test, with which test it was. */
+export interface ChangedView extends Changed {
+  previous: { id: string; title: string; path: string };
+  /** this test still has places open, so its side of every count is "so far" */
+  live: boolean;
+}
+
+/** No place can be taken any more: every place is paid, or the test was stopped or ended. A draft is not done. */
+export function testDone(campaign: Campaign): boolean {
+  if (campaign.status === "draft") return false;
+  if (campaign.status !== "live") return true;
+  const e = v2Economics(campaign);
+  return e.totalCompletions > 0 && e.paidCompletions >= e.totalCompletions;
+}
+
+/**
+ * This builder's last FINISHED test of the same product before this one: the same founder (the
+ * inspection's owner), the same product address (`productKey`), at least one paid answer. Null when
+ * there is none. A test still taking answers is never the "last test".
+ */
+export function previousTest(campaign: Campaign): Campaign | null {
+  const job = getInspectionJobByCampaign(campaign.id);
+  const key = productKey(job?.productUrl);
+  if (!job || !key) return null;
+  let best: Campaign | null = null;
+  const seen = new Set<string>([campaign.id]);
+  for (const j of listInspectionJobs(job.founderWallet)) {
+    const id = j.publicCampaignId;
+    if (!id || seen.has(id) || productKey(j.productUrl) !== key) continue;
+    seen.add(id);
+    const c = getCampaign(id);
+    if (!c || c.createdAt >= campaign.createdAt || !testDone(c) || paidAnswers(c.id).length === 0) continue;
+    if (!best || c.createdAt > best.createdAt) best = c;
+  }
+  return best;
+}
+
+/** One test's report, counted from its rows: what both the view and a comparison read. */
+interface ReportParts {
+  paidRows: Submission[];
+  answers: PaidAnswer[];
+  row: CampaignFindingsRow | null;
+  product: ProductContext;
+  plain: PlainContext & { rungs: Map<string, Reached> };
+  ranked: RankedFinding[];
+  core: CoreReport | null;
+}
+
+function reportParts(campaignId: string): ReportParts {
+  const paidRows = paidAnswers(campaignId);
+  const byId = new Map(paidRows.map((s) => [s.id, s]));
+  const answers = paidRows.map(answerOf);
+  const row = storedFindings(campaignId);
+  // THE PRODUCT REPORT. Sage's own first look, the core mission's answers, what each person tapped and
+  // one stored label per first impression: every count is made here, now, from those rows.
+  const product = productContext(campaignId, paidRows);
+  const taps = listCoreAnswers(campaignId);
+  const plain = plainContext(product, paidRows, taps);
+  const kept: Finding[] = (row?.json.findings ?? [])
+    .map((f) => ({ ...f, submissionIds: f.submissionIds.filter((id) => byId.has(id)), quotes: f.quotes.filter((q) => byId.has(q.submissionId)) }))
+    .filter((f) => f.submissionIds.length > 0);
+  // A plain report is grouped again on every read: it costs nothing, it is the same for the same
+  // answers, and an answer paid a minute ago joins its group at once. A model's groups are kept as
+  // built, and whoever was paid since is grouped in code beside them.
+  const findings = row && row.engine !== PLAIN_ENGINE ? coverPlainly(kept, answers, plain) : plainFindings(answers, plain);
+  const coreAnswers = product.coreHash ? paidRows.filter((s) => s.missionIdHash?.toLowerCase() === product.coreHash).map(answerOf) : [];
+  const core = coreReport({ answers: coreAnswers, taps, understood: row?.json.understood ?? [], says: product.ctx.says, mainAction: product.mainAction });
+  return { paidRows, answers, row, product, plain, ranked: rankFindings(findings, product.sage), core };
+}
+
+/**
+ * What changed since the builder's last test of this product. The owner reads it whenever there is
+ * one. Anyone else reads it only when the earlier test's findings are public too: its problems are
+ * that test's findings, and a private test stays private.
+ */
+function changedSince(campaign: Campaign, now: ReportParts, viewer: "owner" | "public"): ChangedView | null {
+  const before = previousTest(campaign);
+  if (!before) return null;
+  if (viewer !== "owner" && !sharingFor(before.id).findingsPublic) return null;
+  const then = reportParts(before.id);
+  const person = (rows: readonly Submission[]) => {
+    const wallet = new Map(rows.map((s) => [s.id, walletKey(s.wallet)]));
+    return (id: string) => wallet.get(id) ?? id;
+  };
+  const changed = whatChanged({
+    then: { core: then.core, answers: then.answers, personOf: person(then.paidRows), plain: then.plain, ranked: then.ranked },
+    now: { core: now.core, answers: now.answers, personOf: person(now.paidRows), plain: now.plain },
+  });
+  return changed ? { ...changed, previous: { id: before.id, title: before.title, path: testPath(before.id) }, live: !testDone(campaign) } : null;
+}
+
 /**
  * The report as a reader may see it. Everything but the grouping is read now: who tried, who was
  * paid and how much (the journal's settled rows), who was not and why, who wants to hear back.
@@ -300,9 +426,9 @@ export function notPaidReason(sub: Pick<Submission, "id" | "rejectReason">, view
  */
 export function findingsView(campaign: Campaign, viewer: "owner" | "public", findingsPublic: boolean): Omit<FindingsView, "rebuilding"> {
   const subs = listSubmissions(campaign.id);
-  const paidRows = paidAnswers(campaign.id);
+  const parts = reportParts(campaign.id);
+  const { paidRows, row, product, ranked, core } = parts;
   const byId = new Map(paidRows.map((s) => [s.id, s]));
-  const answers = paidRows.map(answerOf);
   const events = listCampaignEvents(campaign.id);
 
   // money: the vault-derived amount on each settled row, by its transaction, else by its submission
@@ -323,26 +449,9 @@ export function findingsView(campaign: Campaign, viewer: "owner" | "public", fin
     };
   };
 
-  const row = storedFindings(campaign.id);
-  const kept: Finding[] = (row?.json.findings ?? [])
-    .map((f) => ({ ...f, submissionIds: f.submissionIds.filter((id) => byId.has(id)), quotes: f.quotes.filter((q) => byId.has(q.submissionId)) }))
-    .filter((f) => f.submissionIds.length > 0);
-  const findings = row ? cover(kept, answers) : plainFindings(answers);
-
-  // THE PRODUCT REPORT. Sage's own first look, the core mission's answers, what each person tapped and
-  // one stored label per first impression: every count is made here, now, from those rows.
-  const product = productContext(campaign.id, paidRows);
   // notes taken with the builder's own test account can describe signed-in screens: the owner's alone
   const maySeeSage = viewer === "owner" || !product.sealed;
-  const ranked = rankFindings(findings, product.sage);
-  const coreAnswers = product.coreHash ? paidRows.filter((s) => s.missionIdHash?.toLowerCase() === product.coreHash).map(answerOf) : [];
-  const core = coreReport({
-    answers: coreAnswers,
-    taps: listCoreAnswers(campaign.id),
-    understood: row?.json.understood ?? [],
-    says: product.ctx.says,
-    mainAction: product.mainAction,
-  });
+  const paidPeople = new Set(paidRows.map((s) => walletKey(s.wallet))).size;
 
   const refused = subs.filter((s) => s.status === "rejected" || s.status === "blocked");
   const reasons = new Map<string, number>();
@@ -361,7 +470,7 @@ export function findingsView(campaign: Campaign, viewer: "owner" | "public", fin
     peopleTried: new Set(subs.map((s) => walletKey(s.wallet))).size,
     paid: {
       answers: paidRows.length,
-      people: new Set(paidRows.map((s) => walletKey(s.wallet))).size,
+      people: paidPeople,
       totalBase: settledBase,
       totalUsd: (settledBase / 1_000_000).toFixed(2),
     },
@@ -373,10 +482,24 @@ export function findingsView(campaign: Campaign, viewer: "owner" | "public", fin
     sageTried: product.sageTried,
     findings: ranked.map((f) => {
       const people = f.submissionIds.map(person);
-      return { title: f.title, kind: f.kind, count: people.length, people, quotes: f.quotes, fix: f.suggestedFix, sageSaw: !!f.sage, sageTitle: f.sage && maySeeSage ? f.sage.title : null };
+      // a rung's own finding already says where; a problem says it when everyone in it who stopped agrees
+      const rung = f.rung ? null : rungOf(f.submissionIds, parts.plain.rungs);
+      return {
+        title: f.title,
+        kind: f.kind,
+        count: new Set(people.map((p) => walletKey(p.wallet))).size,
+        of: paidPeople,
+        stoppedOn: rung && rung !== "mixed" ? REACHED_REPORT[rung] : null,
+        people,
+        quotes: f.quotes,
+        fix: f.suggestedFix,
+        sageSaw: !!f.sage,
+        sageTitle: f.sage && maySeeSage ? f.sage.title : null,
+      };
     }),
     core,
     fixFirst: fixFirst({ ranked, core, sage: maySeeSage ? product.sage : [] }),
+    changed: changedSince(campaign, parts, viewer),
     engine: row?.engine ?? PLAIN_ENGINE,
     builtAt: row?.builtAt ?? null,
     // contacts are the owner's alone; anyone else gets the number

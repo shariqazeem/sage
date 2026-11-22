@@ -1803,6 +1803,12 @@ export interface StoredFinding {
   fix?: string;
   /** the id of the problem in Sage's own first look that this finding matches ("P2"); set only when code confirms shared words. */
   sageSaw?: string;
+  /**
+   * Set by the plain report only: this finding IS the people who tapped that they stopped on this rung and
+   * wrote no problem of their own. Its title is the rung's name, so it is never offered as a thing to fix
+   * beside the main action's own count.
+   */
+  rung?: "first-screen" | "found-start" | "started";
 }
 export interface StoredFindings {
   findings: StoredFinding[];

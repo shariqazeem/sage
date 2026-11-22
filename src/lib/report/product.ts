@@ -1,5 +1,6 @@
 import { REACHED, REACHED_REPORT, splitCoreAccount, type Again, type Reached } from "@/lib/core-test/shape";
-import { firstSentence, matchSageProblem, type Finding, type PaidAnswer, type Read, type Understood } from "./core";
+import { firstSentence, matchSageProblem, sharedWords, type Finding, type PaidAnswer, type Read, type Understood } from "./core";
+import { failureMode, type FailureMode } from "./plain";
 
 /**
  * THE FINDINGS AS A PRODUCT REPORT: the pure half (the core, 21 Nov 2026).
@@ -122,9 +123,27 @@ export interface RankedFinding extends Finding {
   count: number;
   /** the matching problem from Sage's own first look, when code confirms it */
   sage: SageProblem | null;
-  /** the fix to show: the model's checked sentence, else Sage's own fix for the matching problem */
+  /**
+   * the fix to show: the model's checked sentence, else Sage's own fix for the matching problem, else
+   * (two people or more, no model) the general fix for the way their words say it failed
+   */
   suggestedFix: string | null;
 }
+
+/**
+ * With no model to suggest a fix, a problem two or more people hit still gets one: a fixed sentence
+ * chosen by HOW their own words say it failed. It names nothing about the product, so it invents
+ * nothing; the title and the quotes beside it say what and where.
+ */
+export const MODE_FIX: Record<FailureMode, string> = {
+  "not-found": "People looked for this and did not find it. Put it where they looked first, under its plain name.",
+  "no-response": "People pressed this and saw nothing happen. Make it answer every press: a new screen, a message, or a sign that it is loading.",
+  blocked: "People were asked for this before they had seen what they would get. Show one real screen first, or say why it is needed.",
+  confusing: "People did not know what this is or what to do next. Say it in one plain line, at the place their words point to.",
+  slow: "People waited here. Show something useful in the first second or two, or say what is loading.",
+  wrong: "People saw something here that did not match what they expected. Check what it shows against their words.",
+  failed: "This did not work for these people. Try it yourself in a fresh browser and on a phone, the way their words describe, and fix what fails.",
+};
 
 const PROBLEM_KINDS = new Set(["stuck", "bug"]);
 const KIND_ORDER: Record<Finding["kind"], number> = { stuck: 0, bug: 0, idea: 1, liked: 2, other: 3 };
@@ -138,9 +157,15 @@ export function rankFindings(findings: readonly Finding[], sage: readonly SagePr
   const byId = new Map(sage.map((p) => [p.id, p]));
   return findings
     .map((f, i) => {
-      const matched = (f.sageSaw ? byId.get(f.sageSaw) : undefined) ?? (PROBLEM_KINDS.has(f.kind) || f.kind === "other" ? byId.get(matchSageProblem(f, [...sage]) ?? "") : undefined) ?? null;
+      // a stored id is kept only while the words still meet: if Sage's look is ever numbered anew, an
+      // old "P2" must not point a finding at a different problem
+      const said = `${f.title} ${f.quotes.map((q) => q.text).join(" ")}`;
+      const stored = f.sageSaw ? byId.get(f.sageSaw) : undefined;
+      const matched = (stored && sharedWords(said, stored.text) >= 1 ? stored : undefined) ?? (PROBLEM_KINDS.has(f.kind) || f.kind === "other" ? byId.get(matchSageProblem(f, [...sage]) ?? "") : undefined) ?? null;
       const count = new Set(f.submissionIds).size;
-      return { f: { ...f, count, sage: matched, suggestedFix: f.fix ?? matched?.fix ?? null }, i };
+      // a rung's own finding is the main action's count again, so it carries no fix of its own
+      const plainFix = PROBLEM_KINDS.has(f.kind) && !f.rung && count >= 2 ? MODE_FIX[failureMode(said)] : null;
+      return { f: { ...f, count, sage: matched, suggestedFix: f.fix ?? matched?.fix ?? plainFix }, i };
     })
     .sort((a, b) => KIND_ORDER[a.f.kind] - KIND_ORDER[b.f.kind] || b.f.count - a.f.count || Number(!!b.f.sage) - Number(!!a.f.sage) || a.i - b.i)
     .map((x) => x.f);

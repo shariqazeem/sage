@@ -58,7 +58,8 @@ describe("GET /api/campaigns/[id]/findings", () => {
       keepPosted: { count: 1, contacts: [{ kind: "email", contact: "tester@example.com" }] },
     });
     expect(body.findings).toHaveLength(1);
-    expect(body.findings[0]).toMatchObject({ title: "The pricing page 404s from the footer link", kind: "other", count: 1, quotes: [{ text: "The pricing page 404s from the footer link." }] });
+    expect(body.findings[0]).toMatchObject({ title: "The pricing page 404s from the footer link", kind: "bug", count: 1, of: 1, quotes: [{ text: "The pricing page 404s from the footer link." }] });
+    expect(body.changed).toBeNull();
     expect(deferred).toHaveLength(1);
   });
 

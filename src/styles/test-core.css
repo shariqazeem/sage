@@ -458,6 +458,62 @@
 .sg-t-rep .sg-t-finding-title {
   font-size: 16px;
 }
+/* since your last test: the same count then and now, one row each */
+.sg-t-rep-changes {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sg-t-rep-changes > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px var(--s-4);
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+}
+.sg-t-rep-changes > li:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.sg-t-rep-change-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  overflow-wrap: anywhere;
+}
+.sg-t-rep-then {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.sg-t-rep-then > i {
+  font-style: normal;
+  color: var(--ink-faint);
+}
+.sg-t-rep-then > b {
+  font-weight: 500;
+  color: var(--ink);
+}
+.sg-t-rep-change-note {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
 /* fix these first: the conclusion, set on a card so it reads as one */
 .sg-t-rep-fixes {
   display: flex;
@@ -516,6 +572,9 @@
 @media (max-width: 479px) {
   .sg-t-rep-big > b {
     font-size: 34px;
+  }
+  .sg-t-rep-changes > li {
+    grid-template-columns: minmax(0, 1fr);
   }
   .sg-t-rep-rung {
     grid-template-columns: 24px minmax(0, 1fr) 64px;

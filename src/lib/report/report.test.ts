@@ -32,12 +32,14 @@ function answer(campaignId: string, note: string | null, status: "paid" | "pendi
   }
   return r.submission.id;
 }
-/** a model that groups every answer it is shown into one finding, and claims nine people */
+/** a model that groups every answer it is shown into one finding, claims nine people, and invents one of its two quotes */
 const groupsAll = (title = "Sign up is hard to find"): BuildDeps => ({
   modelConfigured: () => true,
   complete: vi.fn(async (opts) => {
-    const ids = [...opts.user.matchAll(/ANSWER id=(\S+)/g)].map((m) => m[1]!);
-    return { json: { groups: [{ title, kind: "stuck", count: 9, submissionIds: ids, quotes: [{ submissionId: ids[0], text: "never said this" }] }] }, model: "test-model", responseModel: "test-model-served" };
+    const shown = [...opts.user.matchAll(/ANSWER id=(\S+)[^\n]*\n[^\n]*\n([^\n]*)/g)];
+    const ids = shown.map((m) => m[1]!);
+    const quotes = [{ submissionId: ids[0], text: "never said this" }, { submissionId: ids[0], text: shown[0]![2]! }];
+    return { json: { groups: [{ title, kind: "stuck", count: 9, submissionIds: ids, quotes }] }, model: "test-model", responseModel: "test-model-served" };
   }),
 });
 const noModel: BuildDeps = { modelConfigured: () => false };
@@ -60,8 +62,9 @@ describe("buildFindings", () => {
     expect(built.paidAnswers).toBe(2);
     expect(built.findings).toHaveLength(1);
     expect(built.findings[0]!.submissionIds.sort()).toEqual([a, b].sort());
-    // the fabricated quote is gone; the finding carries a real first sentence instead
-    expect(built.findings[0]!.quotes.map((q) => q.text)).not.toContain("never said this");
+    // the fabricated quote is gone; the finding stands on the exact words it also cited
+    expect(built.findings[0]!.quotes).toHaveLength(1);
+    expect(["The sign up button is hidden on mobile.", "Could not find sign up at all."]).toContain(built.findings[0]!.quotes[0]!.text);
     const call = vi.mocked(deps.complete!).mock.calls[0]![0];
     expect(call.lane).toBe("REPORT");
     expect(call.user).not.toContain("still being checked");
@@ -76,8 +79,8 @@ describe("buildFindings", () => {
     answer(c.id, "Nice onboarding. Clear steps.");
     const built = await buildFindings(c.id, noModel, T0);
     expect(built.engine).toBe(PLAIN_ENGINE);
-    expect(built.findings.map((f) => f.title).sort()).toEqual(["Checkout failed twice", "Nice onboarding"]);
-    expect(built.findings.find((f) => f.title === "Nice onboarding")!.quotes[0]!.text).toBe("Nice onboarding.");
+    expect(built.findings.map((f) => [f.title, f.kind])).toEqual([["Checkout failed twice", "stuck"], ["What people liked", "liked"]]);
+    expect(built.findings[1]!.quotes[0]!.text).toBe("Nice onboarding.");
   });
 
   it.each([
@@ -115,7 +118,30 @@ describe("buildFindings", () => {
     answer(c.id, "Another real answer here.");
     const built = await buildFindings(c.id, { modelConfigured: () => true, complete: async () => ({ json: { groups: [{ title: "x", submissionIds: ["made-up"] }] }, model: "m" }) }, T0);
     expect(built.engine).toBe(PLAIN_ENGINE);
-    expect(built.findings).toHaveLength(2);
+    expect(built.findings).toEqual([expect.objectContaining({ title: OTHER_NOTES, submissionIds: expect.any(Array) })]);
+    expect(built.findings[0]!.submissionIds).toHaveLength(2);
+  });
+
+  it("drops a model's group that does not hold up and groups those people in code, beside the groups that do", async () => {
+    const c = test_();
+    const a = answer(c.id, "The export button did nothing when I pressed it.");
+    const b = answer(c.id, "I pressed the export button and nothing happened.");
+    const d = answer(c.id, "The invoice total was wrong by a dollar.");
+    const complete = async () => ({
+      json: {
+        groups: [
+          // invents its only quote: it does not stand
+          { title: "Export is broken", kind: "bug", submissionIds: [a, b], quotes: [{ submissionId: a, text: "Export is totally broken!!" }] },
+          { title: "Wrong invoice total", kind: "bug", submissionIds: [d], quotes: [{ submissionId: d, text: "The invoice total was wrong" }] },
+        ],
+      },
+      model: "m",
+    });
+    const built = await buildFindings(c.id, { modelConfigured: () => true, complete }, T0);
+    expect(built.engine).toBe("m");
+    expect(built.findings.map((f) => f.title)).toEqual(["Wrong invoice total", "The export button did nothing when I pressed it"]);
+    expect(built.findings[1]!.submissionIds.sort()).toEqual([a, b].sort());
+    expect(JSON.stringify(built.findings)).not.toContain("totally broken");
   });
 
   it("asks no model about a single answer: there is nothing to group", async () => {
@@ -218,9 +244,11 @@ describe("the view", () => {
     await buildFindings(c.id, groupsAll(), T0);
     const late = answer(c.id, "I came later and the export button did nothing.");
     const v = findingsView(c, "owner", false);
-    const other = v.findings.find((f) => f.title === OTHER_NOTES)!;
-    expect(other.people.map((p) => p.submissionId)).toEqual([late]);
-    expect(other.quotes[0]!.text).toBe("I came later and the export button did nothing.");
+    // it is in the report at once, as its own finding in its own words, beside the model's group
+    const own = v.findings.find((f) => f.people.some((p) => p.submissionId === late))!;
+    expect(own).toMatchObject({ title: "I came later and the export button did nothing", kind: "stuck", count: 1, of: 3 });
+    expect(own.quotes[0]!.text).toBe("I came later and the export button did nothing.");
+    expect(v.findings.find((f) => f.count === 2)!.title).toBe("Sign up is hard to find");
   });
 
   it("shows contacts to the owner and only the number to anyone else, for paid answers", async () => {
