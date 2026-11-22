@@ -440,7 +440,14 @@ export function buildInspectionNotice(v: InspectionView): string {
     const cr = v.corpusReadiness;
     const readyLine = cr?.observation
       ? cr.autonomous
-        ? `\n\nThese pay out automatically — I explored the product myself and can verify a tester's firsthand account.`
+        ? (() => {
+            // per mission (real-try.ts): some answers wait for the founder where the card gives the checks away
+            const held = (cr.missions ?? []).filter((m) => m.line).length;
+            const base = `\n\nThese pay out automatically — I explored the product myself and can verify a tester's firsthand account.`;
+            return held > 0
+              ? `${base} On ${held === 1 ? "one mission" : `${held} missions`} I may ask you to release answers: much of what I can check there is also on the mission card or your public page.`
+              : base;
+          })()
         : `\n\nHeads up: this product was thin to explore, so I'll bring observation submissions to you to confirm rather than auto-paying.`
       : "";
     // Request-scoped, honest framing: this plan is READY FOR YOUR REVIEW — nothing is approved or

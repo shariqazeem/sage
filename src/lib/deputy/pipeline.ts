@@ -35,8 +35,9 @@ import { isSanctionedWallet, SANCTIONS_HOLD_REASON } from "./sanctions";
 export const OBSERVATION_READINESS_MIN_SOURCES = 3;
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
 import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
-import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, deriveCriterionEvidence, verdictStillApplies, type PrivateKey } from "./observation-verify";
+import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, verdictStillApplies, type PrivateKey } from "./observation-verify";
 import { observationRetryLine, reasonSentence } from "./reason-copy";
+import { contractFor, judgeRealTry, realTryShadow } from "./real-try";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import { freshnessHoldReason, readChainFreshness } from "@/lib/deputy/chain-freshness";
 import {
@@ -605,18 +606,15 @@ export async function runDeputyOnSubmission(
     const attemptNow = submission.attempt ?? 1;
     const priorShadow =
       (getDecisionBySubmission(submissionId)?.observationShadow as
-        | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; corpusDigest?: string; attempt?: number; barPolicy?: string }
+        | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; deterministicSources?: number; criteriaCompletePass?: boolean; corpusDigest?: string; attempt?: number; barPolicy?: string }
         | null
         | undefined) ?? null;
     const reusable = verdictStillApplies(priorShadow, attemptNow, key.digest);
 
-    const criterionContract = (() => {
-      if (mission.criterionEvidence) return { evidence: mission.criterionEvidence, derived: false };
-      const derived = deriveCriterionEvidence(key, mission.criteria ?? [], mission.evidenceList ?? []);
-      return derived.some((c) => c.keySources.length > 0)
-        ? { evidence: derived, derived: true }
-        : { evidence: null, derived: false };
-    })();
+    // ONE resolution of the mission's contract (real-try.ts `contractFor`), shared with the real-try gate
+    // below so "the card clears the bar" is measured against the very contract this answer is judged by.
+    const card = { publicStrings, criteria: mission.criteria ?? [], evidenceRequirements: mission.evidenceList ?? [], criterionEvidence: mission.criterionEvidence ?? null };
+    const criterionContract = contractFor(key, card);
 
     const decision = reusable ? null : await runObservationDecision({
       account: submission.note,
@@ -670,10 +668,38 @@ export async function runDeputyOnSubmission(
     // auto-pays only once DEPUTY_AUTOPILOT_MAINNET is armed. Subtractive: it can only hold more.
     const realMoney = campaign.chainId != null && (CHAINS[campaign.chainId]?.isMainnet ?? true); // the gate's own rule
     const founderAllows = campaign.autonomy === "autopilot" && (!realMoney || mainnetAutopilotEnabled());
-    const autopay = haveVerdict && observationAutopayEnabled() && barPass && corpusReady && founderAllows;
-    const barReasonsOut = haveVerdict && barPass && !corpusReady ? [...barReasons, "corpus_below_readiness_floor"] : barReasons;
+    /**
+     * A REAL TRY (real-try.ts, 22 Nov 2026). The bar cannot tell a parrot of the mission card from a try
+     * when the card's own words are in the key, and it cannot tell a reader of the first screen from a
+     * tester. So a PASSING answer still waits for the builder when the mission's card clears the bar by
+     * itself (unless this answer names two places behind the first screen), or when the answer names
+     * nothing behind the first screen and is mostly public words or passed on fewer than three direct
+     * matches. Deterministic, no model, computed fresh on every tick from the answer and the pinned key.
+     * Subtractive: it can only turn a payout into a hold, and it never rejects.
+     */
+    const realTry = haveVerdict
+      ? judgeRealTry({
+          account: submission.note,
+          key,
+          card,
+          pass: {
+            barPass,
+            deterministicSources: decision ? decision.corpusMatch.distinctSources : priorShadow?.deterministicSources,
+            criteriaCompletePass: decision ? decision.criteriaCompletePass : priorShadow?.criteriaCompletePass,
+          },
+        })
+      : null;
+    // Under the corpus floor the answer already waits, and that reason is the truer one.
+    const tryHold = barPass && corpusReady ? (realTry?.hold ?? null) : null;
+    const autopay = haveVerdict && observationAutopayEnabled() && barPass && corpusReady && founderAllows && tryHold === null;
+    const barReasonsOut = [
+      ...barReasons,
+      ...(haveVerdict && barPass && !corpusReady ? ["corpus_below_readiness_floor"] : []),
+      ...(tryHold ? [tryHold] : []),
+    ];
     if (decision) {
       const shadow = toObservationShadow(decision, autopay, Math.floor(Date.now() / 1000)) as unknown as Record<string, unknown>;
+      if (realTry) shadow.realTry = { ...realTryShadow(realTry), hold: tryHold }; // counts and signal names only
       // OBS JUDGE V2 SHADOW — an action/state-grounded verdict on the SAME submission (reconstructed from
       // the existing private corpus), compared to the legacy bar. Off by default; it NEVER affects `autopay`
       // or settlement — it only adds a leak-safe telemetry key to the shadow journal.
@@ -692,6 +718,8 @@ export async function runDeputyOnSubmission(
       reasons: barReasonsOut,
       autopay,
       corpusReady,
+      tryHold,
+      trySources: realTry?.evidence.trySources ?? null,
       reusedVerdict: !decision && reusable,
     });
     if (!autopay) {
@@ -706,10 +734,12 @@ export async function runDeputyOnSubmission(
       const retryable = haveVerdict && !barPassed && !fraudFlagged && attempt < OBS_MAX_ATTEMPTS;
       // A bar-PASS held only because autopay is unarmed is VERIFIED work awaiting release — it must
       // never be journaled as "needs your judgment", which reads as a verdict on the tester.
+      // A passing answer the real-try gate holds says so, in its own words, so the builder knows why this
+      // one is theirs to release (and never reads it as a verdict on the tester).
       const reasonCode = retryable
         ? "observation_retry"
         : barPassed
-          ? "observation_verified"
+          ? (tryHold ?? "observation_verified")
           : "observation_review";
       if (campaign.autonomy === "autopilot" && submission.status === "pending") {
         const heldChanged = journalHeld(
@@ -717,7 +747,7 @@ export async function runDeputyOnSubmission(
           submission,
           retryable
             ? observationRetryLine(attempt, OBS_MAX_ATTEMPTS)
-            : reasonSentence(barPassed ? "observation_verified" : "observation_review"),
+            : reasonSentence(reasonCode),
           cid,
         );
         // DM only on FINAL holds (P20.4) — and only when the hold is NEW or its reason changed.

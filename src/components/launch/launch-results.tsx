@@ -245,7 +245,7 @@ export function LaunchResults({ initial }: { initial: JobView }) {
             <CorpusReadinessBadge readiness={job.corpusReadiness} />
           )}
           {plan.missions.map((m) => (
-            <MissionCard key={m.missionKey} mission={m} jobId={job.id} revision={plan.revision} locked={!!job.approval} autonomous={!!job.corpusReadiness?.autonomous} operatorAuthored={plan.campaignKind === "grant" || plan.campaignKind === "gig"} isOnlyMission={plan.missions.length === 1} onSaved={(j) => setJob(j)} />
+            <MissionCard key={m.missionKey} mission={m} jobId={job.id} revision={plan.revision} locked={!!job.approval} autonomous={!!job.corpusReadiness?.autonomous && job.corpusReadiness.missions?.find((r) => r.missionKey === m.missionKey)?.autonomous !== false} operatorAuthored={plan.campaignKind === "grant" || plan.campaignKind === "gig"} isOnlyMission={plan.missions.length === 1} onSaved={(j) => setJob(j)} />
           ))}
         </section>
       )}

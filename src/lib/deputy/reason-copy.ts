@@ -32,6 +32,12 @@ const SENTENCE: Record<string, string> = {
   // as a verdict on the work — Sage verified it; only the release switch is off.
   observation_verified:
     "Sage verified this account against its own private observations — it's ready to pay and only awaits release (observation autopay is off) (observation_verified)",
+  // A REAL TRY (real-try.ts). Both are said about an answer that PASSED Sage's checks and waits for the
+  // builder. Neither is a refusal, and neither may read as one.
+  public_overlap:
+    "this answer passed Sage's checks, but on this mission much of what Sage can check is also on the mission card or the public page, and the answer names fewer than two things from behind the first screen, so it is yours to release (public_overlap)",
+  no_sign_of_a_try:
+    "this answer passed Sage's checks, but it names nothing Sage saw behind the first screen and could have been written from the mission card or the public page, so it is yours to read and release (no_sign_of_a_try)",
   // settlement-covenant reasons. These say the CAMPAIGN could not be settled — they are never a
   // verdict on the tester's work, and the wording must not read like one. The first real tester on the
   // yara campaign passed the bar and was shown "the submitted link had no usable evidence"; a sentence

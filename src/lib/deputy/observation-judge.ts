@@ -115,6 +115,11 @@ export interface ObservationShadow {
   wouldPassOnCriteriaAlone?: boolean;
   /** the criteria-complete pass decided this outcome (strict flat bar alone would have held). */
   criteriaCompletePass?: boolean;
+  /**
+   * What the real-try gate found (real-try.ts): counts, a share and signal names only. `hold` says why an
+   * answer that PASSED the bar still waits for the builder. Written by the pipeline beside the verdict.
+   */
+  realTry?: { cardClears: boolean; cardSources: number; tryOnlySources: number; trySources: number; publicShare: number; signals: string[]; hold: "no_sign_of_a_try" | "public_overlap" | null };
   wouldAutopay: boolean;
   at: number;
 }

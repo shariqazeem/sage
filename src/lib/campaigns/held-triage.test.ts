@@ -69,6 +69,24 @@ describe("buildHeldTriage — deterministic, conservative lean", () => {
     expect(t.matched).toBe(4);
   });
 
+  it("bar PASSED but held by the real-try gate → the builder's call, with the true reason (never 'only because auto-pay is off')", () => {
+    const { campaign, mHash } = seed();
+    const realTry = { cardClears: false, cardSources: 0, tryOnlySources: 5, trySources: 0, publicShare: 0.85, signals: ["card parrot", "nothing from behind the first screen", "no sign of a try"], hold: "no_sign_of_a_try" as const };
+    const sub = heldWithShadow(campaign, mHash, `0x${"c1".repeat(20)}`, shadow({ barPass: true, barReasons: [], distinctSources: 3, keyDistinctSources: 6, realTry }));
+    const t = buildHeldTriage(campaign, sub);
+    expect(t.lean).toBe("you-decide");
+    expect(t.heldBecause.join(" ")).toMatch(/names nothing Sage saw behind the first screen/);
+    expect(t.heldBecause.join(" ")).not.toMatch(/auto-pay isn't armed/);
+
+    const overlap = heldWithShadow(campaign, mHash, `0x${"c2".repeat(20)}`, shadow({ barPass: true, barReasons: [], distinctSources: 4, keyDistinctSources: 6, realTry: { ...realTry, cardClears: true, trySources: 1, signals: [], hold: "public_overlap" } }));
+    const o = buildHeldTriage(campaign, overlap);
+    expect(o.lean).toBe("you-decide");
+    expect(o.heldBecause.join(" ")).toMatch(/on the mission card or the public page/);
+    // and neither counts as work Sage would have paid alone
+    expect(autonomousResolutionStats(campaign.id).wouldPay).toBe(0);
+    expect(autonomousResolutionStats(campaign.id).needsYou).toBe(2);
+  });
+
   it("a fraud signal → lean reject (an attack, whatever else it scored)", () => {
     const { campaign, mHash } = seed();
     const sub = heldWithShadow(campaign, mHash, `0x${"b".repeat(40)}`, shadow({ injectionDetected: true, distinctSources: 9, barReasons: ["high_fraud"] }));

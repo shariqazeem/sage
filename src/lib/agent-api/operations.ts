@@ -196,7 +196,7 @@ export interface InspectionView {
   /** field-test artifacts, present only when Sage actually browsed the product in a real browser. */
   fieldTest: { pages: number; screenshots: number } | null;
   /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
-  corpusReadiness: { observation: boolean; sources: number; autonomous: boolean } | null;
+  corpusReadiness: { observation: boolean; sources: number; autonomous: boolean; missions?: { missionKey: string; autonomous: boolean; cardClears: boolean; tryOnlySources: number; line: string | null }[] } | null;
 }
 
 /** Poll a durable inspection: honest stage, needs-input/failure, and when ready a concise plan. */

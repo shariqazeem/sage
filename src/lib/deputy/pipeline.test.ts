@@ -326,10 +326,12 @@ describe("P16 Step 0 — observation-based missions are NEVER auto-paid (safety 
 
   it("with OBSERVATION_AUTOPAY ARMED, the full bar passing, and a READY corpus, an observation mission SETTLES", async () => {
     vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION" } as never);
-    // corpus at the measured healthy floor (prod healthy range is 6–11 sources)
-    vi.mocked(getCampaign).mockReturnValue({ ...campaign, privateCorpusSources: 6 } as never);
+    // corpus at the measured healthy floor (prod healthy range is 6–11 sources), and an answer that names
+    // two places behind the first screen (the real-try gate, tested on its own below)
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION", note: TRIED } as never);
+    vi.mocked(getCampaign).mockReturnValue({ ...campaign, ...BOARD_CORPUS } as never);
     vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based", objective: "o", criteria: [] } as never);
-    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: true, reasons: [] } } as never);
+    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: true, reasons: [] }, corpusMatch: { distinctSources: 3, matchedCount: 3, matched: [] } } as never);
     vi.mocked(observationAutopayEnabled).mockReturnValue(true); // armed
     const r = await runDeputyOnSubmission("s1");
     expect(r.action).toBe("settled");
@@ -346,6 +348,79 @@ describe("P16 Step 0 — observation-based missions are NEVER auto-paid (safety 
     expect(r.action).toBe("held");
     expect(r.reason).toBe("observation_verified"); // honest: the WORK passed; the SYSTEM declined auto-release
     expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+});
+
+/** A pinned key with a first screen and five screens behind it. */
+const BOARD_CORPUS = {
+  privateCorpus: [
+    { source: "state:0", text: "plan anything on one board" },
+    { source: "state:1", text: "pick a starting layout kanban timeline" },
+    { source: "state:2", text: "three empty columns doing done" },
+    { source: "state:3", text: "card saved drag cards between columns" },
+    { source: "state:4", text: "copy share link" },
+    { source: "state:5", text: "template gallery sprint planning" },
+  ],
+  privateCorpusSources: 6,
+  privateCorpusDigest: "0xboard",
+};
+const TRIED = "I picked a starting layout, kanban over timeline, and got three empty columns, doing and done. Then it said card saved.";
+
+describe("a real try — a passing answer written without one waits for the builder (real-try.ts)", () => {
+  const arm = (note: string, mission: Record<string, unknown>, deterministic: number) => {
+    vi.mocked(getSubmission).mockReturnValue({ ...submission, missionIdHash: "0xMISSION", note } as never);
+    vi.mocked(getCampaign).mockReturnValue({ ...campaign, ...BOARD_CORPUS } as never);
+    vi.mocked(getMissionByHash).mockReturnValue({ missionKey: "m1", verifiabilityClass: "observation-based", objective: "o", ...mission } as never);
+    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: true, reasons: [] }, corpusMatch: { distinctSources: deterministic, matchedCount: deterministic, matched: [] } } as never);
+    vi.mocked(observationAutopayEnabled).mockReturnValue(true);
+  };
+  const plain = { title: "Try Driftboard", instructions: "Open it and try to make something.", criteria: ["The answer says where the tester stopped."] };
+  // a mission whose criteria quote the product's own screens: the 12 Aug shape
+  const quoting = {
+    title: "Check the board flow",
+    criteria: ["The tester picks a starting layout kanban timeline.", "The tester sees three empty columns doing done.", "The tester sees card saved drag cards between columns."],
+  };
+
+  it("an answer that names nothing behind the first screen and passed on one match HOLDS, with the reason said", async () => {
+    arm("It says plan anything on one board, and it all worked fine for me.", plain, 1);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe("no_sign_of_a_try");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+    const held = vi.mocked(recordEvent).mock.calls.find((c) => c[0]?.kind === "autopay_held");
+    expect(JSON.stringify(held)).toMatch(/names nothing Sage saw behind the first screen/);
+    // counts and names only on the calibration record: never a word of the key
+    const shadow = vi.mocked(setObservationShadow).mock.calls.at(-1)?.[1] as { realTry?: Record<string, unknown> };
+    expect(shadow.realTry).toMatchObject({ hold: "no_sign_of_a_try", trySources: 0 });
+    for (const o of BOARD_CORPUS.privateCorpus.slice(1)) expect(JSON.stringify(shadow.realTry)).not.toContain(o.text);
+  });
+
+  it("a mission whose card clears the bar by itself HOLDS a passing answer for the builder's release", async () => {
+    arm("I picked a starting layout, saw the three empty columns and the card saved, then pressed copy share link to finish.", quoting, 3);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("held");
+    expect(r.reason).toBe("public_overlap");
+    expect(settleApprovedSubmission).not.toHaveBeenCalled();
+  });
+
+  it("...and the same mission still PAYS an answer that names two places the card never mentions", async () => {
+    arm("I picked a layout and got the columns. Then I pressed copy share link, and later opened the template gallery for sprint planning.", quoting, 3);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.action).toBe("settled");
+    expect(settleApprovedSubmission).toHaveBeenCalledTimes(1);
+  });
+
+  it("never rejects: a held answer stays pending for the builder", async () => {
+    arm("It says plan anything on one board, and it all worked fine for me.", plain, 1);
+    await runDeputyOnSubmission("s1");
+    expect(vi.mocked(casSubmissionStatus).mock.calls.filter((c) => c[2] === "rejected")).toHaveLength(0);
+  });
+
+  it("an answer below the bar is not touched by this gate: it keeps its own retry", async () => {
+    arm("It says plan anything on one board.", plain, 1);
+    vi.mocked(runObservationDecision).mockResolvedValue({ ...HOLD_DECISION, bar: { pass: false, reasons: ["few_matches(1<3)"] } } as never);
+    const r = await runDeputyOnSubmission("s1");
+    expect(r.reason).toBe("observation_retry");
   });
 });
 

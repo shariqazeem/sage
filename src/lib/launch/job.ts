@@ -31,6 +31,7 @@ function withServerMailbox(acct: TestAccount | null): TestAccount | null {
   return { ...acct, mailbox: { host, user, appPassword } };
 }
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
+import { RELEASE_LINE, missionTryReadiness } from "@/lib/deputy/real-try";
 import type { ValidationScope } from "./validate-mission";
 import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 import type { InspectionJob, InspectionStatus } from "@/lib/db/schema";
@@ -50,9 +51,28 @@ export interface CorpusReadiness {
   sources: number;
   /** rich enough for autonomous verification of the observation work (else the founder will review). */
   autonomous: boolean;
+  /**
+   * PER MISSION (22 Nov 2026): can the judge tell a parrot of this mission's card from a real try
+   * (`missionTryReadiness`, the same function the payout pipeline runs on the pinned key)? Counts only.
+   * A mission that is not `autonomous` here keeps every answer for the builder's release unless the
+   * answer itself names two places behind the first screen; `line` says so before they pay.
+   */
+  missions?: MissionReadiness[];
 }
 
-function computeCorpusReadiness(map: ProductMapV1 | null, plan: MissionPlanV1 | null): CorpusReadiness | null {
+export interface MissionReadiness {
+  missionKey: string;
+  /** Sage can pay this mission's answers on its own */
+  autonomous: boolean;
+  /** the mission card, sent in as an answer, clears the judge's bar */
+  cardClears: boolean;
+  /** places behind the first screen holding something only a try reveals */
+  tryOnlySources: number;
+  /** one calm sentence for the builder, present only when the answers will wait for them */
+  line: string | null;
+}
+
+export function computeCorpusReadiness(map: ProductMapV1 | null, plan: MissionPlanV1 | null): CorpusReadiness | null {
   if (!plan) return null;
   const missions = plan.missions ?? [];
   const hasObservation = missions.some((m) => (m as { verifiabilityClass?: string }).verifiabilityClass === "observation-based");
@@ -63,12 +83,30 @@ function computeCorpusReadiness(map: ProductMapV1 | null, plan: MissionPlanV1 | 
     ...((m as { whyItMatters?: string }).whyItMatters ? [(m as { whyItMatters?: string }).whyItMatters as string] : []),
   ]);
   const fieldTest = (map?.fieldTest ?? null) as FieldTestSummary | null;
-  const sources = distillPrivateKey(fieldTest, publicStrings).distinctSources;
+  // the very key that is pinned when the test goes live: Sage's observations minus every card's strings
+  const key = distillPrivateKey(fieldTest, publicStrings);
+  const sources = key.distinctSources;
+  const enough = sources >= OBS_BAR.minKeySources;
+  // Per mission, against that key and the mission's OWN card (what the judge treats as public for it).
+  // Only where the key is rich enough to pay at all: under that, the plan already says so in one place.
+  const perMission: MissionReadiness[] = missions
+    .filter((m) => (m as { verifiabilityClass?: string }).verifiabilityClass === "observation-based")
+    .map((m) => {
+      const r = missionTryReadiness(key, {
+        publicStrings: [m.title, m.objective, m.instructions, m.targetSurface, ...(m.criteria ?? []), ...(m.evidenceRequirements ?? [])].filter((x): x is string => typeof x === "string" && x.length > 0),
+        criteria: m.criteria ?? [],
+        evidenceRequirements: m.evidenceRequirements ?? [],
+        criterionEvidence: (m as { criterionEvidence?: { criterionIndex: number; keySources: string[] }[] | null }).criterionEvidence ?? null,
+      });
+      return { missionKey: m.missionKey, autonomous: r.autonomous, cardClears: r.cardClears, tryOnlySources: r.tryOnlySources, line: enough && !r.autonomous ? RELEASE_LINE : null };
+    });
   // The operator's standing decision (2026-08-12): FULL AUTOPAY stays armed, bounded by the
   // per-wallet cap, the daily submit limit, near-dup detection and the injection guard. A
   // private-signal-based hold was built and REVERTED here because it silently overrode that choice;
   // `privateSignalSources` remains available (and tested) for when hardening is deliberately armed.
-  return { observation: true, sources, autonomous: sources >= OBS_BAR.minKeySources };
+  // 22 Nov 2026: the founder asked for the hold, per mission and said out loud (`missions[].line`), so
+  // it overrides nothing silently. The plan-level flag keeps its meaning: the key is rich enough.
+  return { observation: true, sources, autonomous: enough, missions: perMission };
 }
 
 /** JSON-safe serialization (bigint → string) for durable JSON columns + APIs. */

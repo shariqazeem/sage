@@ -79,9 +79,16 @@ export function buildHeldTriage(campaign: Campaign, submission: Submission): Hel
     const keySources = shadow.keyDistinctSources;
     const fraudFlagged = shadow.injectionDetected || shadow.barReasons.includes("high_fraud");
     const nearDup = shadow.barReasons.includes("near_dup") || shadow.validatedContradictions > 0;
-    const heldBecause = shadow.barPass
-      ? ["it met Sage's bar — it held only because auto-pay isn't armed for this lane yet"]
-      : shadow.barReasons.map(heldReasonSentence);
+    // A passing answer the real-try gate holds (real-try.ts) says why: it is the builder's to read, not
+    // an answer that "only held because auto-pay is off".
+    const tryHold = shadow.barPass ? (shadow.realTry?.hold ?? null) : null;
+    const heldBecause = tryHold === "no_sign_of_a_try"
+      ? ["it met Sage's bar, but it names nothing Sage saw behind the first screen: it could have been written from the mission card or the public page"]
+      : tryHold === "public_overlap"
+        ? ["it met Sage's bar, but on this mission much of what Sage can check is on the mission card or the public page, and the answer names fewer than two things from behind the first screen"]
+        : shadow.barPass
+          ? ["it met Sage's bar — it held only because auto-pay isn't armed for this lane yet"]
+          : shadow.barReasons.map(heldReasonSentence);
 
     let lean: TriageLean;
     let leanWhy: string;
@@ -91,6 +98,13 @@ export function buildHeldTriage(campaign: Campaign, submission: Submission): Hel
     } else if (nearDup) {
       lean = "reject";
       leanWhy = `reads as a near-duplicate of another submission (possible farming)`;
+    } else if (tryHold) {
+      // Sage cannot tell this answer from one written without trying: a real judgment, the builder's.
+      lean = "you-decide";
+      leanWhy =
+        tryHold === "no_sign_of_a_try"
+          ? `it matched ${matched} of ${keySources}, all of it readable without trying the product. Read the answer and decide whether it is a real try`
+          : `it matched ${matched} of ${keySources}, but this mission's card and public page give most of that away. Read the answer and decide`;
     } else if (shadow.barPass) {
       lean = "pay";
       leanWhy = `it objectively met Sage's bar (matched ${matched} of ${keySources}) — it only held because auto-pay is off`;
@@ -169,8 +183,11 @@ export function autonomousResolutionStats(campaignId: string): AutonomyStats {
     const shadow = (getDecisionBySubmission(s.id)?.observationShadow ?? null) as ObservationShadow | null;
     if (!shadow) continue; // observation lane only
     total++;
-    if (shadow.barPass) wouldPay++;
-    else if (shadow.injectionDetected || shadow.barReasons.includes("high_fraud")) fraudFlagged++;
+    // a passing answer the real-try gate holds for the builder is the builder's, not an autonomous pay
+    // (it falls through to `needsYou` below)
+    if (shadow.barPass) {
+      if (!shadow.realTry?.hold) wouldPay++;
+    } else if (shadow.injectionDetected || shadow.barReasons.includes("high_fraud")) fraudFlagged++;
   }
   const needsYou = total - wouldPay - fraudFlagged;
   const rate = total > 0 ? (wouldPay + fraudFlagged) / total : 0;

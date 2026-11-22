@@ -18,6 +18,7 @@ import { baseToUsd, offerOf } from "@/lib/test-page/offer-shape";
 import { FirstLook, lookMeta } from "./first-look";
 import { OfferCard } from "./offer-card";
 import { PurposeLine } from "./purpose-line";
+import { ReleaseLine, missionsToRelease } from "./release-line";
 import { Facts, MissionItem, Stage, TestHead } from "./parts";
 
 /**
@@ -355,6 +356,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
                     />
                   ))}
                 </div>
+                {mine ? <ReleaseLine items={missionsToRelease(job.corpusReadiness, plan!.missions)} /> : null}
               </div>
             ) : null}
           </Stage>

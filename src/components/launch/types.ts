@@ -61,7 +61,7 @@ export interface JobView {
   /** what the product safety screen found, when it found anything (the server's `JobView.safety`): one calm line */
   safety?: { outcome: "hold" | "refused"; line: string } | null;
   /** P23 — whether this plan's corpus supports autonomous payouts (shown before the founder funds). */
-  corpusReadiness: { observation: boolean; sources: number; autonomous: boolean } | null;
+  corpusReadiness: { observation: boolean; sources: number; autonomous: boolean; missions?: { missionKey: string; autonomous: boolean; cardClears: boolean; tryOnlySources: number; line: string | null }[] } | null;
   revision: number;
   approval: { approvedAt: number; revision: number; campaignIdHash: string; missionPlanDigest: string } | null;
   /** the job this plan became, once launched — the page shows it live instead of the launch door */
