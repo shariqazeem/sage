@@ -36,7 +36,7 @@ export const OBSERVATION_READINESS_MIN_SOURCES = 3;
 import { observationAutopayEnabled, runObservationDecision, toObservationShadow } from "./observation-judge";
 import { obsJudgeV2Mode, observationV2Shadow } from "./observation-judge-v2";
 import { OBS_MAX_ATTEMPTS, OBS_BAR_POLICY_VERSION, verdictStillApplies, type PrivateKey } from "./observation-verify";
-import { observationRetryLine, reasonSentence } from "./reason-copy";
+import { JUDGE_AWAY_LINE, observationRetryLine, reasonSentence } from "./reason-copy";
 import { contractFor, judgeRealTry, realTryShadow } from "./real-try";
 import { getVaultState, isVendorApproved } from "@/lib/deputy/chain";
 import { freshnessHoldReason, readChainFreshness } from "@/lib/deputy/chain-freshness";
@@ -653,6 +653,17 @@ export async function runDeputyOnSubmission(
     const injectionDetected = decision ? decision.injectionDetected : reusable ? (priorShadow!.injectionDetected ?? false) : false;
     const distinctSources = decision ? decision.publicView.distinctSources : reusable ? (priorShadow!.distinctSources ?? 0) : 0;
     const haveVerdict = !!decision || reusable;
+    /**
+     * THE JUDGE WAS AWAY (22 Nov 2026). A substantive answer the deterministic matcher did not clear needs
+     * the model judge, and with no model (none configured, an empty account, a broken provider) its zeros
+     * are not a verdict. Two things follow, both subtractive:
+     *  - the tester is NOT coached to rewrite an answer nobody read: it is a final hold, for the builder to
+     *    read and release;
+     *  - the zeros are not kept as this attempt's verdict, so the next sweep asks again. While the account
+     *    is closed that costs nothing (the wire refuses at once), and when the model is back the answer is
+     *    judged properly. A real verdict is still stored once and never re-bought.
+     */
+    const judgeAway = decision?.judgeUnavailable === true && !barPass;
 
     /**
      * CORPUS READINESS FLOOR (FC Phase 1) — the measured fix for the judge-over-acceptance finding:
@@ -708,8 +719,11 @@ export async function runDeputyOnSubmission(
         shadow.v2 = v2;
         agentLog(cid, "observation_v2", { disagreement: v2.disagreement, v2Pass: v2.v2Pass, legacyPass: v2.legacyPass, stateSpecific: v2.stateSpecificMatches });
       }
-      shadow.attempt = attemptNow; // lets a later sweep prove the verdict still applies
-      shadow.barPolicy = OBS_BAR_POLICY_VERSION; // a bar-policy change invalidates stored verdicts
+      // (not when the judge was away: without the stamp `verdictStillApplies` is false, and the next sweep asks again)
+      if (!judgeAway) {
+        shadow.attempt = attemptNow; // lets a later sweep prove the verdict still applies
+        shadow.barPolicy = OBS_BAR_POLICY_VERSION; // a bar-policy change invalidates stored verdicts
+      }
       setObservationShadow(submissionId, shadow);
     }
     agentLog(cid, "observation", {
@@ -721,6 +735,7 @@ export async function runDeputyOnSubmission(
       tryHold,
       trySources: realTry?.evidence.trySources ?? null,
       reusedVerdict: !decision && reusable,
+      judgeAway,
     });
     if (!autopay) {
       // P20 — a hold is RETRYABLE only when the work FELL SHORT of the bar but looks honest and the tester
@@ -731,7 +746,7 @@ export async function runDeputyOnSubmission(
       const attempt = submission.attempt ?? 1;
       const fraudFlagged = injectionDetected || barReasons.includes("high_fraud");
       const barPassed = barPass;
-      const retryable = haveVerdict && !barPassed && !fraudFlagged && attempt < OBS_MAX_ATTEMPTS;
+      const retryable = haveVerdict && !barPassed && !fraudFlagged && attempt < OBS_MAX_ATTEMPTS && !judgeAway;
       // A bar-PASS held only because autopay is unarmed is VERIFIED work awaiting release — it must
       // never be journaled as "needs your judgment", which reads as a verdict on the tester.
       // A passing answer the real-try gate holds says so, in its own words, so the builder knows why this
@@ -747,7 +762,9 @@ export async function runDeputyOnSubmission(
           submission,
           retryable
             ? observationRetryLine(attempt, OBS_MAX_ATTEMPTS)
-            : reasonSentence(reasonCode),
+            : judgeAway
+              ? JUDGE_AWAY_LINE
+              : reasonSentence(reasonCode),
           cid,
         );
         // DM only on FINAL holds (P20.4) — and only when the hold is NEW or its reason changed.

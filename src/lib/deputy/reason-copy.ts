@@ -106,6 +106,14 @@ export function observationCriteriaCoaching(
 }
 
 /** The founder-facing one-liner for a still-retryable observation hold (no DM fires; this is log-only). */
+/**
+ * The journal line for an answer held because Sage's model could not read it (none configured, out of credit,
+ * or not answering). It keeps the observation_review token, so every reader of the journal classes it as
+ * before: work that needs the builder's judgment.
+ */
+export const JUDGE_AWAY_LINE =
+  "Sage's model was not available to read this answer, so it waits for you: read it and release the payment, or say no (observation_review)";
+
 export function observationRetryLine(attempt: number, maxAttempts: number): string {
   return `Held for the tester to refine — attempt ${attempt} of ${maxAttempts}, no action needed yet (observation_retry)`;
 }

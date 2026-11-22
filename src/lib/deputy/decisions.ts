@@ -118,6 +118,8 @@ export function observationFromRow(row: Decision | null | undefined): {
   barReasons: string[];
   /** criterion INDEXES with no evidence yet — drives the coaching that names the unmet requirement. */
   unprovenCriteria?: number[];
+  /** Sage's model could not read this answer (see `ObservationShadow.judgeAway`): no retry is offered for it. */
+  judgeAway?: true;
 } | null {
   const s = (row?.observationShadow ?? null) as ObservationShadow | null;
   if (!s) return null;
@@ -129,6 +131,7 @@ export function observationFromRow(row: Decision | null | undefined): {
     barPass: s.barPass,
     barReasons: s.barReasons,
     ...(s.unprovenCriteria ? { unprovenCriteria: s.unprovenCriteria } : {}),
+    ...(s.judgeAway === true ? { judgeAway: true as const } : {}),
   };
 }
 

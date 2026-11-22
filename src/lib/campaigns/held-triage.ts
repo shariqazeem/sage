@@ -82,13 +82,18 @@ export function buildHeldTriage(campaign: Campaign, submission: Submission): Hel
     // A passing answer the real-try gate holds (real-try.ts) says why: it is the builder's to read, not
     // an answer that "only held because auto-pay is off".
     const tryHold = shadow.barPass ? (shadow.realTry?.hold ?? null) : null;
+    // Sage's model could not read this answer (no model, or out of credit): a count of exact-wording matches
+    // says nothing about an honest answer in the tester's own words, so it must never lean the builder to "no".
+    const judgeAway = shadow.judgeAway === true && !shadow.barPass;
     const heldBecause = tryHold === "no_sign_of_a_try"
       ? ["it met Sage's bar, but it names nothing Sage saw behind the first screen: it could have been written from the mission card or the public page"]
       : tryHold === "public_overlap"
         ? ["it met Sage's bar, but on this mission much of what Sage can check is on the mission card or the public page, and the answer names fewer than two things from behind the first screen"]
         : shadow.barPass
           ? ["it met Sage's bar — it held only because auto-pay isn't armed for this lane yet"]
-          : shadow.barReasons.map(heldReasonSentence);
+          : judgeAway
+            ? ["Sage's model was not available to read this answer, so only its exact wording was checked against what Sage saw"]
+            : shadow.barReasons.map(heldReasonSentence);
 
     let lean: TriageLean;
     let leanWhy: string;
@@ -108,6 +113,9 @@ export function buildHeldTriage(campaign: Campaign, submission: Submission): Hel
     } else if (shadow.barPass) {
       lean = "pay";
       leanWhy = `it objectively met Sage's bar (matched ${matched} of ${keySources}) — it only held because auto-pay is off`;
+    } else if (judgeAway) {
+      lean = "you-decide";
+      leanWhy = `Sage's model could not read it, and the exact-wording check alone (${matched} of ${keySources}) misses an honest answer in the tester's own words. Read the answer and decide`;
     } else if (matched <= 0) {
       lean = "reject";
       leanWhy = "no firsthand detail matched what Sage saw — reads generic, not lived";

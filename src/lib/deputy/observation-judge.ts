@@ -59,6 +59,12 @@ export interface ObservationJudgeResult {
    *  path for genuine work Sage saw but the tester paraphrased; only counts once validated. SERVER-SIDE
    *  only (each carries a matched corpus string — the answer key). Optional: absent → no LLM recall. */
   corroborations?: CorroborationClaim[];
+  /**
+   * THE JUDGE COULD NOT BE ASKED: no model is configured, or the call failed (an empty account, a broken
+   * provider, a timeout). The zeros beside it are then not a verdict on the answer. They still cannot pay.
+   * Absent on a real answer, whatever it said.
+   */
+  unavailable?: true;
 }
 
 /** PUBLIC-SAFE projection — the ONLY observation data any tester-readable surface may carry. Counts,
@@ -120,6 +126,12 @@ export interface ObservationShadow {
    * answer that PASSED the bar still waits for the builder. Written by the pipeline beside the verdict.
    */
   realTry?: { cardClears: boolean; cardSources: number; tryOnlySources: number; trySources: number; publicShare: number; signals: string[]; hold: "no_sign_of_a_try" | "public_overlap" | null };
+  /**
+   * The model judge was needed for this answer and could not be asked (`ObservationDecision.judgeUnavailable`),
+   * and the answer is below the bar. A flag only. Every reader of the shadow that offers the tester a retry or
+   * leans the builder one way reads it: the zeros beside it are not a verdict on the answer.
+   */
+  judgeAway?: true;
   wouldAutopay: boolean;
   at: number;
 }
@@ -139,6 +151,7 @@ export function toObservationShadow(d: ObservationDecision, wouldAutopay: boolea
     injectionDetected: d.injectionDetected,
     barPass: d.bar.pass,
     barReasons: d.bar.reasons,
+    ...(d.judgeUnavailable === true && !d.bar.pass ? { judgeAway: true as const } : {}),
     legacyBarPass: d.legacyBar.pass,
     legacyBarReasons: d.legacyBar.reasons,
     corpusDigest: d.publicView.corpusDigest,
@@ -182,6 +195,12 @@ export interface ObservationDecision {
    *  held it). Auditable provenance for the receipt — the relaxation is never invisible. */
   criteriaCompletePass: boolean;
   publicView: ObservationPublicView;
+  /**
+   * The answer needed the model judge (it is substantive and the deterministic matcher alone did not clear
+   * it) and the judge could not be asked. The pipeline then holds the answer for the builder instead of
+   * coaching the tester to rewrite it, and asks again on the next sweep. It never changes the bar.
+   */
+  judgeUnavailable?: true;
 }
 
 /**
@@ -400,7 +419,7 @@ export async function judgeObservationAccount(input: {
   criterionGroups?: { criterionIndex: number; text: string; observations: string[] }[];
   model?: string;
 }): Promise<ObservationJudgeResult> {
-  if (!llmConfigured()) return { obsConfidence: 0, contradictions: [], corroborations: [] };
+  if (!llmConfigured()) return { obsConfidence: 0, contradictions: [], corroborations: [], unavailable: true };
   const user = buildJudgeUserForTest(input);
   try {
     // One provider hiccup (a 5xx, a dropped connection) is asked again on the SAME model, inside a short
@@ -417,7 +436,7 @@ export async function judgeObservationAccount(input: {
       corroborations: parseContradictions(parsed.corroborations), // same {accountQuote,corpusQuote} shape
     };
   } catch {
-    return { obsConfidence: 0, contradictions: [], corroborations: [] };
+    return { obsConfidence: 0, contradictions: [], corroborations: [], unavailable: true };
   }
 }
 
@@ -525,7 +544,7 @@ export async function runObservationDecision(input: {
     judge = await callJudge();
   }
 
-  return assembleObservationDecision({
+  const decision = assembleObservationDecision({
     account: input.account,
     key: input.key,
     publicTokens: publicTokenSet(input.publicStrings),
@@ -536,4 +555,6 @@ export async function runObservationDecision(input: {
     criterionEvidence: input.criterionEvidence ?? null,
     criterionEvidenceDerived: input.criterionEvidenceDerived === true,
   });
+  // The judge was needed and could not be asked (after the second try above): say so beside the verdict.
+  return preCouldPass && judge.unavailable === true ? { ...decision, judgeUnavailable: true } : decision;
 }

@@ -70,7 +70,10 @@ export async function GET(
   const heldNow = autopay?.state === "held" && sub.status !== "paid";
   const fraudFlagged = !!observation?.barReasons.includes("high_fraud");
   const barPassed = !!observation?.barPass;
-  const retryable = !!observation && heldNow && !barPassed && !fraudFlagged && attemptsLeft > 0;
+  // ...and never for an answer Sage's model could not read: the tester did nothing wrong, and rewriting it
+  // would not help. It waits for the builder (the pipeline's `judgeAway`, mirrored from the same shadow).
+  const judgeAway = observation?.judgeAway === true && !barPassed;
+  const retryable = !!observation && heldNow && !barPassed && !fraudFlagged && attemptsLeft > 0 && !judgeAway;
   const retry =
     observation && heldNow
       ? {
@@ -92,7 +95,9 @@ export async function GET(
                 attemptsLeft,
               ) ??
               observationCoaching(observation.distinctSources, observation.keyDistinctSources, attemptsLeft))
-            : barPassed
+            : judgeAway
+              ? "Sage's model could not read your answer today, so the builder is reading it. You do not need to change anything."
+              : barPassed
               ? "Sage verified your work — the founder is releasing your reward."
               : fraudFlagged
                 ? "This submission was flagged for review — the founder is taking a look."
