@@ -259,6 +259,10 @@ whether the payouts hold up.
   observation judge checks answers against), its first look and a test's public findings are the
   OWNER'S while any place is open (`src/lib/test-page/live.ts`, `before.ts`, the findings route); the
   public sees them once the test is done. The front door never shows a test still taking answers.
+  **A retest (22 Nov 2026):** while the same builder's later test of the same product is taking answers, the
+  earlier test's frames, first look and public findings are the owner's alone again (`openRetestOf`, read by
+  the test page, the findings route and the front door's real test). Tests of one product by two builders are
+  not matched.
 - **P16 gate status: Stage 1 was submitted 2026-07-18. P16 is UNLOCKED.**
 
 ---

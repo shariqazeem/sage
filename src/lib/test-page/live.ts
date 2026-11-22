@@ -16,7 +16,7 @@ import { nowSeconds } from "@/lib/db/keys";
 import { short } from "@/lib/format";
 import { seatLinkFor } from "@/lib/people/link-info";
 import { linkFor, seatHolders } from "@/lib/people/seats";
-import { findingsView, notPaidReason, type FindingsView } from "@/lib/report";
+import { findingsView, notPaidReason, openRetestOf, type FindingsView } from "@/lib/report";
 import { kindOfMap, sageReadsOnly, testerCautions } from "@/lib/launch/product-kind";
 import { isHeldForReview } from "@/lib/campaigns/visibility";
 import { safetyView } from "@/lib/safety";
@@ -206,9 +206,12 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   // the observation judge checks answers against), and paid answers can be copied. While places are open,
   // only the owner sees either; once the test is done, the frames are anyone's and the findings are public
   // if the builder said so.
-  const mayShowRun = owner || phase === "done";
+  // ...and while the same builder's later test of this product is taking answers, this one's frames, first look
+  // and findings are the owner's alone again: they would hand that test's testers the answers (openRetestOf).
+  const reopened = !owner && phase === "done" && openRetestOf(campaign) !== null;
+  const mayShowRun = owner || (phase === "done" && !reopened);
   const { frames, run, productUrl } = mayShowRun ? framesFor(campaign, owner) : { frames: [], run: null, productUrl: getInspectionJobByCampaign(campaign.id)?.productUrl ?? null };
-  const mayRead = owner || (sharing.findingsPublic && phase === "done");
+  const mayRead = owner || (sharing.findingsPublic && phase === "done" && !reopened);
   const lookJob = getInspectionJobByCampaign(campaign.id);
   const findings = mayRead ? findingsView(campaign, owner ? "owner" : "public", sharing.findingsPublic) : null;
 
@@ -267,7 +270,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
     run,
     cautions: campaign.kind === "testing" ? testerCautions(lookJob ? kindOfMap((lookJob.result as { map?: { productKind?: unknown } } | null)?.map) : null) : [],
     sageReads: lookJob ? sageReadsOnly((lookJob.result as { map?: { productKind?: unknown } } | null)?.map ?? null, lookJob.productUrl) : null,
-    firstLook: lookJob && (owner || (phase === "done" && sharing.findingsPublic && !lookJob.testAccountSealed)) ? firstLookView(lookJob) : null,
+    firstLook: lookJob && (owner || (phase === "done" && !reopened && sharing.findingsPublic && !lookJob.testAccountSealed)) ? firstLookView(lookJob) : null,
     findings,
     owner: ownerView,
     shareUrl: testUrl(campaign.id),

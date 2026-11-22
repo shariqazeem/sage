@@ -365,6 +365,31 @@ export function previousTest(campaign: Campaign): Campaign | null {
   return best;
 }
 
+/**
+ * A LATER TEST OF THE SAME PRODUCT THAT IS STILL TAKING ANSWERS, or null (22 Nov 2026).
+ *
+ * NO CORPUS ORACLE (CLAUDE.md). A finished test's frames, first look and public findings describe the product and
+ * what paid people wrote about it. When the same builder tests that product again, those pages would hand the new
+ * test's testers answers to copy while its places are open. So while such a retest is open, the earlier test's
+ * material is the owner's alone again (the test page, the findings route, the front door's real test); it comes
+ * back to the public once the retest is done. The same builder only: tests of one product by two builders are not
+ * matched (no cross-builder lookup exists).
+ */
+export function openRetestOf(campaign: Pick<Campaign, "id" | "createdAt">): Campaign | null {
+  const job = getInspectionJobByCampaign(campaign.id);
+  const key = productKey(job?.productUrl);
+  if (!job || !key) return null;
+  const seen = new Set<string>([campaign.id]);
+  for (const j of listInspectionJobs(job.founderWallet)) {
+    const id = j.publicCampaignId;
+    if (!id || seen.has(id) || productKey(j.productUrl) !== key) continue;
+    seen.add(id);
+    const c = getCampaign(id);
+    if (c && c.createdAt > campaign.createdAt && c.status === "live" && !testDone(c)) return c;
+  }
+  return null;
+}
+
 /** One test's report, counted from its rows: what both the view and a comparison read. */
 interface ReportParts {
   paidRows: Submission[];

@@ -5,6 +5,7 @@ import path from "node:path";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { getCampaign, listMissions, listSubmissions } from "@/lib/db/campaigns";
+import { openRetestOf } from "@/lib/report";
 import { v2Economics } from "@/lib/campaigns/v2-economics";
 import { getInspectionJob } from "@/lib/db/inspection";
 import { inspectionJobs, type InspectionJob } from "@/lib/db/schema";
@@ -79,8 +80,11 @@ export function consented(job: Pick<InspectionJob, "founderWallet" | "publicCamp
 function fromJob(job: InspectionJob, pinned = false): RealTest | null {
   if (job.status !== "ready" || job.testAccountSealed) return null;
   if (!pinned && !consented(job)) return null;
-  // NO CORPUS ORACLE: a test still taking answers never shows its frames on the front door, pinned or not.
+  // NO CORPUS ORACLE: a test still taking answers never shows its frames on the front door, pinned or not, and
+  // neither does a finished one while the same builder's later test of that product is open (openRetestOf).
   if (stillOpen(job.publicCampaignId)) return null;
+  const tested = job.publicCampaignId ? getCampaign(job.publicCampaignId) : null;
+  if (tested && openRetestOf(tested)) return null;
   const host = hostOf(job.productUrl);
   const result = job.result as StoredResult | null;
   if (!host || !result?.map?.fieldTest) return null;

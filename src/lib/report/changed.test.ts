@@ -10,7 +10,7 @@ import { composeCoreAccount, CORE_MISSION_KEY, type Again, type Reached } from "
 import { setSharing } from "@/lib/sharing";
 import { CHANGE_WORDS, productKey, whatChanged, type TestSide } from "./changed";
 import type { PaidAnswer } from "./core";
-import { findingsView, previousTest } from "./index";
+import { findingsView, openRetestOf, previousTest } from "./index";
 import { plainFindings } from "./plain";
 import { DROPS } from "./plain.fixtures";
 import { coreReport, rankFindings, type CoreTaps } from "./product";
@@ -202,6 +202,28 @@ describe("against the real tables", () => {
     expect(JSON.stringify(pub)).not.toContain("Continue button did nothing");
     setSharing(first.c.id, { findingsPublic: true });
     expect(findingsView(getCampaign(second.c.id)!, "public", true).changed).toMatchObject({ live: false, small: "Small numbers: 2 people then, 1 now. Read this as a direction, not as proof." });
+  });
+
+  it("knows when the same builder's later test of this product is still taking answers (NO CORPUS ORACLE)", () => {
+    const first = test_("https://retest.example/app", T0);
+    first.answer("The Continue button did nothing.", "started");
+    setCampaignStatus(first.c.id, "paused");
+    expect(openRetestOf(first.c)).toBeNull();
+
+    // another product, and another builder's test of this one, never count
+    test_("https://retest.example/other", T0 + 10).answer("Could not find it.", "first-screen");
+    test_("https://retest.example/app", T0 + 20, `0x${"e".repeat(39)}3`).answer("Finished.", "finished");
+    expect(openRetestOf(first.c)).toBeNull();
+
+    // the same builder tests the same product again: while it is open, the first test's material is the owner's
+    const second = test_("https://www.retest.example/app/", T0 + 86_400);
+    second.answer("Finished.", "finished");
+    expect(openRetestOf(first.c)?.id).toBe(second.c.id);
+    // a later test never makes an EARLIER one's retest of itself
+    expect(openRetestOf(second.c)).toBeNull();
+    // once the retest is done, the first test's public material comes back
+    setCampaignStatus(second.c.id, "paused");
+    expect(openRetestOf(first.c)).toBeNull();
   });
 
   it("says where the people in a finding stopped, and how many they are out of", () => {

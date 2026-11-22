@@ -109,4 +109,32 @@ describe("GET /api/campaigns/[id]/findings", () => {
     expect((await get(c.id)).status).toBe(200);
     expect((await get("nope")).status).toBe(404);
   });
+  it("keeps a finished test's public findings from strangers while the builder's retest of the product is open", async () => {
+    const { createInspectionJob } = await import("@/lib/db/inspection");
+    const { setCampaignStatus } = await import("@/lib/db/campaigns");
+    const job = (c: { id: string }) =>
+      createInspectionJob({ founderWallet: OWNER, publicCampaignId: c.id, productUrl: "https://retest.example/", goal: "test it", targetUsers: "anyone", totalBudgetBase: BigInt(5_000_000), tokenDecimals: 6, planningRequestId: `req-retest-${++n}` });
+    const first = seed();
+    job(first);
+    setCampaignStatus(first.id, "paused");
+    setSharing(first.id, { findingsPublic: true });
+    signedIn = STRANGER;
+    expect((await get(first.id)).status).toBe(200);
+
+    // a second test of the same product opens later: the first's answers go back to the owner alone
+    const second = seed();
+    const { db } = await import("@/lib/db");
+    const { campaigns } = await import("@/lib/db/schema");
+    const { eq } = await import("drizzle-orm");
+    db.update(campaigns).set({ createdAt: first.createdAt + 60 }).where(eq(campaigns.id, second.id)).run();
+    job(second);
+    expect((await get(first.id)).status).toBe(404);
+    signedIn = OWNER;
+    expect((await get(first.id)).status).toBe(200);
+
+    // the retest ends: the public reads the first test's findings again
+    setCampaignStatus(second.id, "paused");
+    signedIn = STRANGER;
+    expect((await get(first.id)).status).toBe(200);
+  });
 });

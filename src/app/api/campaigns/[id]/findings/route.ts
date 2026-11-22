@@ -2,7 +2,7 @@ import { NextResponse, after } from "next/server";
 import { getFounderAddress } from "@/lib/auth/founder";
 import { ownsCampaign } from "@/lib/campaigns/review-actions";
 import { getCampaign } from "@/lib/db/campaigns";
-import { openFindings, testDone } from "@/lib/report";
+import { openFindings, openRetestOf, testDone } from "@/lib/report";
 import { sharingFor } from "@/lib/sharing";
 
 export const runtime = "nodejs";
@@ -24,8 +24,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!campaign) return notFound();
   const owner = ownsCampaign(campaign, await getFounderAddress());
   const { findingsPublic } = sharingFor(campaign.id);
-  // NO CORPUS ORACLE: paid answers can be copied, so the public reads them only once no place is open.
-  if (!owner && (!findingsPublic || !testDone(campaign))) return notFound();
+  // NO CORPUS ORACLE: paid answers can be copied, so the public reads them only once no place is open, here or
+  // in the same builder's later test of this product (openRetestOf).
+  if (!owner && (!findingsPublic || !testDone(campaign) || openRetestOf(campaign))) return notFound();
   const view = openFindings(campaign, owner ? "owner" : "public", findingsPublic, (fn) => after(fn));
   return NextResponse.json(view, { headers: { "cache-control": "private, no-store" } });
 }
