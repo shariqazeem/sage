@@ -500,8 +500,11 @@ if you must touch them, that suite must stay green.
     The tester's steps are unchanged; their ticket reads "Waiting for the builder to read the answer".
   - **A test Sage pays alone, when the model goes away** (`judgeAway`, `deputy/pipeline.ts`). A substantive answer
     the matcher did not clear needs the model judge. When it cannot be asked (`ObservationJudgeResult.unavailable`)
-    the answer is a final hold for the builder, never "refine your answer, attempt 1 of 3"; the zeros are not kept
-    as the attempt's verdict, so the sweep asks again and the answer is judged when the model is back. Three
+    the answer is a final hold for the builder, never "refine your answer, attempt 1 of 3". The zeros are not kept
+    as the attempt's verdict, so the sweep asks again and the answer is judged when the model is back, but ONLY
+    when asking again is free (`askingAgainIsFree`: no model, 402, 429, 5xx, a model the breaker passes over). A
+    timeout or an unreadable or think-only answer may have been billed: it is asked once and kept with the flag,
+    because re-asking a billing model every sweep is the cost leak this repo has had twice. Three
     readers mirror the one flag on the shadow: the pipeline, the tester's status route (no retry offered) and the
     builder's triage (it never leans "no" on an exact-wording count). Subtractive: it can only hold.
   - **The chat.** With no model the concierge replies with the plain reason and the way to the web

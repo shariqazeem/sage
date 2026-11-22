@@ -99,6 +99,7 @@ import { approveRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
 import type { CampaignVaultAdapter } from "@/lib/deputy/campaign-vault";
 import { observationFromRow } from "@/lib/deputy/decisions";
 import { runDeputyOnSubmission } from "@/lib/deputy/pipeline";
+import { askingAgainIsFree } from "@/lib/deputy/observation-judge";
 import { JUDGE_AWAY_LINE } from "@/lib/deputy/reason-copy";
 import { plainLookFor } from "@/lib/first-look";
 import { verifyPlanForApproval } from "@/lib/launch/approve";
@@ -573,6 +574,48 @@ describe("a live test that pays alone, when the model goes away", () => {
     await onFakeClock(() => runDeputyOnSubmission(sub, deps));
     expect(out.judgeAsks.length).toBe(asksOnce);
   }, 120_000);
+});
+
+describe("an answer the judge could not read, when asking again might cost money", () => {
+  it("is asked once when the model only thought (billed), kept as the builder's to read, and never re-bought each sweep", async () => {
+    arm("think_only_empty");
+    process.env.OBSERVATION_AUTOPAY = "1";
+    const out = outside("think_only_empty", () => ({}));
+    const w = await pasteToLive(DROPS, true);
+    updateCampaignAutonomy(w.campaignId, { autonomy: "autopilot", autopilotThreshold: 0.85 });
+    const deps = { campaignAdapter: w.adapter, operatorAddress: () => V2_OPERATOR };
+
+    const sub = answer(w, tester(5), OWN_WORDS);
+    const first = await onFakeClock(() => runDeputyOnSubmission(sub, deps));
+    expect(first.value.action).toBe("held");
+    expect(decodeDetail(getLatestSubmissionEvent(sub, "autopay_held")!.detail).text).toContain(JUDGE_AWAY_LINE);
+    expect(observationFromRow(getDecisionBySubmission(sub))!.judgeAway).toBe(true);
+    // every call that reached the model, answered or not (a think-only model answers nothing, and still bills)
+    const judgeCalls = () => out.zoo.calls.filter(isJudge).length;
+    const asked = judgeCalls();
+    expect(asked).toBeGreaterThan(0);
+
+    // THE COST LEAK this guards (July, and $9 in hours on 18 Aug): every later sweep re-asking a model that bills.
+    for (let i = 0; i < 3; i++) await onFakeClock(() => runDeputyOnSubmission(sub, deps));
+    expect(judgeCalls()).toBe(asked);
+    expect(getSubmission(sub)!.status).toBe("pending");
+    // still a final hold: the tester is never coached to rewrite words nobody read
+    expect(decodeDetail(getLatestSubmissionEvent(sub, "autopay_held")!.detail).text).toContain(JUDGE_AWAY_LINE);
+    expect(w.calls.requestPayout).toBe(0);
+  }, 120_000);
+
+  it("knows which failures are free to ask again", () => {
+    const err = (fields: Record<string, unknown>, message = "llm_status_x") => Object.assign(new Error(message), fields);
+    expect(askingAgainIsFree(new Error("llm_not_configured"))).toBe(true);
+    expect(askingAgainIsFree(err({ httpStatus: 402 }))).toBe(true);
+    expect(askingAgainIsFree(err({ httpStatus: 429 }))).toBe(true);
+    expect(askingAgainIsFree(err({ httpStatus: 503, modelBroken: true }))).toBe(true);
+    expect(askingAgainIsFree(err({ httpStatus: 500 }))).toBe(true);
+    // may have been billed: asked once
+    expect(askingAgainIsFree(err({ httpStatus: 200, thinkOnly: true }, "llm_think_only"))).toBe(false);
+    expect(askingAgainIsFree(err({ httpStatus: 200 }, "llm_unparseable"))).toBe(false);
+    expect(askingAgainIsFree(new Error("The operation was aborted due to timeout"))).toBe(false);
+  });
 });
 
 /* ─────────────────────────────────────────────── 4. the chat, with no model ── */

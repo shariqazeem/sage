@@ -65,6 +65,12 @@ export interface ObservationJudgeResult {
    * Absent on a real answer, whatever it said.
    */
   unavailable?: true;
+  /**
+   * Asking the judge again costs nothing (`askingAgainIsFree`): the call never reached a model that bills. Only then
+   * does the pipeline leave the zeros unrecorded so the next sweep asks again; a failure that may have been billed
+   * is asked once, kept, and stays the builder's to read.
+   */
+  retryFree?: true;
 }
 
 /** PUBLIC-SAFE projection — the ONLY observation data any tester-readable surface may carry. Counts,
@@ -201,6 +207,8 @@ export interface ObservationDecision {
    * coaching the tester to rewrite it, and asks again on the next sweep. It never changes the bar.
    */
   judgeUnavailable?: true;
+  /** ...and asking it again is free (see `ObservationJudgeResult.retryFree`). */
+  judgeRetryFree?: true;
 }
 
 /**
@@ -419,7 +427,7 @@ export async function judgeObservationAccount(input: {
   criterionGroups?: { criterionIndex: number; text: string; observations: string[] }[];
   model?: string;
 }): Promise<ObservationJudgeResult> {
-  if (!llmConfigured()) return { obsConfidence: 0, contradictions: [], corroborations: [], unavailable: true };
+  if (!llmConfigured()) return { obsConfidence: 0, contradictions: [], corroborations: [], unavailable: true, retryFree: true };
   const user = buildJudgeUserForTest(input);
   try {
     // One provider hiccup (a 5xx, a dropped connection) is asked again on the SAME model, inside a short
@@ -435,8 +443,8 @@ export async function judgeObservationAccount(input: {
       contradictions: parseContradictions(parsed.contradictions),
       corroborations: parseContradictions(parsed.corroborations), // same {accountQuote,corpusQuote} shape
     };
-  } catch {
-    return { obsConfidence: 0, contradictions: [], corroborations: [], unavailable: true };
+  } catch (e) {
+    return { obsConfidence: 0, contradictions: [], corroborations: [], unavailable: true, ...(askingAgainIsFree(e) ? { retryFree: true as const } : {}) };
   }
 }
 
@@ -556,5 +564,24 @@ export async function runObservationDecision(input: {
     criterionEvidenceDerived: input.criterionEvidenceDerived === true,
   });
   // The judge was needed and could not be asked (after the second try above): say so beside the verdict.
-  return preCouldPass && judge.unavailable === true ? { ...decision, judgeUnavailable: true } : decision;
+  return preCouldPass && judge.unavailable === true ? { ...decision, judgeUnavailable: true, ...(judge.retryFree === true ? { judgeRetryFree: true as const } : {}) } : decision;
+}
+
+/**
+ * DOES ASKING THE JUDGE AGAIN COST ANYTHING? (22 Nov 2026)
+ *
+ * An answer the judge could not read is asked again on the next sweep, so it is judged once the model is back.
+ * That is free only when no provider generated a token: no model configured, an empty or spent account or the
+ * day's ceiling (402), a busy key (429), a model the wire is passing over, or a provider error (5xx, which the
+ * wire's breaker soon answers without a call). A timeout, a think-only answer or one that could not be read may
+ * have been billed, and asking those again every five minutes is how the sweep twice spent real money on the same
+ * stuck answers (July, and $9 in hours on 18 Aug). Those are asked once: the zeros are kept, the answer stays a
+ * final hold for the builder, and nobody is coached to rewrite it.
+ */
+export function askingAgainIsFree(e: unknown): boolean {
+  if (e instanceof Error && e.message === "llm_not_configured") return true;
+  const f = (e ?? null) as { httpStatus?: unknown; modelBroken?: unknown } | null;
+  if (f?.modelBroken === true) return true;
+  const status = typeof f?.httpStatus === "number" ? f.httpStatus : null;
+  return status !== null && (status === 402 || status === 429 || (status >= 500 && status <= 599));
 }

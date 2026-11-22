@@ -606,7 +606,7 @@ export async function runDeputyOnSubmission(
     const attemptNow = submission.attempt ?? 1;
     const priorShadow =
       (getDecisionBySubmission(submissionId)?.observationShadow as
-        | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; deterministicSources?: number; criteriaCompletePass?: boolean; corpusDigest?: string; attempt?: number; barPolicy?: string }
+        | { barPass?: boolean; barReasons?: string[]; injectionDetected?: boolean; distinctSources?: number; deterministicSources?: number; criteriaCompletePass?: boolean; corpusDigest?: string; attempt?: number; barPolicy?: string; judgeAway?: boolean }
         | null
         | undefined) ?? null;
     const reusable = verdictStillApplies(priorShadow, attemptNow, key.digest);
@@ -663,7 +663,11 @@ export async function runDeputyOnSubmission(
      *    is closed that costs nothing (the wire refuses at once), and when the model is back the answer is
      *    judged properly. A real verdict is still stored once and never re-bought.
      */
-    const judgeAway = decision?.judgeUnavailable === true && !barPass;
+    // (on a reused verdict the flag comes from the record: an answer kept as away stays the builder's to read)
+    const judgeAway = decision ? decision.judgeUnavailable === true && !barPass : reusable && priorShadow?.judgeAway === true;
+    // Asked again next sweep ONLY when asking costs nothing (observation-judge `askingAgainIsFree`); otherwise the
+    // zeros are kept with the away flag, so the sweep never re-buys a judgment that may have been billed.
+    const askAgain = judgeAway && decision?.judgeRetryFree === true;
 
     /**
      * CORPUS READINESS FLOOR (FC Phase 1) — the measured fix for the judge-over-acceptance finding:
@@ -720,7 +724,7 @@ export async function runDeputyOnSubmission(
         agentLog(cid, "observation_v2", { disagreement: v2.disagreement, v2Pass: v2.v2Pass, legacyPass: v2.legacyPass, stateSpecific: v2.stateSpecificMatches });
       }
       // (not when the judge was away: without the stamp `verdictStillApplies` is false, and the next sweep asks again)
-      if (!judgeAway) {
+      if (!askAgain) {
         shadow.attempt = attemptNow; // lets a later sweep prove the verdict still applies
         shadow.barPolicy = OBS_BAR_POLICY_VERSION; // a bar-policy change invalidates stored verdicts
       }
