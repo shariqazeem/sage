@@ -40,6 +40,21 @@ export const NO_MODEL_REASONS: ReadonlySet<string> = new Set([
   "design_deadline",
 ]);
 
+/**
+ * A MODEL THAT ANSWERED IN A SHAPE NOBODY COULD READ, TWICE OVER (22 Nov 2026, from every stored plan).
+ *
+ * 20 of the 62 jobs production ever failed ended this way, one of them a real builder two days before this was
+ * written: every attempt, and the fallback, came back unreadable or cut. The first time, the whole job is run
+ * again, because a fresh run usually reads (`RETRYABLE_FAILURES`, job.ts: "an unusable shape is not a verdict
+ * about the founder's product"). That is unchanged. But when the run that fails this way is already the retry,
+ * there is nothing left to try, and the builder used to be left with "please try again". On that last run
+ * only, an unreadable answer counts as no answer: the first-try mission alone is the test, marked as written
+ * without a model, exactly as when no model answered at all.
+ *
+ * Still NOT here: an empty plan and missions the gate refused. Those were read, and they say something.
+ */
+export const UNREADABLE_REASONS: ReadonlySet<string> = new Set(["invalid_json", "schema_mismatch", "truncated_output"]);
+
 /** Was this plan written with no model? Read from the plan's own record, wherever the plan travels. */
 export function planWithoutModel(plan: { modelVersion?: unknown } | null | undefined): boolean {
   return !!plan && plan.modelVersion === NO_MODEL_PLAN;

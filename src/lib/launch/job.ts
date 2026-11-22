@@ -352,6 +352,8 @@ export async function runInspectionJob(jobId: string): Promise<void> {
         onMapped: (map) => void recordFirstLook(jobId, map, job.productUrl),
         // the product safety screen with the server's lists, a person's decisions and the operator's alert
         screen: (ctx) => screenForJob(jobId, ctx),
+        // the one automatic retry is spent: an unreadable design now ends in the first-try mission, not a failure
+        lastTry: (getInspectionJob(jobId)?.retryCount ?? 0) >= MAX_AUTO_RETRIES,
       },
     );
 

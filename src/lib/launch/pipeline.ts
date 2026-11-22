@@ -250,6 +250,9 @@ export async function inspectAndPlan(
      * (a script, the suite) the same pure screen runs on what Sage saw, with no list.
      */
     screen?: (input: Pick<ScreenInput, "url" | "observations" | "fieldTest" | "kind">) => Promise<ProductSafetyRecord>;
+    /** This run is the job's last (its one automatic retry is spent): an unreadable design is then no answer
+     *  at all, and the first-try mission alone is the test (UNREADABLE_REASONS, no-model.ts). */
+    lastTry?: boolean;
   } = {},
 ): Promise<LaunchResult> {
   // ONE INTENT, ZERO FORMS AFTER IT — and zero MANDATORY forms before it either. A founder who gave
@@ -564,6 +567,7 @@ export async function inspectAndPlan(
       ? (label) => void recordFieldTestStep(opts.inspectionId!, { label, screenshot: null, url: input.productUrl })
       : undefined,
     runGroundedShadow,
+    lastTry: opts.lastTry === true,
     // the landing page as the static read saw it: only read when no model answers and the first-try mission
     // has to name its main action from the product's own words (core-mission.ts)
     firstScreen: inspection.observations[0]

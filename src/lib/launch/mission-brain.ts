@@ -25,7 +25,7 @@ import {
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction, coreActionFromCandidates } from "./gated-action-mission";
 import { addCoreMission, coerceCoreDecision, coerceCoreHint, CORE_RANK_WORDS, DEFAULT_CORE_DECISION, type CoreDecision, type CoreHint, type FirstScreen } from "./core-mission";
-import { NO_MODEL_PLAN, NO_MODEL_REASONS } from "./no-model";
+import { NO_MODEL_PLAN, NO_MODEL_REASONS, UNREADABLE_REASONS } from "./no-model";
 import { askCorePlace } from "./core-decision";
 import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import { TANGIBLE_MIN_REWARD_BASE } from "./budget";
@@ -788,7 +788,7 @@ function applyCritic(candidates: CandidateMission[], critiques: MissionCritique[
 }
 
 /** Deterministic observation-richness signals gathered from the map + corpus (for the sufficiency gate). */
-function gatherRichness(map: ProductMapV1, corpus: string) {
+export function gatherRichness(map: ProductMapV1, corpus: string) {
   const ft = map.fieldTest;
   const els = new Set<string>();
   for (const s of ft?.states ?? []) for (const e of s.notableElements ?? []) if (e.text) els.add(e.text.toLowerCase());
@@ -882,7 +882,7 @@ export function runMissionBrain(
   corpus: string,
   /** live-trail narration — the design phase is 2-4 minutes of real model work that used to render
    *  as a frozen screen; each phase announces itself. Best-effort, never affects the result. */
-  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean; firstScreen?: FirstScreen | null } = {},
+  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean; firstScreen?: FirstScreen | null; lastTry?: boolean } = {},
 ): Promise<MissionBrainResult> {
   // ONE CLOCK FOR THE WHOLE DESIGN (missionDesignBudgetMs): every model call below gets at most what is left
   // of it, and at the deadline the brain returns the best plan that is actually ready.
@@ -894,7 +894,7 @@ async function designMissions(
   founder: FounderLaunchInput,
   scope: ValidationScope,
   corpus: string,
-  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean; firstScreen?: FirstScreen | null },
+  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean; firstScreen?: FirstScreen | null; lastTry?: boolean },
 ): Promise<MissionBrainResult> {
   // The grounded planner is a 169s add on the founder's clock (measured, clawup -6uszdFt). It is worth
   // that wait only when its output can be SELECTED or we're in pure measurement mode — the pipeline
@@ -1055,7 +1055,10 @@ async function designMissions(
     const failed: MissionBrainResult = { ...EMPTY(arch.error), needsInputQuestions: asked, ...(arch.detail ? { reasonDetail: arch.detail } : {}), ...(gs ? { groundingShadow: gs } : {}) };
     // the first try needs no architect: its words are fixed for the kind. And when the architect failed because
     // no model answered (not because it answered badly), the first try is the test for a website too.
-    return (await firstTryAlone(failed, NO_MODEL_REASONS.has(arch.error) ? arch.error : null)) ?? failed;
+    // ...and on the job's last run, when every answer came back unreadable: there is nothing left to try, so
+    // that too is no answer (UNREADABLE_REASONS, no-model.ts). On a first run the job is simply run again.
+    const noAnswer = NO_MODEL_REASONS.has(arch.error) || (opts.lastTry === true && UNREADABLE_REASONS.has(arch.error));
+    return (await firstTryAlone(failed, noAnswer ? arch.error : null)) ?? failed;
   }
   let r = await run(arch);
 
