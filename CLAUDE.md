@@ -429,6 +429,21 @@ if you must touch them, that suite must stay green.
   - Still true: the judge's private key comes from what Sage's browser read, so a listing read as one page sits
     under the three-source floor and its answers hold for the builder's release.
   - `tests/model-zoo/product-kinds.test.ts` runs one saved page per kind through `inspectAndPlan` offline.
+  - **A listed product is named and anchored as itself, never as its platform (23 Nov 2026).** P-GEN on six
+    real listings wrote "Try T", "Try GitHub" and "Try App Store", anchored on "Search", "Sign in" and a bot
+    check's "Client Challenge", and one row's anchors were not in the stored map (integrity 0%).
+    - The name is decided once (`kindProductName`): what the address names, else the listing's own heading or
+      the title's product part, else a plain noun. The picture reader no longer renames a listed product
+      (`product-map.ts`): the platform's name is what is on the screen.
+    - `productKind.seen` is the product's OWN words on the listing (`listingWords`): a line that carries its
+      name, a sentence of its description, a heading of its README. The platform's furniture
+      (`isPlatformChrome`) and a bot check (`isBotCheck`) are passed over. The first try anchors on those
+      words, then on the name the address gives (`coreAnchors`' `listedAt`); they are kept on the map, so
+      every anchor is in the stored map as well as in the gate's corpus. A bot check is said among the limits.
+    - A product on its own site is untouched: on the 1,120 stored maps (none of them a listing) every name
+      and first-try mission is byte-identical.
+    - `tests/model-zoo/listings.test.ts` holds the six rows, at zero credit and with a healthy model, with the
+      battery's own ruler for the stored map.
 - **The findings hold up with or without a model (22 Nov 2026).** Most reports are built with no model, so the
   grouping itself is code (`src/lib/report/plain.ts`), and a model's grouping passes the same checks:
   - Plain grouping reads each paid answer sentence by sentence. Two people are one problem when their problem

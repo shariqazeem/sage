@@ -230,7 +230,7 @@ interface PlanRow { name: string; url: string; browser: boolean; step3: string; 
 const PLAN_ROWS: PlanRow[] = [
   { name: "a website Sage tried in its browser", url: DROPS, browser: true, step3: "3. Now try to start a drop, starting from “Start a drop”. Go as far as you can.", anchors: 4 },
   { name: "a website read with no browser", url: DROPS, browser: false, step3: "3. Now try to start a drop, starting from “Start a drop”. Go as far as you can.", anchors: 4 },
-  { name: "a Telegram bot (people do the try)", url: BOT, browser: false, step3: "3. Now open @pricewatch_bot in Telegram, press Start, and try to start it and use its main command.", anchors: 3 },
+  { name: "a Telegram bot (people do the try)", url: BOT, browser: false, step3: "3. Now open @pricewatch_bot in Telegram, press Start, and try to start it and use its main command.", anchors: 1 },
 ];
 
 describe("a gated first-try plan exists with no model, for a website and for a kind people try", () => {

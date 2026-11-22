@@ -10,7 +10,7 @@
 import { norm, productMapDigest } from "./schemas";
 import { deriveObservations } from "./observed-facts";
 import { aggregateVisionSignals, visionCategory, type AggregatedVision } from "./vision";
-import { detectProductKind, kindProductName, playbookOf } from "./product-kind";
+import { botCheckSeen, detectProductKind, kindProductName, playbookOf } from "./product-kind";
 import type {
   FieldTestSummary,
   FounderLaunchInput,
@@ -300,9 +300,16 @@ export function buildProductMap(
   // ("Apps on Google Play"), so the product's name is read from the address or the title's own part.
   if (productKind.kind !== "website") {
     map.productKind = productKind;
-    const named = kindProductName(founder.productUrl, observations);
-    if (named) map.productName = named;
   }
+  // THE NAME OF A LISTED PRODUCT IS DECIDED IN ONE PLACE (kindProductName): what the address names, else the
+  // listing's own heading, never the platform's. Once set, the picture reader below does not rename it:
+  // measured live, it turned a Telegram bot into "T", a repository into "GitHub" and a phone app into "App
+  // Store", because the platform's name is what is on the screen. Null for a product on its own site.
+  const listedName = productKind.kind !== "website" ? kindProductName(founder.productUrl, observations, fieldTest) : null;
+  if (listedName) map.productName = listedName;
+  // A bot check is not the product: it is said among the limits, in the page's own words, and never anchored on.
+  const botCheck = productKind.kind !== "website" ? botCheckSeen(founder.productUrl, observations, fieldTest) : null;
+  if (botCheck) map.limitations.push(`The address answered one of Sage's reads with a bot check (“${botCheck}”) instead of the product's page, so Sage read less there than a person would see.`);
   if (fieldTestExplored(fieldTest)) map.fieldTest = fieldTest;
   // P14 — enrich the map's UNDERSTANDING from what a vision model saw in the state screenshots. Applied
   // AFTER the digest, so the canonical digest stays a stable hash of the deterministic static evidence
@@ -310,7 +317,7 @@ export function buildProductMap(
   // Vision only ever runs in interactive mode (states>1), so this only touches thin visual products —
   // exactly the ones static text categorization fails on (yara.garden → "product (uncategorized)").
   if (fieldTest?.visionObservations && fieldTest.visionObservations.length > 0) {
-    applyVisionUnderstanding(map, observations, fieldTest.visionObservations);
+    applyVisionUnderstanding(map, observations, fieldTest.visionObservations, listedName !== null);
   }
   // Eyes V2 — derive the action-grounded observation set deterministically from the field test. Attached
   // AFTER the digest (like fieldTest/vision), so it is digest-neutral + purely additive. A map without a
@@ -343,14 +350,14 @@ function visionNameFrom(landing: ProductObservation | undefined, agg: Aggregated
 }
 
 /** Override category/name + seed audience/value-prop from vision — only for products Sage LOOKED at. */
-function applyVisionUnderstanding(map: ProductMapV1, observations: ProductObservation[], visionObs: VisionObservation[]): void {
+function applyVisionUnderstanding(map: ProductMapV1, observations: ProductObservation[], visionObs: VisionObservation[], nameIsDecided = false): void {
   const agg = aggregateVisionSignals(visionObs);
   const landing = observations[0];
 
   const cat = visionCategory(agg);
   if (cat) map.category = cat;
 
-  const name = visionNameFrom(landing, agg);
+  const name = nameIsDecided ? null : visionNameFrom(landing, agg);
   if (name) map.productName = name;
 
   if (agg.audienceSignals.length > 0 && landing) {

@@ -51,6 +51,14 @@ const ZOO: Record<string, string> = {
   "website-new": "https://getdrops.app/new",
   "legit-dapp": "https://app.riverswap.xyz/",
   "legit-desktop-download": "https://quillnotes.app/download",
+  // the six listings as the live battery met them (tests/model-zoo/listings.test.ts), a bot check among them
+  "listing-telegram": "https://t.me/ledgerlarkbot",
+  "listing-repo": "https://github.com/harborworks/tidewatch",
+  "listing-repo-issues": "https://github.com/harborworks/tidewatch/issues",
+  "listing-bot-check": "https://pypi.org/project/slatecsv/",
+  "listing-app-store": "https://apps.apple.com/us/app/lanternly-night-reader/id1234567891",
+  "listing-extension": "https://chromewebstore.google.com/detail/pagepebble/abcdefghijklmnopabcdefghijklmnoq",
+  "listing-discord": "https://discord.com/invite/kilnclub",
 };
 const HARM: Record<string, { url: string; outcome: "hold" | "refused" }> = {
   "harm-drainer": { url: "https://zkr-portal.xyz/", outcome: "hold" },

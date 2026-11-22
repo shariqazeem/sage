@@ -202,8 +202,9 @@ function seenOn(observations: readonly ProductObservation[]): string[] {
  * stays a "website", which is exactly how Sage treated every product before.
  */
 export function detectProductKind(input: { url: string; observations: readonly ProductObservation[]; fieldTest?: FieldTestSummary | null }): ProductKindRecord {
-  const seen = seenOn(input.observations);
   const fromUrl = kindFromUrl(input.url);
+  // on someone else's platform the page's first headings and buttons are the platform's: read the product's own
+  const seen = fromUrl ? listingWords(input.url, input.observations, input.fieldTest) : seenOn(input.observations);
   if (fromUrl) {
     // A bot's username need not end in "bot" (the oldest ones do not). Telegram's own page says which it is:
     // its title reads "Launch @name" for a bot and "View", "Contact" or "Join" for a channel, a person or a group.
@@ -243,25 +244,211 @@ export function detectProductKind(input: { url: string; observations: readonly P
 
 /** The product's name, when the platform's own page title would be a poor one ("Apps on Google Play"). */
 const PLATFORM_WORDS = /\b(app store|google play|chrome web store|add-ons for firefox|youtube|loom|figma|telegram|npm|pypi|github|gitlab|crates\.io|discord|vimeo|testflight|microsoft edge)\b/i;
-export function kindProductName(url: string, observations: readonly ProductObservation[]): string | null {
+/**
+ * THE NAME OF A PRODUCT LISTED ON SOMEONE ELSE'S PLATFORM, DECIDED IN ONE PLACE (23 Nov 2026).
+ *
+ * Measured on six real listings: the first-try mission said "Try T for the first time" for a Telegram bot,
+ * "Try GitHub" for a repository and "Try App Store" for a phone app. A page title on a platform ends in the
+ * platform's name, and the picture reader then "confirmed" it, because the platform's name is on the screen.
+ * So for a listed product the name is, in order: what the address names (a repository, a package, a Telegram
+ * handle), the listing's own heading, the title's product part, and last a plain noun for the kind. Never the
+ * platform's name, and never the title of a bot check. The map takes it from here and nothing overrides it
+ * (product-map.ts), so the mission, the first look, the findings and the first-users drafts all say the same.
+ * Null for a product on its own site: its name is read as it always was.
+ */
+export function kindProductName(url: string, observations: readonly ProductObservation[], fieldTest?: FieldTestSummary | null): string | null {
   const fromUrl = kindFromUrl(url);
   if (!fromUrl) return null;
   if (fromUrl.name) return fromUrl.name;
   const o = observations[0];
-  const title = (o?.title ?? "").replace(/[\u200e\u200f]/g, "").trim();
-  // the listing's own heading first (a store's h1 is the product's name), then the title's parts
-  const candidates = [o?.headings[0] ?? "", ...title.split(/\s[|–—:·-]\s|\s+on the\s+(?=App Store)/i)]
-    .map((part) =>
-      part
-        .replace(/^(?:join the|watch)\s+/i, "")
-        .replace(/\s+discord server!?$/i, "")
-        .replace(/\s+app$/i, "")
-        .replace(/:\s.*$/, "")
-        .trim(),
-    )
-    .filter((part) => part.length >= 2 && part.length <= 40 && !/[()]/.test(part) && !PLATFORM_WORDS.test(part));
+  const page = entryPage(url, fieldTest);
+  const sources = [
+    { heading: o?.headings[0] ?? "", title: o?.title ?? "" },
+    // the same page as Sage's browser read it: the only read there is when the plain one was refused
+    { heading: page?.h1 ?? "", title: page?.title ?? "" },
+  ].filter((src) => !isBotCheck(src.title) && !isBotCheck(src.heading));
+  for (const src of sources) {
+    const title = src.title.replace(MARKS, "").trim();
+    // the listing's own heading first (a store's h1 is the product's name), then the title's parts
+    const candidates = [src.heading, ...title.split(/\s[|–—:·-]\s|\s+on the\s+(?=App Store)/i)]
+      .map((part) =>
+        part
+          .replace(MARKS, "")
+          .replace(/^(?:join the|watch)\s+/i, "")
+          .replace(/\s+discord server!?$/i, "")
+          .replace(/\s+app$/i, "")
+          .replace(/:\s.*$/, "")
+          .trim(),
+      )
+      .filter((part) => part.length >= 2 && part.length <= 40 && !/[()]/.test(part) && !PLATFORM_WORDS.test(part));
+    if (candidates[0]) return candidates[0];
+  }
   // with nothing usable, a plain noun for the kind: never the platform's name ("Try Loom for the first time")
-  return candidates[0] ?? FALLBACK_NAME[fromUrl.kind] ?? null;
+  return FALLBACK_NAME[fromUrl.kind] ?? null;
+}
+
+/* ─────────────────────────────── a listing's own words, and the platform's furniture ── */
+
+/** the invisible direction marks a store puts in front of a title */
+const MARKS = /[‎‏]/g;
+
+const samePage = (a: string, b: string): boolean => {
+  try {
+    const x = new URL(a);
+    const y = new URL(b);
+    return hostOf(x) === hostOf(y) && x.pathname.replace(/\/+$/, "") === y.pathname.replace(/\/+$/, "");
+  } catch {
+    return false;
+  }
+};
+/** The pasted page as Sage's browser read it: a page read at that address, else the first page of a plain read. */
+function entryPage(url: string, ft: FieldTestSummary | null | undefined): { title?: string | null; h1?: string | null; visibleTextExcerpt?: string } | null {
+  const pages = ft?.pages ?? [];
+  return pages.find((p) => samePage(p.url, url)) ?? ((ft?.states?.length ?? 0) === 0 ? (pages[0] ?? null) : null);
+}
+
+/**
+ * A BOT CHECK IS NOT THE PRODUCT. PyPI answered Sage's read with a page titled "Client Challenge", and the
+ * first-try mission anchored on those two words. These are the titles and first lines such pages carry.
+ */
+const BOT_CHECK =
+  /^(?:client challenge|just a moment\b|attention required\b|access denied\b|security check(?:point)?\b|one more step\b|human verification\b|pardon our interruption\b|robot or human\b|are you (?:a )?(?:robot|human)\b|bot verification\b|verification required\b|checking (?:your browser|if the site connection is secure)\b)|\bverify(?:ing)? (?:that )?you(?:'|’| a)re (?:a )?human\b|\bverify you are (?:a )?human\b|\benable javascript and cookies to continue\b|\bunusual traffic\b|\bcomplete the (?:security check|captcha)\b|\bddos protection by\b|\bjavascript is disabled in your browser\b|\ba required part of this site couldn(?:'|’)t load\b/i;
+export const isBotCheck = (s: string | null | undefined): boolean => BOT_CHECK.test((s ?? "").replace(/\s+/g, " ").trim());
+
+/** The bot check Sage was answered with on a listed product's page, in the page's own words; null when there was none. */
+export function botCheckSeen(url: string, observations: readonly ProductObservation[], fieldTest?: FieldTestSummary | null): string | null {
+  if (!kindFromUrl(url)) return null;
+  const o = observations[0];
+  const page = entryPage(url, fieldTest);
+  const firstLines = (text: string | null | undefined) => (text ?? "").split("\n").slice(0, 3);
+  const heads = [o?.title, ...(o?.headings ?? []).slice(0, 2), page?.title, page?.h1, ...firstLines(page?.visibleTextExcerpt), ...firstLines(fieldTest?.states?.[0]?.visibleTextExcerpt)];
+  const hit = heads.map((h) => (h ?? "").replace(/\s+/g, " ").trim()).find((h) => h && isBotCheck(h));
+  return hit ? hit.slice(0, 60) : null;
+}
+
+/**
+ * THE PLATFORM'S FURNITURE (23 Nov 2026). On the same six listings the first-try anchors were "Search", "Sign
+ * in", "Skip to main content", "View all files", "Today", "Games", "for iPhone", "44,286 Online": words every
+ * listing on that platform carries, so naming one proves nothing about the product. A string is furniture when
+ * it is a skip link, a search box, a sign-in, a cookie or legal line, a store's or a repository host's own
+ * section name, a counter, or a short line that names the platform. This is a list of what is NOT the product,
+ * used only to pass a string over: the words kept are still checked against what Sage read, as ever.
+ */
+const CHROME_EXACT = new Set([
+  // any site
+  "home", "homepage", "menu", "navigation", "navigation menu", "footer", "footer navigation", "features", "pricing", "explore", "discover", "docs", "documentation", "blog", "help", "support", "contact", "about", "status", "more", "share", "report", "settings", "notifications", "language", "languages", "loading", "close", "dismiss", "back", "next", "previous", "cancel", "ok", "warning", "free", "get", "open", "install", "download", "downloads", "preview", "overview", "details", "reviews", "related", "featured", "privacy", "terms", "security", "resources", "information", "version", "updated", "size", "category", "developer", "website",
+  // a repository host
+  "code", "issues", "pull requests", "actions", "projects", "insights", "wiki", "discussions", "releases", "packages", "contributors", "stars", "watchers", "forks", "fork", "star", "watch", "sponsor", "topics", "activity", "readme", "license", "branches", "tags", "name", "history", "latest commit", "last commit message", "last commit date", "folders and files", "repository files navigation", "go to file", "add file", "used by", "deployments", "custom properties", "uh oh!", "provide feedback", "saved searches", "report repository", "code of conduct", "security policy", "contributing", "mit license", "apache-2.0 license", "dismiss alert",
+  // a package registry
+  "project description", "release history", "download files", "verified details", "unverified details", "project links", "meta", "classifiers", "maintainers", "statistics", "latest version", "file details", "source distribution", "built distribution", "built distributions", "copy pip instructions", "newer version available", "sponsors", "donate today!", "switch to mobile version", "supported by", "weekly downloads", "unpacked size", "total files", "last publish", "collaborators", "repository", "dependencies", "dependents", "versions",
+  // an app or extension store
+  "today", "games", "apps", "arcade", "apple", "mac", "screenshots", "what's new", "what’s new", "version history", "ratings and reviews", "ratings & reviews", "app privacy", "seller", "compatibility", "age rating", "copyright", "price", "developer website", "app support", "privacy policy", "you might also like", "more by this developer", "supports", "family sharing", "see details", "offers in-app purchases", "in-app purchases", "data linked to you", "data not linked to you", "data used to track you", "data not collected", "extensions", "themes", "add to chrome", "remove from chrome", "view guide", "item media", "flag concern", "report a concern", "offered by", "non-trader", "trader", "google apps", "about this app", "data safety", "app info", "similar apps",
+  // a chat platform
+  "start bot", "send message", "view in telegram", "preview channel", "open in web", "accept invite", "continue to discord", "open app", "display name", "you've been invited to join", "you’ve been invited to join", "already have an account?", "invite invalid",
+]);
+const CHROME_SHAPE =
+  /^skip to\b|^search\b|\bsearch$|^(?:sign|log) ?(?:in|up|out)\b|^(?:register|create (?:an |a |your )?(?:new |free )?account|join now)\b|\bcookies?\b|^accept\b|^(?:view|see|show|read|learn) (?:all|more)\b|^(?:download|get it|available) (?:for|on)\b|^(?:only )?(?:for|on) (?:iphone|ipad|mac|android|apple (?:watch|tv|vision)|windows|linux)\b|^designed for\b|^requires (?:ios|android|macos)\b|^open (?:in|the) \b|^if you have telegram\b|^don(?:'|’)t have telegram\b|\breload to refresh your session\b|^you (?:signed|switched)\b|^you can(?:'|’)t perform that action\b|^you must be signed in\b|^there was an error while loading\b|^we read every piece of feedback\b|^to see all available qualifiers\b|^use saved searches\b|^the developer(?:,| has| will)|^this is how\b|^please\b|^you(?:(?:'|’)ve| can| need| must| may| are| have| will)\b|\(#\d+\)|^(?:\d+|an?|last) (?:years?|months?|weeks?|days?|hours?|minutes?)(?: ago)?$|^yesterday$|^this developer\b|^privacy practices may vary\b|^some features may not work without javascript\b|^developed and maintained by the python\b|^help us power\b|^view statistics for this project\b|^these details have\b|^uploaded (?:via|using)\b|^by (?:registering|continuing|clicking|signing)\b|\bagree to (?:the |our )?.{0,40}(?:terms|privacy)\b|^switch to chrome\b|^google doesn(?:'|’)t verify\b|^learn more about results and reviews\b|^you need to enable javascript\b|^\{\{|^#\d+ in\b|^\d+(?:\.\d+)? out of 5\b|^released:?\s/i;
+const COUNTER = /^[\d.,\s+kmb]+(?:online|members?|subscribers?|users?|monthly users|ratings?|reviews?|stars?|forks?|downloads?|watching|followers?|commits?|branches|tags|contributors?|releases?)\b/i;
+
+export function isPlatformChrome(raw: string | null | undefined): boolean {
+  const s = (raw ?? "").replace(MARKS, "").replace(/\s+/g, " ").trim();
+  if (!s || !/\p{L}{2,}/u.test(s)) return true;
+  const low = s.toLowerCase().replace(/[:.…]+$/, "");
+  if (CHROME_EXACT.has(low) || CHROME_SHAPE.test(s) || COUNTER.test(s) || isBotCheck(s)) return true;
+  // a short line that names the platform is the platform's ("Search PyPI", "Issues · owner/name · GitHub")
+  return PLATFORM_WORDS.test(s) && s.split(" ").length <= 12;
+}
+
+/** The words of an address that name the product: its name, a handle without its "@", a repository's owner/name. */
+export function addressNames(url: string): string[] {
+  const fromUrl = kindFromUrl(url);
+  if (!fromUrl?.name) return [];
+  const out = [fromUrl.name];
+  if (fromUrl.name.startsWith("@")) out.push(fromUrl.name.slice(1));
+  try {
+    if (fromUrl.kind === "code_repo") out.push(segs(new URL(url)).slice(0, 2).join("/"));
+  } catch {
+    /* the name stands */
+  }
+  return out;
+}
+
+const LISTING_WORDS_MAX = 6;
+const CITE_MAX = 90;
+/** A paragraph as something short enough to cite: its first sentence, else its first words. Always its own text. */
+function citable(raw: string): string {
+  const s = raw.replace(/\s+/g, " ").trim();
+  if (s.length <= CITE_MAX) return s;
+  const sentence = /^.{12,88}?[.!?](?=\s)/.exec(s)?.[0];
+  if (sentence) return sentence;
+  const cut = s.slice(0, CITE_MAX - 2);
+  return cut.slice(0, Math.max(cut.lastIndexOf(" "), 40)).trim();
+}
+/** `needle` stands in `hay` as a word of its own (both lowercase). */
+function wordIn(hay: string, needle: string): boolean {
+  const letter = /[\p{L}\p{N}]/u;
+  for (let at = hay.indexOf(needle); at >= 0; at = hay.indexOf(needle, at + 1)) {
+    if (!letter.test(hay[at - 1] ?? " ") && !letter.test(hay[at + needle.length] ?? " ")) return true;
+  }
+  return false;
+}
+
+/**
+ * THE PRODUCT'S OWN WORDS ON ITS LISTING (23 Nov 2026): what the first-try mission anchors on, and what the
+ * core-place question is shown, for a product listed on someone else's platform. Verbatim text from the page
+ * Sage read, in this order:
+ *   1. a heading or line that carries the product's name (a README's title, the store's heading, the handle);
+ *   2. a sentence of its description (a paragraph of the listing, a line of five words or more on the screen);
+ *   3. a heading of its own (a README's "Quickstart").
+ * Never the platform's furniture, and nothing from a page that was a bot check. They are kept on the map
+ * (`productKind.seen`), so an anchor taken from them is in the stored map, where the battery and anyone
+ * checking a plan later can find it. With nothing left the list is empty, and the mission anchors on the
+ * product's name as the address gives it (core-mission.ts).
+ */
+export function listingWords(url: string, observations: readonly ProductObservation[], fieldTest?: FieldTestSummary | null): string[] {
+  const o = observations[0] && !isBotCheck(observations[0].title) && !isBotCheck(observations[0].headings[0]) ? observations[0] : null;
+  const entry = entryPage(url, fieldTest);
+  const page = entry && !isBotCheck(entry.title) && !isBotCheck(entry.h1) ? entry : null;
+  const lines = [page?.visibleTextExcerpt, fieldTest?.states?.[0]?.visibleTextExcerpt]
+    .map((text) => (text ?? "").split("\n").map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean))
+    .filter((screen) => !screen.slice(0, 3).some(isBotCheck))
+    .flatMap((screen) => screen.slice(0, 400));
+
+  const name = (kindProductName(url, observations, fieldTest) ?? "").replace(/^@/, "").toLowerCase();
+  const usable = name.length >= 3 && !Object.values(FALLBACK_NAME).includes(name);
+  const firstWord = name.split(/[^\p{L}\p{N}_]+/u).find((w) => w.length >= 4) ?? "";
+  const named = (s: string): boolean => usable && (wordIn(s.toLowerCase(), name) || (!!firstWord && wordIn(s.toLowerCase(), firstWord)));
+  const prose = (s: string): boolean => s.split(" ").length >= 5 && s.length >= 25;
+
+  const headings = [...(o?.headings ?? []), page?.h1 ?? ""];
+  const paragraphs = [...(o?.snippets ?? []), ...(o?.claims ?? [])];
+  const tiers: [string[], string[], string[]] = [[], [], []];
+  const put = (tier: 0 | 1 | 2, raw: string) => {
+    const s = citable(raw);
+    if (s.length < 3 || s.length > CITE_MAX || isPlatformChrome(raw) || isPlatformChrome(s)) return;
+    if (tiers.some((t) => t.some((x) => x.toLowerCase() === s.toLowerCase()))) return;
+    tiers[tier].push(s);
+  };
+  for (const h of headings) if (named(h)) put(0, h);
+  for (const l of lines) if (named(l) && !prose(l)) put(0, l);
+  // of its description, a sentence that says the product's name first: on a repository's screen the lines
+  // before the README are the file list's
+  for (const p of paragraphs) if (named(p)) put(1, p);
+  for (const l of lines) if (prose(l) && named(l)) put(1, l);
+  for (const p of paragraphs) put(1, p);
+  for (const l of lines) if (prose(l)) put(1, l);
+  for (const h of headings) put(2, h);
+  // one or two that carry the name, then its description, then the rest
+  const own = [...tiers[0].slice(0, 2), ...tiers[1].slice(0, 3), ...tiers[0].slice(2), ...tiers[1].slice(3), ...tiers[2]].slice(0, LISTING_WORDS_MAX);
+  if (own.length > 0) return own;
+  // A page that shows nothing until its scripts run gave only its title. The product's part of it is its name
+  // (an address-given name is added where the anchors are chosen); past that, what was read stands, least
+  // furnished first, so a plan is never lost for want of an anchor.
+  const fromPage = kindFromUrl(url)?.name ? null : kindProductName(url, observations, fieldTest);
+  if (fromPage && usable && !isPlatformChrome(fromPage)) return [fromPage];
+  const read = seenOn(observations).filter((s) => !isBotCheck(s));
+  const plain = read.filter((s) => !isPlatformChrome(s));
+  return plain.length > 0 ? plain : read;
 }
 /** A plain noun for a product of this kind, for when its own name cannot be used in a mission. */
 export const kindFallbackName = (kind: ProductKind): string => FALLBACK_NAME[kind] ?? "this product";

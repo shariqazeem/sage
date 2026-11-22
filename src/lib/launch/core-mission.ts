@@ -2,7 +2,7 @@ import { detectInjection } from "@/lib/deputy/brain-core";
 import { CORE_MISSION_KEY } from "@/lib/core-test/shape";
 import type { CandidateMission, FieldTestSummary, MissionPriority, MissionValidationReport, ProductMapV1, SourceRef } from "./schemas";
 import { anchorIssues, classifyVerifiability, validatePlanMissions, type ValidationScope } from "./validate-mission";
-import { kindFallbackName, kindOfMap, kindProofIssue, playbookOf, type ProductKind } from "./product-kind";
+import { addressNames, isBotCheck, isPlatformChrome, kindFallbackName, kindFromUrl, kindOfMap, kindProofIssue, playbookOf, type ProductKind } from "./product-kind";
 
 /**
  * THE CORE MISSION: the three things every builder needs to know, on every test (21 Nov 2026).
@@ -396,7 +396,28 @@ export function coreHintLadder(model: CoreHint | null, accepted: readonly Accept
 }
 
 /** Two to four verbatim things Sage observed on the way in: where it starts, and the first screen's own words. */
-export function coreAnchors(map: Pick<ProductMapV1, "fieldTest" | "productKind">, corpus: string, startsAt: string | null, screen?: FirstScreen | null): string[] {
+export function coreAnchors(map: Pick<ProductMapV1, "fieldTest" | "productKind">, corpus: string, startsAt: string | null, screen?: FirstScreen | null, listedAt?: string | null): string[] {
+  // A PRODUCT LISTED ON SOMEONE ELSE'S PLATFORM (23 Nov 2026) anchors on its own words there, which the kind
+  // record keeps on the map (`listingWords`), then on its name as the address gives it. Never on the platform's
+  // search box, sign-in or navigation, and never on a bot check: those are on every listing, so naming one
+  // says nothing about this product. Only when the page gave nothing of its own does the old pool stand in,
+  // without the furniture where anything else is left.
+  if (listedAt) {
+    const own: string[] = [];
+    const take = (raw: string, min: number) => {
+      const a = squash(raw);
+      if (own.length >= 4 || a.length < min || a.length > 90 || own.some((x) => x.toLowerCase() === a.toLowerCase())) return;
+      if (!isPlatformChrome(a) && observed(a, corpus)) own.push(a);
+    };
+    // (not the starting control: on a listing that is the platform's own button, whatever it is called)
+    for (const s of map.productKind?.seen ?? []) take(s, 3);
+    // (the name once: "@handle" already taken makes "handle" nothing new)
+    for (const s of addressNames(listedAt)) if (!own.some((x) => x.toLowerCase().includes(s.toLowerCase()))) take(s, 3);
+    if (own.length > 0) return own;
+    const old = coreAnchors(map, corpus, startsAt, screen, null).filter((a) => !isBotCheck(a));
+    const plain = old.filter((a) => !isPlatformChrome(a));
+    return plain.length > 0 ? plain : old;
+  }
   const ft = map.fieldTest;
   const page = ft?.pages?.[0];
   const first = ft?.states?.[0];
@@ -594,9 +615,13 @@ export function addCoreMission(input: {
   // ...and where the mission stands alone because no model answered: it is then the whole plan for a website too.
   const screen = input.firstScreen ? { ...input.firstScreen, productName: input.firstScreen.productName ?? map.productName } : null;
   const names = playbookOf(kind).firstTry || screen ? [map.productName, kindFallbackName(kind)] : [map.productName];
+  // listed on someone else's platform: the address says so (a product on its own site is untouched)
+  const listedAt = kind !== "website" && kindFromUrl(input.productUrl) ? input.productUrl : null;
   for (const productName of names) {
-    for (const hint of coreHintLadder(input.modelHint, accepted, map, corpus, kind, screen)) {
-      const mission = buildCoreMission(hint, { productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt, screen), sources }, (input.decision ?? DEFAULT_CORE_DECISION).rank, kind);
+    for (const found of coreHintLadder(input.modelHint, accepted, map, corpus, kind, screen)) {
+      // a tester is never told to start from the platform's own button ("starting from “Sign in”")
+      const hint = listedAt && found.startsAt && isPlatformChrome(found.startsAt) ? { ...found, startsAt: null } : found;
+      const mission = buildCoreMission(hint, { productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt, screen, listedAt), sources }, (input.decision ?? DEFAULT_CORE_DECISION).rank, kind);
       const reports = validatePlanMissions([...accepted, mission], scope, corpus, map.observations);
       const report = reports[reports.length - 1]!;
       // the kind's own rule too: the first try is the tester's account, never a page-and-quote check
