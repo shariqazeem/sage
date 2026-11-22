@@ -450,6 +450,31 @@ if you must touch them, that suite must stay green.
     picture come last, and a request that fails on several pages is one line.
   - `src/lib/report/plain.fixtures.ts` holds the answer sets it is measured on (`FINDINGS_TABLE=1 npx vitest run
     src/lib/report/plain.test.ts` prints before and after).
+- **Sage pays alone only for an answer that shows a try (22 Nov 2026).** The matcher and the bar are unchanged
+  (counting only non-public words in the matcher was measured on 12 Aug: honest 8 of 8 fell to 2 of 8). Beside
+  them, `src/lib/deputy/real-try.ts` asks three things with no model. Each can only turn a payout into a hold
+  for the builder: it never rejects an answer and never refuses a mission.
+  - **The mission** (`missionTryReadiness`): the mission card is sent in as an answer through the real bar. If
+    it clears, or fewer than three places behind the first screen hold something only a try reveals, the
+    mission is not autonomous. Both numbers are the bar's own. The plan records it per mission
+    (`corpusReadiness.missions`, `job.ts`) and the builder reads one calm line before paying (`RELEASE_LINE`,
+    `release-line.tsx`). The payout pipeline runs the same function on the pinned key.
+  - **The answer's proof** (`tryEvidence`): places behind the first screen named in words that are on neither
+    the card nor the first screen (`page:0`, `state:0`). Two places prove a try (`TRY_PROVEN_SOURCES`), and such
+    an answer is paid even on a mission that is not autonomous: an honest first-try answer that names the
+    screens it reached is never held for being "public".
+  - **The parrot** (`realTrySignals`, `escalateNoTry`): three MEDIUM signals, each honest alone, combined like
+    `sybil-escalation.ts`. An answer that names nothing behind the first screen AND is mostly the card's and the
+    first screen's words (`PARROT_PUBLIC_SHARE`) or passed on fewer than three direct matches becomes one HIGH
+    signal: a hold with the reason written out (`no_sign_of_a_try`; `public_overlap` for the mission's own).
+  - An honest tester who never got past the first screen is held too: Sage cannot tell that answer from reading
+    the page, so the builder reads it and releases it.
+  - A passing answer held this way is the builder's call in triage (`held-triage.ts`), never "only because
+    auto-pay is off". The calibration record keeps counts, a share and signal names (`shadow.realTry`).
+  - `src/lib/deputy/real-try.measure.test.ts` is the offline measure (`REAL_TRY_TABLE=1` prints it): every voice
+    on four fixture missions, with a silent model and with one willing to bridge anything. Junk is never paid;
+    an honest answer is paid or held. What only `LIVE_JUDGE_EVAL=1` can say (the real key, the real model) is
+    printed by `tests/live/judge-acceptance.live.test.ts`, which now asserts on what is PAID, not on the bar.
 - **The account pays its own network fee (24 Oct 2026).** No door sends an account gas unless `OPERATOR_COVERS_GAS=1`;
   short of it, the door names the amount and the way to get it, and moves nothing.
 - **An agent key is its owner, and never lifts a limit.** A workspace key acts as the owner who minted it, with only
