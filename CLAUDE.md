@@ -418,7 +418,8 @@ if you must touch them, that suite must stay green.
   - The first-try mission has fixed words per kind (`KIND_PLAYBOOK`): the tester reads what Sage read, then
     tries the product where it lives. Where people do the try and Sage cannot (`peopleDoTheTry`), that mission
     may be the whole plan: a thin listing, an architect with nothing to design or a provider that is down still
-    ends in one gated mission, never in a question about a store page.
+    ends in one gated mission, never in a question about a store page. (With no model at all, a website does
+    too: see "Sage works with no model at all".)
   - `kindProofIssue` refuses a proof Sage cannot read for that kind: a chat link, a transaction's hash on a dapp,
     a handed-over key, and on a listing any page-and-quote mission (quoting a listing pays for reading it).
   - One line says what Sage could and could not try (`honesty`): first among the map's limits, in the first
@@ -475,6 +476,40 @@ if you must touch them, that suite must stay green.
     on four fixture missions, with a silent model and with one willing to bridge anything. Junk is never paid;
     an honest answer is paid or held. What only `LIVE_JUDGE_EVAL=1` can say (the real key, the real model) is
     printed by `tests/live/judge-acceptance.live.test.ts`, which now asserts on what is PAID, not on the bar.
+- **Sage works with no model at all (22 Nov 2026).** "Never fails on any model" includes none: an empty account,
+  a spent key, every provider broken, a model that only thinks, the day's budget reached, or no model configured.
+  The words every surface uses are in `src/lib/launch/no-model.ts` (no imports, so a client component may read it).
+  - **The plan.** When design ends with no plan because NO MODEL ANSWERED (`NO_MODEL_REASONS`), a website gets the
+    first-try mission alone, as the kinds people try already did (`firstTryAlone`, `mission-brain.ts`). Never when a
+    model answered and the gate refused its missions, or answered in a shape nobody could read: those are answers,
+    and the builder is asked as before.
+  - **The main action** is then read from the product's own words, with two rungs on the ladder that need no model
+    (`core-mission.ts`): the first call to action whose label is something a person does (`primaryCallToAction`;
+    "Get started" and "Pricing" name no action), then the heading's verb (`headingAction`; a slogan is passed
+    over), then the kind's default. The rungs are on only where no model answered (`firstScreen`). The mission
+    faces the same gate, and every anchor is text Sage read.
+  - **The mark.** The plan is recorded under `NO_MODEL_PLAN` (its `modelVersion`), carried through approval
+    (`DeploymentReadyPlan.withoutModel`), and read wherever the plan travels (`planWithoutModel`).
+  - **The builder releases each payment, and is told so.** A plan written with no model starts as `autonomy:
+    "manual"` at every door that records a test (`defaultAutonomyFor(visibility, plan)`; the attach route no
+    longer lets the deploy step's default override it). That is what makes the line true: with no model the
+    judge is the heuristic that never pays, but the deterministic matcher on an observation mission still can
+    (measured in the zoo: on an autopilot test it pays an answer in the product's exact words with no model).
+    One line says it on the plan's page (`JobView.withoutModel`) and on the test's page (`LiveView.withoutModel`:
+    the builder's sentence for the owner, the tester's for everyone else, shown while the test is still manual).
+    The tester's steps are unchanged; their ticket reads "Waiting for the builder to read the answer".
+  - **A test Sage pays alone, when the model goes away** (`judgeAway`, `deputy/pipeline.ts`). A substantive answer
+    the matcher did not clear needs the model judge. When it cannot be asked (`ObservationJudgeResult.unavailable`)
+    the answer is a final hold for the builder, never "refine your answer, attempt 1 of 3"; the zeros are not kept
+    as the attempt's verdict, so the sweep asks again and the answer is judged when the model is back. Three
+    readers mirror the one flag on the shadow: the pipeline, the tester's status route (no retry offered) and the
+    builder's triage (it never leans "no" on an exact-wording count). Subtractive: it can only hold.
+  - **The chat.** With no model the concierge replies with the plain reason and the way to the web
+    (`src/lib/telegram/no-model-reply.ts`): on any failed turn, and to a plain Telegram message when no key is
+    configured (it used to get silence).
+  - Already model-free and unchanged: Sage's first look, the findings, the first-users drafts.
+  - `tests/model-zoo/zero-credit.test.ts` walks the whole path offline in each mode (paste, plan, approve, pay,
+    the test's page, answers, the hold, the release, findings, first users), for a website and a Telegram bot.
 - **The account pays its own network fee (24 Oct 2026).** No door sends an account gas unless `OPERATOR_COVERS_GAS=1`;
   short of it, the door names the amount and the way to get it, and moves nothing.
 - **An agent key is its owner, and never lifts a limit.** A workspace key acts as the owner who minted it, with only
@@ -671,7 +706,7 @@ products sat at "generating_missions" for 1,500 s. Now:
 - `tests/model-zoo/` is the offline battery: a fake provider with each measured behaviour, every lane run
   against each on the fake clock (valid result or the plain version, a wall-clock budget, bounded calls, the
   money rules). Run it after any change to the wire, a ladder or a profile: `npx vitest run tests/model-zoo`
-  (`ZOO_TABLE=1` prints the grid).
+  (`ZOO_TABLE=1` prints the grid). `zero-credit.test.ts` beside it is the whole product with no model (section 4).
 Before it existed, only PAYOUT and CONCIERGE could pick a provider — every other lane
 could override the model NAME but not the key, so it was pinned to whatever the shared
 chain pointed at.
