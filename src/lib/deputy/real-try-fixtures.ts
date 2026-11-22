@@ -8,7 +8,7 @@
  *   - frameworks: a RECONSTRUCTION of the 12 Aug 2026 mission that leaked. The production key is not in
  *     the repo, so this one is written to have the same shape: criteria that quote the product's own
  *     words, a public landing page and documentation that repeat them. Its voices are the live eval's
- *     own 8 honest and 4 junk accounts (`tests/live/judge-acceptance-accounts.ts`).
+ *     own 8 honest and 4 junk accounts (`src/lib/deputy/judge-acceptance-accounts.ts`).
  *   - core: round 2's first-try mission, built by the real `buildCoreMission` on an interactive product
  *     whose header repeats on later screens (as real products' do).
  *
@@ -19,7 +19,7 @@
 import type { FieldTestSummary } from "@/lib/launch/schemas";
 import { composeCoreAccount } from "@/lib/core-test/shape";
 import { buildCoreMission } from "@/lib/launch/core-mission";
-import { JUNK, LEGIT } from "../../../tests/live/judge-acceptance-accounts";
+import { JUNK, LEGIT } from "./judge-acceptance-accounts";
 import {
   excalidrawFieldTest,
   excalidrawPublicStrings,

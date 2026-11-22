@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { distillPrivateKey, deriveCriterionEvidence, type PrivateKey } from "@/lib/deputy/observation-verify";
 import { runObservationDecision } from "@/lib/deputy/observation-judge";
 import { judgeRealTry } from "@/lib/deputy/real-try";
-import { JUNK, LEGIT } from "./judge-acceptance-accounts";
+import { JUNK, LEGIT } from "@/lib/deputy/judge-acceptance-accounts";
 
 /**
  * LIVE JUDGE-ACCEPTANCE EVAL — the founder's exact fear, measured: "will it reject legit evidence?"

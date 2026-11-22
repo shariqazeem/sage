@@ -30,6 +30,18 @@ function walkFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/** Every test file under `dir` (walkFiles leaves them out: the browser never runs them, the build still checks them). */
+function walkTests(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) {
+      if (name === "node_modules" || name.startsWith(".")) continue;
+      walkTests(p, out);
+    } else if (/\.(test|spec)\.(tsx?|jsx?)$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
 /** The value imports and re-exports of a module (type-only ones are left out: they are erased). */
 export function valueImports(code: string): string[] {
   const out: string[] = [];
@@ -79,6 +91,20 @@ export function serverChain(start: string): string[] | null {
 }
 
 const rel = (p: string) => (p.startsWith("/") ? relative(ROOT, p) : p);
+
+describe("what production builds", () => {
+  /**
+   * `tests/` is not deployed (scripts/deploy-diff.sh), but production's type-check covers every file under src/,
+   * test files included. A fixture under src/ that imported from tests/ built on a staging copy (git archive
+   * carries tests/) and failed the production build (23 Nov 2026, the live server untouched). Nothing under src/
+   * may import from tests/.
+   */
+  it("no file under src/ imports from tests/", () => {
+    const reach = /(?:^|\n)\s*(?:import|export)[^;]*?from\s*["'](?:\.\.\/)+tests\/|from\s*["']@\/\.\.\/tests\//;
+    const offenders = walkFiles(SRC, []).concat(walkTests(SRC)).filter((f) => reach.test(readFileSync(f, "utf8"))).map(rel);
+    expect(offenders).toEqual([]);
+  });
+});
 
 describe("the client boundary", () => {
   it("the walker sees a real server chain (so a pass below means something)", () => {
