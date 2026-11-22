@@ -361,7 +361,7 @@ export async function POST(
         rewardBase: BigInt(m.rewardBase),
         maxCompletions: BigInt(m.maxCompletions),
       })),
-      autonomy: defaultAutonomyFor(plan.plan.visibility),
+      autonomy: defaultAutonomyFor(plan.plan.visibility, plan.plan),
       visibility: plan.plan.visibility,
       privateCorpus: privateKey.observations,
       privateCorpusDigest: privateKey.digest,

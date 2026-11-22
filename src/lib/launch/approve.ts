@@ -12,6 +12,7 @@ import "server-only";
 import type { Hex } from "viem";
 import { compilePlan } from "./plan";
 import type { BudgetAllocation, CandidateMission, CompiledMission, MissionPlanV1 } from "./schemas";
+import { planWithoutModel } from "./no-model";
 
 export const APPROVAL_SCHEMA_VERSION = 1 as const;
 
@@ -44,6 +45,11 @@ export interface DeploymentReadyPlan {
   visibility?: "listed" | "unlisted";
   /** The founder's currency and stamped rate. Carried, never recomputed — a rate is not a hash. */
   denomination?: { currency: string; rate: number; source: string; asOf: number; localTotal: number | null };
+  /**
+   * The plan was written with no model (no-model.ts): present and true only then. Carried so the door that
+   * records the test starts it with the builder releasing each payment, as the plan's page told them.
+   */
+  withoutModel?: true;
 }
 
 function toCandidate(m: CompiledMission): CandidateMission {
@@ -128,6 +134,7 @@ export function verifyPlanForApproval(
     ...(plan.allowlist && plan.allowlist.length > 0 ? { allowlist: plan.allowlist } : {}),
     ...(plan.visibility ? { visibility: plan.visibility } : {}),
     ...(plan.denomination ? { denomination: plan.denomination } : {}),
+    ...(planWithoutModel(plan) ? { withoutModel: true as const } : {}),
   };
   const approvalRecord = {
     schemaVersion: APPROVAL_SCHEMA_VERSION,

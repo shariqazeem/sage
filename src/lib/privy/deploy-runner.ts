@@ -269,7 +269,7 @@ export function campaignSetupInput(owner: Address, loaded: LoadedPlan, jobId: st
     factoryAddress: getAddress(settings.factory),
     vaultAddress: vault,
     missions,
-    autonomy: defaultAutonomyFor(loaded.plan.visibility),
+    autonomy: defaultAutonomyFor(loaded.plan.visibility, loaded.plan),
     // WORK PROOF parity with the web attach — kind + allowlist + visibility ride the approved plan.
     // Without these a Telegram-launched gig recorded kind "testing", and an invite-only campaign
     // deployed OPEN to everyone (which, for visibility, it did until 2026-09-04).

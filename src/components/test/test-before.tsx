@@ -338,6 +338,11 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
                   </div>
                 ) : null}
                 {job.purpose ? <PurposeLine purpose={job.purpose} /> : null}
+                {job.withoutModel ? (
+                  <div className="sg-t-notice">
+                    <p>{job.withoutModel.line}</p>
+                  </div>
+                ) : null}
                 <div className="sg-t-missions">
                   {plan!.missions.map((m, i) => (
                     <MissionItem
@@ -356,7 +361,8 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
                     />
                   ))}
                 </div>
-                {mine ? <ReleaseLine items={missionsToRelease(job.corpusReadiness, plan!.missions)} /> : null}
+                {/* with no model every answer is the builder's to release, and the line above already says so */}
+                {mine && !job.withoutModel ? <ReleaseLine items={missionsToRelease(job.corpusReadiness, plan!.missions)} /> : null}
               </div>
             ) : null}
           </Stage>

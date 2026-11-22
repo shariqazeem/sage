@@ -301,6 +301,7 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
               handle="Your answer"
               words
               state={state}
+              byBuilder={!!view.withoutModel}
               amount={each}
               land={land}
               href={state === "paid" && mine.payoutTx ? `/proof/${mine.payoutTx}` : undefined}
@@ -309,7 +310,11 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
             />
           </div>
           {state === "answered" || (state === "checking" && mine.autopay?.state !== "held") ? (
-            <p role="status">Sage is checking your answer against what it saw when it tried the product itself. This page updates by itself; you can leave and come back.</p>
+            <p role="status">
+              {view.withoutModel
+                ? `${view.withoutModel.line} This page updates by itself; you can leave and come back.`
+                : "Sage is checking your answer against what it saw when it tried the product itself. This page updates by itself; you can leave and come back."}
+            </p>
           ) : null}
           {state === "checking" && mine.autopay?.state === "held" && mine.retry ? <p>{mine.retry.coaching}</p> : null}
           {state === "not-paid" && mine.retry && !canRevise ? <p>{mine.retry.attemptsLeft > 0 ? mine.retry.coaching : "There are no tries left on this mission."}</p> : null}

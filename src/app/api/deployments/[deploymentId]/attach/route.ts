@@ -46,7 +46,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ deployment
   const access = loadDeploymentForSession(deploymentId, session);
   if (!access.ok) return NextResponse.json({ ok: false, error: access.error }, { status: access.status });
   const { deployment, loaded, settings, tokenDecimals } = access.ctx;
-  const autonomy: "manual" | "autopilot" = chosen ?? defaultAutonomyFor(loaded.plan.visibility);
+  // ...except on a plan written with no model: the builder was told they release each payment, so it starts
+  // that way whatever the deploy step sent (its toggle defaults to autopilot). They can change it afterwards.
+  const planDefault = defaultAutonomyFor(loaded.plan.visibility, loaded.plan);
+  const autonomy: "manual" | "autopilot" = planDefault === "manual" ? "manual" : (chosen ?? planDefault);
 
   if (!deployment.deployedVault) {
     return NextResponse.json({ ok: false, error: "The vault is not deployed yet." }, { status: 409 });

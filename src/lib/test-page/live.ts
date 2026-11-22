@@ -5,6 +5,8 @@ import path from "node:path";
 import type { Campaign, Submission } from "@/lib/db/schema";
 import { getDecisionBySubmission, listCampaignEvents, listSubmissions } from "@/lib/db/campaigns";
 import { getInspectionJobByCampaign } from "@/lib/db/inspection";
+import { getApprovedRevision, getCurrentRevision } from "@/lib/db/plan-revisions";
+import { NO_MODEL_BUILDER_LINE, NO_MODEL_TESTER_LINE, planWithoutModel } from "@/lib/launch/no-model";
 import { sameFounder } from "@/lib/auth/founder";
 import { campaignAutopays } from "@/lib/campaigns/autopay-status";
 import { listHeldSubmissions, ownsCampaign } from "@/lib/campaigns/review-actions";
@@ -118,6 +120,12 @@ export interface LiveView {
    * anyone may (never a look taken with the builder's own test account).
    */
   firstLook: FirstLookView | null;
+  /**
+   * THE BUILDER CHECKS THIS TEST'S ANSWERS (no-model.ts). Sage wrote the plan with no model, and the test
+   * still has the builder releasing each payment (they have not handed payouts back to Sage). `line` is the
+   * builder's sentence for the owner and the tester's for everyone else. Null on every other test.
+   */
+  withoutModel: { line: string } | null;
   /** the findings, when this visitor may read them */
   findings: Omit<FindingsView, "rebuilding"> | null;
   owner: LiveOwner | null;
@@ -214,6 +222,9 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   const mayRead = owner || (sharing.findingsPublic && phase === "done" && !reopened);
   const lookJob = getInspectionJobByCampaign(campaign.id);
   const findings = mayRead ? findingsView(campaign, owner ? "owner" : "public", sharing.findingsPublic) : null;
+  // the plan this test was paid for, read from its own record (the approved revision)
+  const paidPlan = lookJob ? (getApprovedRevision(lookJob.id) ?? getCurrentRevision(lookJob.id))?.planJson : null;
+  const builderChecks = campaign.autonomy === "manual" && planWithoutModel(paidPlan as { modelVersion?: unknown } | null | undefined);
 
   let ownerView: LiveOwner | null = null;
   if (owner && viewer) {
@@ -271,6 +282,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
     cautions: campaign.kind === "testing" ? testerCautions(lookJob ? kindOfMap((lookJob.result as { map?: { productKind?: unknown } } | null)?.map) : null) : [],
     sageReads: lookJob ? sageReadsOnly((lookJob.result as { map?: { productKind?: unknown } } | null)?.map ?? null, lookJob.productUrl) : null,
     firstLook: lookJob && (owner || (phase === "done" && !reopened && sharing.findingsPublic && !lookJob.testAccountSealed)) ? firstLookView(lookJob) : null,
+    withoutModel: builderChecks ? { line: owner ? NO_MODEL_BUILDER_LINE : NO_MODEL_TESTER_LINE } : null,
     findings,
     owner: ownerView,
     shareUrl: testUrl(campaign.id),

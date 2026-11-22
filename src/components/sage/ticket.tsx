@@ -33,9 +33,11 @@ export interface TicketProps {
   href?: string;
   /** true only on the render where this ticket becomes paid */
   land?: boolean;
+  /** the builder, not Sage, reads this test's answers (a test Sage designed with no model): said on a waiting ticket */
+  byBuilder?: boolean;
 }
 
-export function Ticket({ handle, words, state, amount, reason, meta, href, land }: TicketProps) {
+export function Ticket({ handle, words, state, amount, reason, meta, href, land, byBuilder }: TicketProps) {
   const inner = (
     <>
       <span className="sg-ticket-body">
@@ -48,6 +50,10 @@ export function Ticket({ handle, words, state, amount, reason, meta, href, land 
               <b>Not paid</b>
               {reason ? `: ${reason}` : ""}
             </>
+          ) : byBuilder && state === "checking" ? (
+            "Waiting for the builder to read the answer"
+          ) : byBuilder && state === "paid" ? (
+            "Read by the builder and paid"
           ) : (
             STATE_WORDS[state]
           )}

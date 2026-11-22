@@ -61,6 +61,8 @@ export interface JobView {
   /** what the product safety screen found, when it found anything (the server's `JobView.safety`): one calm line */
   safety?: { outcome: "hold" | "refused"; line: string } | null;
   /** P23 — whether this plan's corpus supports autonomous payouts (shown before the founder funds). */
+  /** the plan was written with no model: the server's one line saying so, and that the builder releases each payment */
+  withoutModel?: { line: string } | null;
   corpusReadiness: { observation: boolean; sources: number; autonomous: boolean; missions?: { missionKey: string; autonomous: boolean; cardClears: boolean; tryOnlySources: number; line: string | null }[] } | null;
   revision: number;
   approval: { approvedAt: number; revision: number; campaignIdHash: string; missionPlanDigest: string } | null;

@@ -32,6 +32,7 @@ function withServerMailbox(acct: TestAccount | null): TestAccount | null {
 }
 import { distillPrivateKey, OBS_BAR } from "@/lib/deputy/observation-verify";
 import { RELEASE_LINE, missionTryReadiness } from "@/lib/deputy/real-try";
+import { NO_MODEL_BUILDER_LINE, planWithoutModel } from "./no-model";
 import type { ValidationScope } from "./validate-mission";
 import type { FieldTestSummary, FounderLaunchInput, MissionPlanV1, ProductMapV1 } from "./schemas";
 import type { InspectionJob, InspectionStatus } from "@/lib/db/schema";
@@ -518,6 +519,12 @@ export interface JobView {
    * only until a person at Sage has looked) or `refused` (no test). One calm line for the builder.
    */
   safety: { outcome: "hold" | "refused"; line: string } | null;
+  /**
+   * The current plan was written with no model (no-model.ts): the one line that says so, and that the builder
+   * therefore releases each payment. Read from the plan's own record, so it follows the plan through an edit
+   * and goes when a model rewrites it. Null on every other plan.
+   */
+  withoutModel: { line: string } | null;
   /** the CURRENT revision's plan snapshot (serialized), or null. */
   plan: unknown;
   /** P23 — whether this plan's corpus supports autonomous payouts (founder learns before funding). */
@@ -592,6 +599,7 @@ export function jobToView(job: InspectionJob): JobView {
       : null,
     purpose: purposeOf(res),
     safety: safetyLineFor(job),
+    withoutModel: planWithoutModel((current ? current.planJson : ((res as { plan?: unknown } | null)?.plan ?? null)) as { modelVersion?: unknown } | null) ? { line: NO_MODEL_BUILDER_LINE } : null,
     plan: current ? current.planJson : ((res as { plan?: unknown } | null)?.plan ?? null),
     corpusReadiness: computeCorpusReadiness(
       (res?.map ?? null) as ProductMapV1 | null,

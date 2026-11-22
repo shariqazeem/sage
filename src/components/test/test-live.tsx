@@ -88,8 +88,12 @@ export function TestLive({ initial }: { initial: LiveView }) {
               ? `Each answer was checked against what Sage saw itself, and paid on ${view.network} with a receipt.`
               : "Nobody was paid on this test."
             : owner
-              ? "People take a place, try it and answer. Sage checks each answer against what it saw itself and pays from this test's vault. This page updates by itself."
-              : `Try it, answer honestly, and Sage checks your answer and pays you in USDC on ${view.network}.`
+              ? view.withoutModel
+                ? "People take a place, try it and answer. You read each answer and release its payment from this test's vault. This page updates by itself."
+                : "People take a place, try it and answer. Sage checks each answer against what it saw itself and pays from this test's vault. This page updates by itself."
+              : view.withoutModel
+                ? `Try it and answer honestly. The builder reads your answer and releases your payment in USDC on ${view.network}.`
+                : `Try it, answer honestly, and Sage checks your answer and pays you in USDC on ${view.network}.`
         }
       >
         {done ? (
@@ -193,7 +197,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
             <div className="sg-t-tickets">
               {view.tickets.map((t) => (
                 <div key={t.key} data-new={arrived.has(t.key) || undefined} className={t.mine ? "sg-t-mine" : undefined}>
-                  <Ticket handle={t.handle} state={t.state} amount={t.amount} reason={t.reason} href={t.receipt ?? undefined} land={landed.has(t.key)} meta={t.flag ? "Approved. Paid when the 30 minutes are up" : undefined} />
+                  <Ticket handle={t.handle} state={t.state} byBuilder={!!view.withoutModel} amount={t.amount} reason={t.reason} href={t.receipt ?? undefined} land={landed.has(t.key)} meta={t.flag ? "Approved. Paid when the 30 minutes are up" : undefined} />
                   {t.flag ? <FlagAnswer flag={t.flag} handle={t.handle} onDone={read} /> : null}
                 </div>
               ))}
@@ -201,10 +205,17 @@ export function TestLive({ initial }: { initial: LiveView }) {
           ) : (
             <p className="sg-small">{done ? "Nobody took a place." : owner ? "Nobody has taken a place yet. Each person appears here the moment they do." : "Nobody has taken a place yet. You could be the first."}</p>
           )}
+          {owner && !done && view.withoutModel && !(view.owner && view.owner.held > 0) ? (
+            <div className="sg-t-notice">
+              <p>{view.withoutModel.line}</p>
+            </div>
+          ) : null}
           {owner && view.owner && view.owner.held > 0 ? (
             <div className="sg-t-notice">
               <p>
-                {count(view.owner.held, "answer is", "answers are")} not decided yet. Sage pays what it is sure of by itself; anything it holds is yours to read and decide.
+                {view.withoutModel
+                  ? `${count(view.owner.held, "answer is", "answers are")} waiting for you. Sage designed this test without its model, so it pays none of them on its own: read each one, then release the payment or say no.`
+                  : `${count(view.owner.held, "answer is", "answers are")} not decided yet. Sage pays what it is sure of by itself; anything it holds is yours to read and decide.`}
               </p>
               <div className="sg-t-notice-actions">
                 <ButtonLink href={`/campaign/${view.id}`} size="sm">
