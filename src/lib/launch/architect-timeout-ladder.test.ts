@@ -41,7 +41,11 @@ describe("the architect ladder stops re-issuing a request that times out", () =>
     expect(r.ok).toBe(false);
     expect(r.reason).toBe("provider_timeout");
     // 5 attempts would be the old behaviour; 2 is the evidence that the input does not fit.
-    expect(vi.mocked(llmCompleteJson).mock.calls.length).toBeLessThanOrEqual(2);
+    // (the ARCHITECT's asks: since 22 Nov 2026 a design no model answered also asks one small question for the
+    // first-try mission's main action, on the fast shared model, which is not the ladder under test here)
+    const architectAsks = vi.mocked(llmCompleteJson).mock.calls.filter(([o]) => String((o as { tag?: string }).tag ?? "").startsWith("architect@"));
+    expect(architectAsks.length).toBeLessThanOrEqual(2);
+    expect(architectAsks.length).toBeGreaterThan(0);
   }, 30_000);
 
   /** A single transient blip must still get its second chance — the cap is 2, not 1. */

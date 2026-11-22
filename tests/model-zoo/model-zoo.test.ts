@@ -9,6 +9,7 @@ import { judgeObservationAccount } from "@/lib/deputy/observation-judge";
 import { plainLookFor, wordFirstLook } from "@/lib/first-look";
 import { askCorePlace } from "@/lib/launch/core-decision";
 import { draftDirectCampaign } from "@/lib/launch/gig-draft";
+import { NO_MODEL_PLAN } from "@/lib/launch/no-model";
 import { missionDesignBudgetMs, runMissionBrain } from "@/lib/launch/mission-brain";
 import { ARCHITECT_SYSTEM, CRITIC_SYSTEM } from "@/lib/launch/mission-prompt";
 import { CORE_DECISION_SYSTEM } from "@/lib/launch/core-decision";
@@ -190,23 +191,29 @@ describe("mission design (architect, critic, core place, the gate) on every beha
     expect(second.value.provider).toBe(FALLBACK_HOST);
   }, 60_000);
 
-  it("with NO fallback configured, a model that only thinks fails honestly after one ask, not five", async () => {
+  it("with NO fallback configured, a model that only thinks is asked once, not five times, and the first try stands alone", async () => {
     for (const k of ["LLM_FALLBACK_API_KEY", "LLM_FALLBACK_BASE_URL", "LLM_FALLBACK_MODEL"]) delete process.env[k];
     const zoo = zooWith(MISSION_HOST, "think_only_unclosed");
     const { value: r, ms } = await onFakeClock(design);
-    expect(r.ok).toBe(false);
-    expect(r.reason).toBe("model_overthinks");
-    expect(r.accepted).toEqual([]); // never a made-up plan
+    // no model designed anything, and nothing is made up: the plan is Sage's fixed first-try mission, gated,
+    // and it says no model wrote it (no-model.ts; tests/model-zoo/zero-credit.test.ts walks the rest)
+    expect(r.ok).toBe(true);
+    expect(r.withoutModel).toEqual({ reason: "model_overthinks" });
+    expect(r.model).toBe(NO_MODEL_PLAN);
+    expect(r.accepted.map((m) => m.missionKey)).toEqual([CORE_MISSION_KEY]);
+    expect(r.candidates).toEqual([]);
+    expect(validatePlanMissions(r.accepted, scope, corpus, map.observations).every((rep) => rep.ok)).toBe(true);
     expect(zoo.callsTo(MISSION_HOST)).toBe(1);
     expect(ms).toBeLessThanOrEqual(missionDesignBudgetMs());
   }, 60_000);
 
-  it("with NO fallback, a provider that never answers ends at the design's deadline with an honest failure", async () => {
+  it("with NO fallback, a provider that never answers ends at the design's deadline with the first try alone, said plainly", async () => {
     for (const k of ["LLM_FALLBACK_API_KEY", "LLM_FALLBACK_BASE_URL", "LLM_FALLBACK_MODEL"]) delete process.env[k];
     const zoo = zooWith(MISSION_HOST, "very_slow");
     const { value: r, ms } = await onFakeClock(design);
-    expect(r.ok).toBe(false);
-    expect(["provider_timeout", "design_deadline"]).toContain(r.reason);
+    expect(r.ok).toBe(true);
+    expect(["provider_timeout", "design_deadline"]).toContain(r.withoutModel?.reason);
+    expect(r.accepted.map((m) => m.missionKey)).toEqual([CORE_MISSION_KEY]);
     expect(ms).toBeLessThanOrEqual(missionDesignBudgetMs() + 5_000);
     expect(zoo.callsTo(MISSION_HOST)).toBeLessThanOrEqual(2);
   }, 60_000);

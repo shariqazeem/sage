@@ -1,7 +1,7 @@
 import "server-only";
 import { llmCompleteJson } from "@/lib/llm/complete";
 import { completeSteadily } from "@/lib/llm/steady";
-import { coerceCoreDecision, coerceCoreHint, DEFAULT_CORE_DECISION, type CoreDecision, type CoreHint } from "./core-mission";
+import { coerceCoreDecision, coerceCoreHint, DEFAULT_CORE_DECISION, startsWhereItSays, type CoreDecision, type CoreHint } from "./core-mission";
 import { stripMarkers } from "./mission-prompt";
 import { kindLineFor } from "./product-kind";
 import type { CandidateMission, ProductMapV1 } from "./schemas";
@@ -89,24 +89,14 @@ export function coreDecisionUser(input: {
     .join("\n");
 }
 
-const STOP = new Set(["the", "and", "for", "with", "your", "this", "that", "from", "into", "onto", "after", "before", "first", "new", "get", "use", "try", "open", "start", "make"]);
-const words = (s: string): Set<string> => new Set((s.toLowerCase().match(/\p{L}{4,}/gu) ?? []).filter((w) => !STOP.has(w)));
-
-/**
- * A starting point must be where the action starts. Measured on excalidraw: asked for one, the model paired "save to a
- * local file" with an "Open Ctrl+O" button, which would send every tester the wrong way. So it is kept only when it
- * shares a real word with the action; otherwise the mission names no starting point, which is always true.
- */
-export function startsWhereItSays(hint: CoreHint | null): CoreHint | null {
-  if (!hint?.startsAt) return hint;
-  const action = words(hint.mainAction);
-  const shared = [...words(hint.startsAt)].some((w) => action.has(w));
-  return shared ? hint : { ...hint, startsAt: null };
-}
+// (the rule that a starting point must be where the action starts lives beside the ladder: core-mission.ts)
+export { startsWhereItSays };
 
 export interface CorePlace {
   hint: CoreHint | null;
   decision: CoreDecision;
+  /** a model answered the question (whatever it said). False: none did, and the defaults stand. */
+  answered: boolean;
 }
 
 type Complete = (opts: Parameters<typeof llmCompleteJson>[0]) => Promise<{ json: unknown }>;
@@ -130,9 +120,9 @@ export async function askCorePlace(
       // answer takes one or two) is joined by the fallback, and the first answer wins
       { attempts: 2, budgetMs: 45_000, label: "core-place", hedgeAfterMs: 8_000 },
     );
-    return { hint: startsWhereItSays(coerceCoreHint(res.json, input.corpus)), decision: coerceCoreDecision(res.json) };
+    return { hint: startsWhereItSays(coerceCoreHint(res.json, input.corpus)), decision: coerceCoreDecision(res.json), answered: true };
   } catch (e) {
     console.warn("[core-place] kept the defaults:", e instanceof Error ? e.message : String(e));
-    return { hint: null, decision: DEFAULT_CORE_DECISION };
+    return { hint: null, decision: DEFAULT_CORE_DECISION, answered: false };
   }
 }

@@ -56,6 +56,7 @@ import { CORE_DECISION_SYSTEM } from "@/lib/launch/core-decision";
 import { detectUnsupportedEvidence } from "@/lib/launch/evidence-capabilities";
 import type { InspectResult } from "@/lib/launch/inspect";
 import { FIXED_WORDS_MODEL } from "@/lib/launch/mission-brain";
+import { NO_MODEL_PLAN } from "@/lib/launch/no-model";
 import { ARCHITECT_SYSTEM, CRITIC_SYSTEM, MISSION_PROMPT_VERSION } from "@/lib/launch/mission-prompt";
 import { inspectAndPlan } from "@/lib/launch/pipeline";
 import { KIND_PLAYBOOK, kindOfMap, kindProofIssue, type ProductKind } from "@/lib/launch/product-kind";
@@ -650,7 +651,9 @@ describe("every kind of product through the real pipeline, offline", () => {
     // 7. THE ARCHITECT is told the kind, in one trusted line, or is not needed at all
     if (row.architectSilent) {
       expect(out.architectAsks).toHaveLength(0);
-      expect(r.brain!.model).toBe(FIXED_WORDS_MODEL);
+      // (with every model down not even the small question was answered: the plan says no model had a part in it)
+      expect(r.brain!.model).toBe(row.shared === "always_500" ? NO_MODEL_PLAN : FIXED_WORDS_MODEL);
+      expect(!!r.brain!.withoutModel).toBe(row.shared === "always_500");
     } else {
       expect(out.architectAsks.length).toBeGreaterThan(0);
       const told = out.architectAsks[0]!.user;

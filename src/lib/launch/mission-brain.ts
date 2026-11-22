@@ -24,7 +24,8 @@ import {
 } from "./mission-prompt";
 import { validatePlanMissions, classifyVerifiability, observationScore, SUFFICIENCY_THRESHOLD, type ValidationScope } from "./validate-mission";
 import { detectGatedActions, alreadyCovered, buildGatedActionMission, inferDelegatedCoreAction, coreActionFromCandidates } from "./gated-action-mission";
-import { addCoreMission, coerceCoreDecision, coerceCoreHint, CORE_RANK_WORDS, DEFAULT_CORE_DECISION, type CoreDecision, type CoreHint } from "./core-mission";
+import { addCoreMission, coerceCoreDecision, coerceCoreHint, CORE_RANK_WORDS, DEFAULT_CORE_DECISION, type CoreDecision, type CoreHint, type FirstScreen } from "./core-mission";
+import { NO_MODEL_PLAN, NO_MODEL_REASONS } from "./no-model";
 import { askCorePlace } from "./core-decision";
 import { DEFAULT_FIRST_VISIT_GOAL } from "./goal-journey";
 import { TANGIBLE_MIN_REWARD_BASE } from "./budget";
@@ -334,6 +335,13 @@ export interface MissionBrainResult {
    *  Present only on a failure; a stored `reason` alone could not distinguish truncation from a
    *  malformed answer, so every occurrence needed a live reproduction. */
   reasonDetail?: string;
+  /**
+   * NO MODEL ANSWERED, and the plan is the first-try mission alone (no-model.ts). `reason` is why the design
+   * had no model: the architect's failure, or "no_model_answered" where the architect was not needed and the
+   * one small question went unanswered. The plan is recorded under `NO_MODEL_PLAN`, and every surface that
+   * shows it says so. Absent on every other result.
+   */
+  withoutModel?: { reason: string };
 }
 
 /** The set of transition ids the shadow replay reproduced, from the inspection's leak-safe record. */
@@ -874,7 +882,7 @@ export function runMissionBrain(
   corpus: string,
   /** live-trail narration — the design phase is 2-4 minutes of real model work that used to render
    *  as a frozen screen; each phase announces itself. Best-effort, never affects the result. */
-  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean } = {},
+  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean; firstScreen?: FirstScreen | null } = {},
 ): Promise<MissionBrainResult> {
   // ONE CLOCK FOR THE WHOLE DESIGN (missionDesignBudgetMs): every model call below gets at most what is left
   // of it, and at the deadline the brain returns the best plan that is actually ready.
@@ -886,7 +894,7 @@ async function designMissions(
   founder: FounderLaunchInput,
   scope: ValidationScope,
   corpus: string,
-  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean },
+  opts: { narrate?: (label: string) => void; runGroundedShadow?: boolean; firstScreen?: FirstScreen | null },
 ): Promise<MissionBrainResult> {
   // The grounded planner is a 169s add on the founder's clock (measured, clawup -6uszdFt). It is worth
   // that wait only when its output can be SELECTED or we're in pure measurement mode — the pipeline
@@ -899,13 +907,13 @@ async function designMissions(
       /* narration must never break design */
     }
   };
-  if (!llmConfigured()) return EMPTY("llm_not_configured");
+  const noModelConfigured = !llmConfigured();
   // "Nothing inspected" only when the static crawl AND the real browser both saw nothing. A bot-walled
   // store or client-rendered SPA has 0 static pages but a field test — hand it to the SUFFICIENCY GATE
   // below, which judges whether what the browser DID see is rich enough to design paid work (else it
   // asks a specific question rather than confabulating). `hasUsableInspection` is the SAME shared
   // predicate the pipeline gate uses, so the two can never drift apart.
-  if (!hasUsableInspection(map)) return EMPTY("no_inspected_pages");
+  if (!hasUsableInspection(map)) return EMPTY(noModelConfigured ? "llm_not_configured" : "no_inspected_pages");
 
   // SUFFICIENCY GATE — if Sage saw too little to design work worth paying for, ask the founder
   // SPECIFIC questions built from what WAS seen, rather than letting the architect confabulate a plan.
@@ -920,27 +928,65 @@ async function designMissions(
    * faces the same gate. So a thin listing, an architect with nothing to design, or a provider that is down ends
    * in that one honest mission instead of a question the builder cannot answer ("where should a new user
    * start?" about a store page). Null when the kind is one Sage tries itself, or the gate refuses the mission.
+   *
+   * ...AND FOR ANY KIND WHEN NO MODEL ANSWERED (22 Nov 2026, no-model.ts). `noModel` is the reason the design
+   * had no model (NO_MODEL_REASONS: none configured, an empty account, every model broken, the clock out with
+   * nothing ready). A website then gets the same one mission instead of "Sage's reviewer was briefly
+   * unavailable": its main action is read from the product's own call to action or heading, it faces the same
+   * gate, and the result says a model had no part in it (`withoutModel`), so the builder is told before they
+   * pay. Never when a model answered and the gate refused its missions: that says something about the plan.
    */
-  const firstTryAlone = async (base: MissionBrainResult): Promise<MissionBrainResult | null> => {
-    if (!peopleDoTheTry) return null;
+  const firstTryAlone = async (base: MissionBrainResult, noModel: string | null = null): Promise<MissionBrainResult | null> => {
+    if (!peopleDoTheTry && !noModel) return null;
     let hint: CoreHint | null = null;
     let decision: CoreDecision = DEFAULT_CORE_DECISION;
-    try {
-      const place = await askCorePlace({ goal: founder.goal, targetUsers: founder.targetUsers, budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals), map, missions: [], corpus });
-      hint = place.hint;
-      decision = place.decision;
-    } catch {
-      /* the kind's own default action stands, and the core leads */
+    let answered = false;
+    // (with no model configured, or no clock left, there is nobody to ask)
+    if (!noModelConfigured && !deadlineWithin(5_000)) {
+      try {
+        const place = await askCorePlace({ goal: founder.goal, targetUsers: founder.targetUsers, budgetAnswers: budgetAnswersFor(founder.totalBudgetBase, founder.tokenDecimals), map, missions: [], corpus });
+        hint = place.hint;
+        decision = place.decision;
+        answered = place.answered;
+      } catch {
+        /* the kind's own default action stands, and the core leads */
+      }
     }
-    const core = addCoreMission({ map, productUrl: founder.productUrl, scope, corpus, accepted: [], modelHint: hint, decision });
+    // no model had any part in this plan: the architect did not answer (or was not needed) and nor did the small question
+    const without = noModel ?? (answered ? null : "no_model_answered");
+    // (a first try that cannot be built is no plan, never a crash: the failure it was meant to soften stands)
+    let core: ReturnType<typeof addCoreMission> = null;
+    try {
+      core = addCoreMission({ map, productUrl: founder.productUrl, scope, corpus, accepted: [], modelHint: hint, decision, ...(without ? { firstScreen: opts.firstScreen ?? {} } : {}) });
+    } catch {
+      core = null;
+    }
     if (!core) return null;
-    narrate(`people do this try: one first-try mission in the fixed words for ${playbookOf(kind).label} — main action: ${core.hint.mainAction}`);
-    return { ...base, ok: true, reason: null, accepted: [{ ...core.mission, verifiabilityClass: classifyVerifiability(core.mission) }], coreDecision: decision, needsInputQuestions: [], model: base.model || FIXED_WORDS_MODEL };
+    narrate(
+      without
+        ? `Sage's model did not answer, so this test is one first-try mission in fixed words — main action: ${core.hint.mainAction}`
+        : `people do this try: one first-try mission in the fixed words for ${playbookOf(kind).label} — main action: ${core.hint.mainAction}`,
+    );
+    return {
+      ...base,
+      ok: true,
+      reason: null,
+      accepted: [{ ...core.mission, verifiabilityClass: classifyVerifiability(core.mission) }],
+      coreDecision: decision,
+      needsInputQuestions: [],
+      model: without ? NO_MODEL_PLAN : base.model || FIXED_WORDS_MODEL,
+      ...(without ? { withoutModel: { reason: without } } : {}),
+    };
   };
   const answered = /Founder clarification/i.test(founder.goal);
   if (!answered && observationScore(gatherRichness(map, corpus)) < SUFFICIENCY_THRESHOLD) {
     const thin: MissionBrainResult = { ...EMPTY("insufficient_observation"), needsInputQuestions: sufficiencyQuestions(map, founder.goal) };
     return (await firstTryAlone(thin)) ?? thin;
+  }
+  // NO MODEL CONFIGURED: nothing below can run. The first try, alone, is the test (see firstTryAlone).
+  if (noModelConfigured) {
+    const none = EMPTY("llm_not_configured");
+    return (await firstTryAlone(none, "llm_not_configured")) ?? none;
   }
 
   const needsInputQuestions: string[] = [];
@@ -1007,8 +1053,9 @@ async function designMissions(
     // sufficiency gate asks, so the pipeline's needs_input path (not `failed`) carries it to the founder
     const asked = arch.error === "insufficient_observation" ? sufficiencyQuestions(map, founder.goal) : needsInputQuestions;
     const failed: MissionBrainResult = { ...EMPTY(arch.error), needsInputQuestions: asked, ...(arch.detail ? { reasonDetail: arch.detail } : {}), ...(gs ? { groundingShadow: gs } : {}) };
-    // the first try needs no architect: its words are fixed for the kind
-    return (await firstTryAlone(failed)) ?? failed;
+    // the first try needs no architect: its words are fixed for the kind. And when the architect failed because
+    // no model answered (not because it answered badly), the first try is the test for a website too.
+    return (await firstTryAlone(failed, NO_MODEL_REASONS.has(arch.error) ? arch.error : null)) ?? failed;
   }
   let r = await run(arch);
 

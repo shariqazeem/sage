@@ -76,8 +76,9 @@ describe("the answer, through the same checks as the architect's", () => {
         throw new Error("llm_status_402");
       },
     });
-    expect(thrown).toEqual({ hint: null, decision: DEFAULT_CORE_DECISION });
+    // ...and it says no model answered, so a plan built on these defaults alone can say so too (no-model.ts)
+    expect(thrown).toEqual({ hint: null, decision: DEFAULT_CORE_DECISION, answered: false });
     const nonsense = await askCorePlace(input, { complete: async () => ({ json: "not an object" }) });
-    expect(nonsense).toEqual({ hint: null, decision: DEFAULT_CORE_DECISION });
+    expect(nonsense).toEqual({ hint: null, decision: DEFAULT_CORE_DECISION, answered: true });
   });
 });

@@ -48,7 +48,19 @@ export interface CoreHint {
   /** the verbatim observed words of the control where it starts, or null */
   startsAt: string | null;
   /** where the hint came from, for the record */
-  from: "model" | "accepted-mission" | "first-button" | "generic";
+  from: "model" | "accepted-mission" | "primary-cta" | "heading" | "first-button" | "generic";
+}
+
+/**
+ * The first screen as the static read saw it, for a run with no browser: the landing page's title, headings and
+ * calls to action. Handing it to the ladder also switches on the two rungs that need no model (see
+ * `coreHintLadder`), so it is passed only where no model answered.
+ */
+export interface FirstScreen {
+  productName?: string | null;
+  title?: string | null;
+  headings?: readonly string[];
+  ctas?: readonly string[];
 }
 
 export const GENERIC_ACTION = "do the main thing this product is for";
@@ -162,11 +174,94 @@ export function coerceCoreDecision(raw: unknown): CoreDecision {
 
 type Accepted = Pick<CandidateMission, "title" | "priority" | "riskCategory" | "anchors">;
 
-function firstButton(ft: FieldTestSummary | null | undefined, corpus: string): string | null {
-  const labels = [
+/** The first screen's controls, in the order Sage met them: the browser's, then the static read's. */
+function firstControls(ft: FieldTestSummary | null | undefined, screen?: FirstScreen | null): string[] {
+  return [
     ...(ft?.pages?.[0]?.ctas ?? []),
     ...((ft?.states?.[0]?.notableElements ?? []).filter((e) => /button|link|^a$/i.test(`${e.tag} ${e.role}`)).map((e) => e.text)),
+    ...(screen?.ctas ?? []),
   ];
+}
+
+const STOP = new Set(["the", "and", "for", "with", "your", "this", "that", "from", "into", "onto", "after", "before", "first", "new", "get", "use", "try", "open", "start", "make"]);
+const realWords = (s: string): Set<string> => new Set((s.toLowerCase().match(/\p{L}{4,}/gu) ?? []).filter((w) => !STOP.has(w)));
+
+/**
+ * A starting point must be where the action starts. Measured on excalidraw: asked for one, the model paired "save to a
+ * local file" with an "Open Ctrl+O" button, which would send every tester the wrong way. So it is kept only when it
+ * shares a real word with the action; otherwise the mission names no starting point, which is always true.
+ */
+export function startsWhereItSays(hint: CoreHint | null): CoreHint | null {
+  if (!hint?.startsAt) return hint;
+  const action = realWords(hint.mainAction);
+  const shared = [...realWords(hint.startsAt)].some((w) => action.has(w));
+  return shared ? hint : { ...hint, startsAt: null };
+}
+
+/**
+ * THE MAIN ACTION WITH NO MODEL (22 Nov 2026). When no model answers, a website's first-try mission still has
+ * to name what a stranger should try. Two rungs read it from the product's own words, before the sentence that
+ * fits anything:
+ *   1. the primary call to action: the first control on the first screen whose label is itself something a
+ *      person does ("Start a drop"). The tester starts from that very control, so the starting point is right
+ *      by construction. A label that only opens a door ("Get started", "Sign up", "Learn more", "Pricing")
+ *      names no action and is left to the old first-button rung;
+ *   2. the heading's verb: the first heading, or a part of it, that reads as something a person does ("Send a
+ *      gift to anyone"). It names a starting control only when one shares a real word with it. A slogan is not
+ *      an action ("Build faster", "Start growing your business today"): a heading of fewer than three words,
+ *      or one that promises instead of naming a thing to do, is passed over.
+ * Both pass `usableAction` (plain, short, safe, no instruction), and the mission they make faces the same gate.
+ */
+const DOOR_ONLY =
+  /^(get started|start( now| free| for free| here| today)?|sign up( free| for free| now| today)?|register( now)?|join( now| free| us)?|try( it)?( now| free| for free| out)?|launch( the)? app|open( the)? app|enter( the)? app|go to( the)? app|use( the)? app|create( an| your)? account|get( the)? app|download( now)?|install( now)?|continue|explore|learn more|read more|see more|find out more|watch( the)? (demo|video)|get( a)? demo|book( a)? (demo|call)|request( a)? demo|talk to (sales|us)|contact( us| sales)?|view (pricing|plans|docs)|(see|compare|choose) (pricing|plans|a plan)|get in touch|follow us|share)$/i;
+const NOT_THE_PRODUCT = /\b(pricing|demo|sales|docs?|documentation|blog|newsletter|github|twitter|discord|telegram|linkedin|youtube|cookies?|privacy|terms|log ?in|sign ?in|careers|press)\b/i;
+
+const SLOGAN =
+  /\b(faster|better|smarter|easier|simpler|effortless(ly)?|seamless(ly)?|instantly|in (seconds|minutes)|today|now|business|productivity|workflows?|future|world|everything|anything|more|10x|supercharge|unlock|revenue|growth|at scale|next level|like never before|without the|the smart way)\b/i;
+
+/** The action in sentence case: a button's Title Case reads wrong mid-sentence. The product's own name and short capitals stay. */
+function midSentence(action: string, productName: string | null | undefined): string {
+  const own = new Set((productName ?? "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
+  return action
+    .split(" ")
+    .map((w, i) => ((i > 0 && own.has(w.toLowerCase())) || /^[\p{Lu}\p{N}]{2,5}$/u.test(w) ? w : w.toLowerCase()))
+    .join(" ");
+}
+
+export function primaryCallToAction(ft: FieldTestSummary | null | undefined, screen: FirstScreen | null | undefined, corpus: string): CoreHint | null {
+  for (const raw of firstControls(ft, screen)) {
+    const label = squash(raw ?? "");
+    if (label.length < 6 || label.length > 40 || NAV_WORDS.test(label) || DOOR_ONLY.test(label) || NOT_THE_PRODUCT.test(label)) continue;
+    const action = usableAction(label);
+    if (!action || action.split(" ").length < 2 || !observed(label, corpus)) continue;
+    return { mainAction: midSentence(action, screen?.productName), startsAt: label, from: "primary-cta" };
+  }
+  return null;
+}
+
+export function headingAction(ft: FieldTestSummary | null | undefined, screen: FirstScreen | null | undefined, corpus: string): CoreHint | null {
+  const page = ft?.pages?.[0];
+  const headings = [page?.h1 ?? "", ...(screen?.headings ?? []).slice(0, 3), page?.title ?? "", screen?.title ?? ""];
+  for (const raw of headings) {
+    const heading = squash(raw);
+    if (!heading) continue;
+    for (const part of [heading, ...heading.split(/\s*[:|·.!?—–]\s*|\s+-\s+/)]) {
+      if (DOOR_ONLY.test(squash(part)) || NOT_THE_PRODUCT.test(part)) continue;
+      const action = usableAction(part);
+      if (!action || action.split(" ").length < 3 || SLOGAN.test(action)) continue;
+      const mainAction = midSentence(action, screen?.productName);
+      // a starting control only when it is where this action starts (it shares a real word with it)
+      const start = firstControls(ft, screen)
+        .map((c) => squash(c ?? ""))
+        .find((c) => c.length >= 3 && c.length <= 40 && !NAV_WORDS.test(c) && !NEVER.test(c) && observed(c, corpus) && !!startsWhereItSays({ mainAction, startsAt: c, from: "heading" })?.startsAt);
+      return { mainAction, startsAt: start ?? null, from: "heading" };
+    }
+  }
+  return null;
+}
+
+function firstButton(ft: FieldTestSummary | null | undefined, corpus: string, screen?: FirstScreen | null): string | null {
+  const labels = firstControls(ft, screen);
   for (const raw of labels) {
     const label = squash(raw ?? "");
     if (label.length < 3 || label.length > 40 || NAV_WORDS.test(label) || NEVER.test(label)) continue;
@@ -181,7 +276,7 @@ function firstButton(ft: FieldTestSummary | null | undefined, corpus: string): s
  * mission that reads as something a person does, then the product's first button, then the sentence
  * that fits anything. The gate picks the first one whose mission it accepts.
  */
-export function coreHintLadder(model: CoreHint | null, accepted: readonly Accepted[], map: Pick<ProductMapV1, "fieldTest">, corpus: string, kind: ProductKind = "website"): CoreHint[] {
+export function coreHintLadder(model: CoreHint | null, accepted: readonly Accepted[], map: Pick<ProductMapV1, "fieldTest">, corpus: string, kind: ProductKind = "website", screen?: FirstScreen | null): CoreHint[] {
   const out: CoreHint[] = [];
   // the sentence that fits any product of this kind: "start it and use its main command" for a bot
   const generic = playbookOf(kind).firstTry?.defaultAction ?? GENERIC_ACTION;
@@ -194,14 +289,22 @@ export function coreHintLadder(model: CoreHint | null, accepted: readonly Accept
     out.push({ mainAction: action, startsAt: start, from: "accepted-mission" });
     break;
   }
-  const button = firstButton(map.fieldTest, corpus);
+  // with no model (a first screen is handed in): the product's own call to action, then its heading's verb.
+  // A kind with its own first try keeps that kind's default: its words say how a person tries it.
+  if (screen && !playbookOf(kind).firstTry) {
+    const cta = primaryCallToAction(map.fieldTest, screen, corpus);
+    if (cta) out.push(cta);
+    const heading = headingAction(map.fieldTest, screen, corpus);
+    if (heading) out.push(heading);
+  }
+  const button = firstButton(map.fieldTest, corpus, screen);
   if (button) out.push({ mainAction: generic, startsAt: button, from: "first-button" });
   out.push({ mainAction: generic, startsAt: null, from: "generic" });
   return out;
 }
 
 /** Two to four verbatim things Sage observed on the way in: where it starts, and the first screen's own words. */
-export function coreAnchors(map: Pick<ProductMapV1, "fieldTest" | "productKind">, corpus: string, startsAt: string | null): string[] {
+export function coreAnchors(map: Pick<ProductMapV1, "fieldTest" | "productKind">, corpus: string, startsAt: string | null, screen?: FirstScreen | null): string[] {
   const ft = map.fieldTest;
   const page = ft?.pages?.[0];
   const first = ft?.states?.[0];
@@ -214,6 +317,10 @@ export function coreAnchors(map: Pick<ProductMapV1, "fieldTest" | "productKind">
     ...(page?.ctas ?? []).slice(0, 3),
     // what Sage read on the product's page when no browser ran (a listing read as plain HTML)
     ...(map.productKind?.seen ?? []),
+    // ...and the landing page's own words, on a website read with no browser and no model
+    ...(screen?.headings ?? []).slice(0, 3),
+    screen?.title ?? "",
+    ...(screen?.ctas ?? []).slice(0, 3),
   ];
   const out: string[] = [];
   for (const raw of pool) {
@@ -372,6 +479,12 @@ export function addCoreMission(input: {
   modelHint: CoreHint | null;
   /** where the core stands for this builder; absent, the old rule (it leads) */
   decision?: CoreDecision;
+  /**
+   * Only where no model answered and this mission is the whole plan: the landing page as the static read saw
+   * it. It switches on the ladder's two model-free rungs and lends the mission its anchors on a run with no
+   * browser. Absent everywhere else, where the ladder and the anchors are exactly what they were.
+   */
+  firstScreen?: FirstScreen | null;
 }): CoreAdded | null {
   const { map, scope, corpus, accepted } = input;
   if (accepted.some((m) => m.missionKey === CORE_MISSION_KEY)) return null;
@@ -383,10 +496,12 @@ export function addCoreMission(input: {
   // A product's own NAME can trip the gate: a prototype called "Checkout flow" reads, inside the fixed words, as
   // an instruction to check out. Where the kind has its own first try (which may be the whole plan), the mission
   // is then written once more with a plain noun for the kind ("this prototype"). A website is tried once, as before.
-  const names = playbookOf(kind).firstTry ? [map.productName, kindFallbackName(kind)] : [map.productName];
+  // ...and where the mission stands alone because no model answered: it is then the whole plan for a website too.
+  const screen = input.firstScreen ? { ...input.firstScreen, productName: input.firstScreen.productName ?? map.productName } : null;
+  const names = playbookOf(kind).firstTry || screen ? [map.productName, kindFallbackName(kind)] : [map.productName];
   for (const productName of names) {
-    for (const hint of coreHintLadder(input.modelHint, accepted, map, corpus, kind)) {
-      const mission = buildCoreMission(hint, { productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt), sources }, (input.decision ?? DEFAULT_CORE_DECISION).rank, kind);
+    for (const hint of coreHintLadder(input.modelHint, accepted, map, corpus, kind, screen)) {
+      const mission = buildCoreMission(hint, { productName, targetSurface, anchors: coreAnchors(map, corpus, hint.startsAt, screen), sources }, (input.decision ?? DEFAULT_CORE_DECISION).rank, kind);
       const reports = validatePlanMissions([...accepted, mission], scope, corpus, map.observations);
       const report = reports[reports.length - 1]!;
       // the kind's own rule too: the first try is the tester's account, never a page-and-quote check

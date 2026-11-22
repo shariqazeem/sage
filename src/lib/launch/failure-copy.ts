@@ -31,8 +31,11 @@ export function friendlyFailure(reason?: string | null): string {
   }
 
   switch (r) {
+    // No model answered, and the first-try mission that needs none could not be written either: the gate
+    // found nothing on the page to anchor it to (no-model.ts). Rare, and said as what it is.
     case "llm_not_configured":
-      return "Sage’s reviewer is not configured in this environment.";
+    case "provider_out_of_credit":
+      return "Sage could not use its model today, and it read too little at this address to write a test without one. Try again later, or paste the page where people start.";
     case "invalid_json":
     case "truncated_output":
     case "schema_mismatch":
