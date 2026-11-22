@@ -1,4 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// `after` runs its work once the response is sent, and only exists inside a real request: here the work is kept
+// so a test can run it. The bot's send is watched (it is a no-op anyway: no bot token is set in the suite).
+const h = vi.hoisted(() => ({ deferred: [] as (() => unknown)[], sent: [] as { chatId: string; text: string }[] }));
+vi.mock("next/server", async (orig) => ({ ...(await orig<typeof import("next/server")>()), after: (fn: () => unknown) => void h.deferred.push(fn) }));
+vi.mock("@/lib/telegram/bot", async (orig) => {
+  const real = await orig<typeof import("@/lib/telegram/bot")>();
+  return { ...real, sendTelegram: async (chatId: string, text: string) => void h.sent.push({ chatId: String(chatId), text }) };
+});
+
 import { POST } from "./route";
 import { buildReply } from "@/lib/telegram/bot";
 import { createCampaign, recordEvent } from "@/lib/db/campaigns";
@@ -14,6 +24,8 @@ const HEADER = "x-telegram-bot-api-secret-token";
 let savedSecret: string | undefined;
 
 beforeEach(() => {
+  h.deferred.length = 0;
+  h.sent.length = 0;
   savedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 });
 afterEach(() => {
@@ -61,10 +73,19 @@ describe("POST /api/telegram/webhook — secret rejection", () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 
-  it("200s and stays silent on non-command chatter", async () => {
+  it("200s non-command chatter at once, and with no model configured answers it with the plain reason and the way to the web", async () => {
     process.env.TELEGRAM_WEBHOOK_SECRET = SECRET;
-    const res = await post(update("gm"), { [HEADER]: SECRET });
+    const res = await post(update("can you test my app at getdrops.app?", 5601), { [HEADER]: SECRET });
     expect(res.status).toBe(200);
+    // nothing is sent before the response: Telegram never waits on it
+    expect(h.sent).toEqual([]);
+    for (const job of h.deferred) await job();
+    // it used to be silence. Now: why Sage cannot chat, and where everything still works (no model writes this)
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]!.chatId).toBe("5601");
+    expect(h.sent[0]!.text).toMatch(/^I can't chat right now: the model I think with is not switched on here\./);
+    expect(h.sent[0]!.text).toContain("Test a product: paste its link at ");
+    expect(h.sent[0]!.text).toContain("/status and /help still work here.");
   });
 });
 

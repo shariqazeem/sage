@@ -67,6 +67,7 @@ vi.mock("@/lib/db/concierge-chats", () => ({
 }));
 
 import { runConcierge } from "./concierge";
+import { resetWireMemory } from "@/lib/llm/wire";
 
 /** The real thing an AbortSignal.timeout produces, so the classifier is tested on the real string. */
 const timeoutError = () => {
@@ -154,7 +155,7 @@ describe("the concierge rides out a gateway stall", () => {
     );
     const reply = await runConcierge("chat4", "status?", () => {}, "prid:test");
     expect(calls).toBe(1);
-    expect(reply).toMatch(/glitched|couldn't|could not/i);
+    expect(reply).toMatch(/^I can't chat right now: the model I think with is not answering right now\./);
   });
 
   it("gives up honestly rather than looping forever", async () => {
@@ -167,6 +168,40 @@ describe("the concierge rides out a gateway stall", () => {
     );
     const reply = await runConcierge("chat5", "status?", () => {}, "prid:test");
     expect(calls).toBe(3); // LLM_ATTEMPTS, not unbounded
-    expect(reply).toMatch(/glitched/i);
+    // the plain reason and the way to the web, never "give it another go" on a loop
+    expect(reply).toMatch(/^I can't chat right now/);
+    expect(reply).toContain("Test a product: paste its link at");
+    expect(reply).toContain("/status and /help still work here.");
+  });
+});
+
+/**
+ * ZERO CREDIT (22 Nov 2026). An empty account is not a stall: the wire answers it as 402, nothing retries it,
+ * and the founder is told why and where everything still works. It used to read "Something glitched reaching
+ * my brain, give it another go in a moment", which is a loop for as long as the account stays empty.
+ */
+describe("the concierge with an empty account", () => {
+  it("answers once with the plain reason and the web hand-over, and does not hammer the provider", async () => {
+    resetWireMemory();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        calls++;
+        return new Response(JSON.stringify({ error: { message: "Insufficient available balance: 0" } }), { status: 429, headers: { "content-type": "application/json" } });
+      }),
+    );
+    const reply = await runConcierge("chat6", "can you test my app at getdrops.app with $10?", () => {}, "prid:test");
+    expect(calls).toBe(1);
+    expect(reply).toMatch(/^I can't chat right now: the model I think with is out of credit today\./);
+    expect(reply).toContain("Sage still works without it, on the web:");
+    expect(reply).toContain("Test a product: paste its link at ");
+    expect(reply).toContain("Your tests, and answers waiting for you: ");
+    // never the provider's words, a code, or a stack
+    expect(reply).not.toMatch(/Insufficient|balance|429|402|llm_status|Error/);
+    // the next message, seconds later: the same honest reply, and the closed account is not even called
+    const again = await runConcierge("chat6", "hello?", () => {}, "prid:test2");
+    expect(again).toBe(reply);
+    expect(calls).toBe(1);
+    resetWireMemory();
   });
 });

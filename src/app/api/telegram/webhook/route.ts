@@ -8,6 +8,7 @@ import { handleWorkspaceStart } from "@/lib/telegram/workspace-onboarding";
 import { buildReply, sendTelegram } from "@/lib/telegram/bot";
 import { buildWalletStatus } from "@/lib/telegram/wallet-status";
 import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
+import { noModelReply } from "@/lib/telegram/no-model-reply";
 import { mintTelegramRequestId } from "@/lib/launch/planning-request";
 
 export const runtime = "nodejs";
@@ -142,6 +143,14 @@ export async function POST(req: Request): Promise<Response> {
             console.error("[telegram] deferred job failed:", err);
           }
         }
+      });
+    } else {
+      // NO MODEL KEY AT ALL: a plain message used to get silence. It gets the plain reason and the way to
+      // the web instead (no-model-reply.ts); slash commands above never needed a model.
+      after(async () => {
+        // the same daily per-chat cap a model's turn has: past it, silence, so a busy chat is never flooded
+        if (!rateLimit("conciergeDaily", `chat:${chatId}`).ok) return;
+        await sendTelegram(chatId, noModelReply("telegram", "not_configured"), { html: false });
       });
     }
   } else if (cmd.kind === "status" && !cmd.slug) {

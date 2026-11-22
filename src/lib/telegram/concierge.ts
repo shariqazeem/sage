@@ -30,6 +30,7 @@ import { withTransientRetry } from "@/lib/llm/retry";
 import { stripReasoningPrefix } from "@/lib/llm/reasoning";
 import { outputBudget, profileFor } from "@/lib/llm/provider-profile";
 import { postChat } from "@/lib/llm/wire";
+import { noModelReply, noModelWhy } from "./no-model-reply";
 import { hasUsableCall, truncationSignal } from "@/lib/llm/truncation";
 import { checkStatedTerms, statedTermsCorrection } from "@/lib/launch/stated-terms";
 import { hasPageBasedEvidence, testimonyCondition, testimonyCorrection } from "@/lib/launch/testimony-condition";
@@ -857,8 +858,8 @@ async function runAgentTurn(
       }
       const msg = data.choices?.[0]?.message;
       if (!msg) {
-        reply = "I couldn't reach my brain just now — try again in a moment.";
-        break;
+        // an answer with nothing in it: the same honest reply as a model that did not answer at all
+        return noModelReply(surface, "not_answering");
       }
       messages.push({ role: "assistant", content: stripReasoningPrefix(msg.content ?? "") || msg.content, tool_calls: msg.tool_calls });
 
@@ -1225,7 +1226,10 @@ async function runAgentTurn(
     }
   } catch (err) {
     console.error("[concierge:%s] turn failed:", surface, err);
-    return "Something glitched reaching my brain — give it another go in a moment.";
+    // NO MODEL ANSWERED (no-model-reply.ts): out of credit, broken, or silent through every retry. The reply
+    // says so in plain words and hands the founder to the web, where everything works without a model. It used
+    // to say "give it another go in a moment", which is a loop for as long as the account stays empty.
+    return noModelReply(surface, noModelWhy(err));
   }
 
   if (!reply) reply = "I wasn't able to finish that one — try rephrasing?";

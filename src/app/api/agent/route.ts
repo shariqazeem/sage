@@ -1,4 +1,5 @@
 import { NextResponse, after } from "next/server";
+import { noModelReply } from "@/lib/telegram/no-model-reply";
 import { rateLimit } from "@/lib/rate-limit";
 import { resolveAgentRef } from "@/lib/auth/agent-session";
 import { mintAgentRequestId } from "@/lib/launch/planning-request";
@@ -85,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
   if (!conciergeEnabled()) {
     return NextResponse.json({
       ok: true,
-      reply: "My brain isn't switched on yet (no model key configured).",
+      reply: noModelReply("web", "not_configured"),
     });
   }
 

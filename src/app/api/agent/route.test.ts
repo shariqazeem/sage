@@ -123,7 +123,9 @@ describe("POST /api/agent — limits + honesty", () => {
     conciergeEnabled.mockReturnValue(false);
     const res = await post({ text: "hello" });
     const body = (await res.json()) as { reply: string };
-    expect(body.reply).toContain("isn't switched on");
+    expect(body.reply).toContain("is not switched on here");
+    // ...and it hands the visitor to what works without a model
+    expect(body.reply).toContain("paste its link at");
     expect(runConciergeWeb).not.toHaveBeenCalled();
   });
 });
