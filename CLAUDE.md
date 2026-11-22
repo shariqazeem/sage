@@ -247,6 +247,10 @@ whether the payouts hold up.
   row identically. Use a nonce **below 100**: budget is `10 + index + nonce*100` against a
   $10,000 cap. Both failure modes render in the grid exactly like a quality regression, so
   check `signed in as …` and a non-zero token cost before believing any P-GEN result.
+  **Run it on a throwaway copy, not on prod** (22 Nov 2026): `scripts/staging-check.sh up [branch]`
+  (port 3100, its own database and spend ceiling `STAGING_BUDGET_USD`, messages nobody), then `probe`,
+  `pgen <nonce> [--only <category>] [--kinds]`, `watch <nonce>`, `down`. `up` alone spends no model
+  credit and is also the production build check for a branch.
 - Naming: "policy vault" is the human concept everywhere; exact contract kind and event
   names live in technical rows only.
 - **NO CORPUS ORACLE.** Never expose live, pre-submission feedback derived from corpus
