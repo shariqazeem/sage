@@ -420,6 +420,28 @@ if you must touch them, that suite must stay green.
   - Still true: the judge's private key comes from what Sage's browser read, so a listing read as one page sits
     under the three-source floor and its answers hold for the builder's release.
   - `tests/model-zoo/product-kinds.test.ts` runs one saved page per kind through `inspectAndPlan` offline.
+- **The findings hold up with or without a model (22 Nov 2026).** Most reports are built with no model, so the
+  grouping itself is code (`src/lib/report/plain.ts`), and a model's grouping passes the same checks:
+  - Plain grouping reads each paid answer sentence by sentence. Two people are one problem when their problem
+    sentences name the same two things and fail the same way, or both match the same problem in Sage's own first
+    look. One shared thing is enough only with a specific failure and the same rung. People who stopped on
+    different rungs are never one problem. When in doubt they stay two findings: never merge two problems.
+  - A group's title is a member's own sentence, its quotes are exact substrings (`verbatim`), its count is
+    "A of B" people, and with two or more people it carries a fixed fix chosen by how their words say it failed
+    (`MODE_FIX`). A plain report is grouped again on every read.
+  - A model's group is dropped when it cites no exact words of its own people or puts two stopped rungs in one
+    problem (`enforceGroups`); those people are then grouped in code (`coverPlainly`). A number the model put in
+    a title is never shown.
+  - **What changed since your last test** (`changed.ts`, `previousTest`): the same founder's last FINISHED test
+    of the same product (host and path). Understood, finished and would come back read "3 of 10 → 7 of 10"; the
+    earlier test's top problems are marked fewer, still hit or gone by the plain rule (`hitBy`). It never says
+    fixed, and a small test says it is small. The owner's while any place is open; the public reads it only when
+    BOTH tests' findings are public.
+  - Sage's plain first look leads with what a newcomer would hit (`weight` in `first-look/core.ts`): the server
+    failing, a dead button, a missing piece, a wall. A request refused for being signed out and a missing
+    picture come last, and a request that fails on several pages is one line.
+  - `src/lib/report/plain.fixtures.ts` holds the answer sets it is measured on (`FINDINGS_TABLE=1 npx vitest run
+    src/lib/report/plain.test.ts` prints before and after).
 - **The account pays its own network fee (24 Oct 2026).** No door sends an account gas unless `OPERATOR_COVERS_GAS=1`;
   short of it, the door names the amount and the way to get it, and moves nothing.
 - **An agent key is its owner, and never lifts a limit.** A workspace key acts as the owner who minted it, with only
@@ -530,7 +552,7 @@ A **lane** is one job Sage gives a model: `PAYOUT` (judgment), `CONCIERGE`, `MIS
 (design), `OBS_JUDGE`, `VISION`, `DRAFT` (Post's hand-over: a job written from what a founder
 pasted, while they wait, so it inherits the fast shared chain unless configured; 28 Oct 2026), `REPORT`
 (groups a test's paid answers into the builder's findings, `src/lib/report/`; background work, so the first
-to stop under the daily budget, and the report is then built without a model; 20 Nov 2026). Each lane may run on its own provider by setting
+to stop under the daily budget, and the report is then grouped in code, `plain.ts`; 20 Nov 2026). Each lane may run on its own provider by setting
 `<LANE>_API_KEY`, `<LANE>_BASE_URL` and `<LANE>_MODEL` — **all three together**. Set
 partially, a lane is treated as ABSENT and inherits the shared chain; it is never merged,
 because merging splices one provider's key onto another's endpoint (authenticates as
