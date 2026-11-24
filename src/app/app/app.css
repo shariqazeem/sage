@@ -3872,13 +3872,13 @@
    DASHBOARD V2 ELEVATION — Geist display type + status catalogue (running/stopped/done)
    ============================================================================ */
 .sage-app .dash-display {
-  font-family: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-weight: 450;
   letter-spacing: -0.03em;
   line-height: 0.98;
 }
 .sage-app .dash-h3 {
-  font-family: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-weight: 500;
   letter-spacing: -0.015em;
 }

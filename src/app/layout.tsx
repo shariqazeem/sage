@@ -2,7 +2,7 @@ import { SagePrivyProvider } from "@/components/auth/privy-provider";
 import type { Metadata } from "next";
 import { siteUrl } from "@/lib/site";
 import { StructuredData } from "@/components/seo/structured-data";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Fira_Mono, Fira_Sans, Fira_Sans_Extra_Condensed } from "next/font/google";
 import "./globals.css";
 import "../styles/tokens.css";
 // The two sign-in doors (an email, or MetaMask) render on many pages, from FounderSignIn: their styles are
@@ -14,17 +14,29 @@ import "../styles/wallet-connect.css";
 import "../styles/sage.css";
 import { AppShell } from "@/components/shell/app-shell";
 import { FeedbackWidget } from "@/components/shell/feedback-widget";
-import { geist } from "@/components/landing/fonts";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
+// THE STOP (24 Nov 2026): one OFL superfamily. Fira Sans reads, Fira Sans Extra Condensed carries lines, stamps and
+// numbers, Fira Mono carries hashes, times and serials. Latin, Turkish, Vietnamese and Cyrillic are native; CJK falls to
+// the system's Noto/Hiragino/PingFang through the stacks in tokens.css.
+const firaSans = Fira_Sans({
+  subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-fira-sans",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+const firaDisplay = Fira_Sans_Extra_Condensed({
+  subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
+  weight: ["600", "700", "800"],
+  variable: "--font-fira-xc",
+  display: "swap",
+});
+
+const firaMono = Fira_Mono({
+  subsets: ["latin", "latin-ext", "cyrillic"],
+  weight: ["400", "500"],
+  variable: "--font-fira-mono",
   display: "swap",
 });
 
@@ -105,7 +117,7 @@ export default function RootLayout({
     // Font CSS variables live on <html> because tokens.css sets font-family from them
     // to <html>; defining them on <body> would leave the root font-family
     // unresolved and fall back to the browser default serif.
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${geist.variable}`}>
+    <html lang="en" className={`${firaSans.variable} ${firaDisplay.variable} ${firaMono.variable}`}>
       <body>
         <StructuredData />
         <SagePrivyProvider appId={process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim() || null}>

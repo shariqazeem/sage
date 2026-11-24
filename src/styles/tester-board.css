@@ -33,7 +33,7 @@
   margin-bottom: var(--s-4);
 }
 .tb-hero-title {
-  font-family: var(--font-geist), var(--font-sans), system-ui, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
   font-size: clamp(1.9rem, 4.6vw, 3rem);
   line-height: 1.02;
   letter-spacing: -0.025em;

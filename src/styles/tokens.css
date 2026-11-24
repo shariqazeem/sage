@@ -1,10 +1,13 @@
 /**
  * tokens.css — the SINGLE design-token source of truth for every Sage surface.
- * "Receipt minimalism": premium light, one terracotta accent, green/red reserved
- * strictly for money-outcome semantics. Imported once in the root layout; every
- * per-surface stylesheet aliases its local vars to these (no palette re-declaration).
  *
- * Fonts (--font-sans / --font-mono) are set on <html> by next/font in layout.tsx.
+ * THE STOP (24 Nov 2026, the flagship identity; the old "receipt minimalism" terracotta look is retired):
+ * every try stops somewhere. White paper, blue-black ink for what people did, and ONE seal red for Sage's
+ * hand: the stop, the stamp, the strike. Red is never a button, a link, a field or a disc. Buttons and links
+ * are ink. Paid, held and refused never rely on colour alone (a stamp, pencil brackets, a strike, each with
+ * its word). Imported once in the root layout; every per-surface stylesheet aliases its local vars to these.
+ *
+ * Fonts (--font-sans / --font-display / --font-mono) are set on <html> by next/font in layout.tsx.
  */
 
 :root {
@@ -12,71 +15,77 @@
      shelled pages whose own top padding is shallower; scoped on html[data-app-shell="on"] so
      the same page class keeps its standalone spacing when unshelled (e.g. .spp on /proof). */
   --pill-clear: 2.5rem;
-  /* ── type families — defined ONCE, here (were in globals.css) ───── */
+  /* ── type families — defined ONCE, here ───────────────────────────── */
   /* The inner var() fallbacks keep `font-family` valid when a next/font variable is
    * missing: a bare undefined var() invalidates the whole declaration and the browser
-   * drops to serif. layout.tsx puts --font-inter / --font-jetbrains-mono on <html>. */
-  --font-sans: var(--font-inter, ui-sans-serif), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains-mono, ui-monospace), SFMono-Regular, "JetBrains Mono", monospace;
+   * drops to serif. layout.tsx puts --font-fira-sans / --font-fira-xc / --font-fira-mono on <html>. */
+  --font-sans: var(--font-fira-sans, ui-sans-serif), system-ui, "Noto Sans", "PingFang SC", "Hiragino Sans", sans-serif;
+  --font-display: var(--font-fira-xc, var(--font-fira-sans, ui-sans-serif)), system-ui, "Noto Sans", sans-serif;
+  --font-mono: var(--font-fira-mono, ui-monospace), SFMono-Regular, Menlo, monospace;
 
   /* ── surface + text ─────────────────────────────────────────────── */
-  --bg: #fbfbf9;            /* paper */
-  --surface: #ffffff;      /* raised card */
-  --ink: #1a1d21;          /* primary text (app surfaces) */
-  /* THE SECOND INK, named honestly. The public reading surfaces (landing, docs, long-form
-   * content) run a WARMER ink than the app chrome — a deliberate P24 choice, not drift. It
-   * was declared identically in three separate files; it lives here now, and those files
-   * alias it, so "warm ink" has exactly one definition. */
-  --ink-warm: #171715;
-  --ink-muted: #565c64;    /* secondary text */
-  --ink-faint: #8b9098;    /* tertiary / captions */
+  --bg: #ffffff;            /* paper: the record */
+  --surface: #ffffff;       /* a ticket, a card: paper on paper, edged in ink */
+  --copy: #efefed;          /* the quiet second surface (neutral: never blue, never cream) */
+  --ink: #161b29;           /* what people did, and every word */
+  /* One ink now. The warm reading ink is retired with the old look; the name stays so the
+   * per-surface sheets that alias it keep resolving. */
+  --ink-warm: #161b29;
+  --ink-muted: #4c5160;     /* secondary text (7.9:1 on paper) */
+  --ink-faint: #75787b;     /* pencil: captions, unreached steps (4.6:1 on paper) */
 
-  /* ── brand accent (ALL interactive/brand elements) ──────────────── */
-  --accent: #c2410c;       /* terracotta */
-  --accent-soft: #fdf1ea;  /* subtle terracotta wash (hover/selected) */
-  --accent-ink: #ffffff;   /* text on an accent fill */
-  --accent-strong: #9a3412;/* darker terracotta for hover / active */
+  /* ── interactive: INK, never red ──────────────────────────────── */
+  --accent: #161b29;        /* buttons, links, focus, selected: ink */
+  --accent-soft: #efefed;   /* hover/selected wash: the copy grey */
+  --accent-ink: #ffffff;    /* text on an ink fill */
+  --accent-strong: #000000; /* ink, pressed */
 
-  /* ── money-outcome semantics ONLY (never generic accents) ───────── */
-  --ok: #15803d;           /* paid / verified / success */
-  --ok-soft: #eef6f0;
-  --err: #dc2626;          /* rejected / failed / blocked */
-  --err-soft: #fdeeee;
-  --warn: #b45309;         /* caution (held-for-review, low balance) */
-  --warn-soft: #fbf1e6;
+  /* ── SAGE'S HAND: the one red, only for what Sage marked ──────────── */
+  --seal: #ba0c2f;          /* the stop, the PAID stamp, the strike (Pantone 200 C). Never brighter. */
+
+  /* ── money outcomes: shape + word first, colour second ─────────────
+   * paid    = ink type + the seal stamp (the stamp component draws the red)
+   * refused = the seal strike
+   * held    = pencil */
+  --ok: #161b29;            /* paid / verified / success: ink */
+  --ok-soft: #efefed;
+  --err: #ba0c2f;           /* refused / failed / blocked: Sage's strike */
+  --err-soft: #f5eff0;      /* the faintest seal wash, for a refused or failed callout's ground */
+  --warn: #75787b;          /* held / low balance: pencil */
+  --warn-soft: #efefed;
   /* tinted callout rings — a shade darker than each matching *-soft fill */
-  --accent-border: #f3d7c6;
-  --ok-border: #c3e3cd;
-  --err-border: #f2cccc;
-  --warn-border: #ecdcb4;
+  --accent-border: #d7d7d4;
+  --ok-border: #d7d7d4;
+  --err-border: #e6c3ca;
+  --warn-border: #d7d7d4;
 
   /* ── lines + elevation ──────────────────────────────────────────── */
-  --border: #e9e6df;
-  --border-strong: #d8d3c9;
-  --shadow-sm: 0 1px 2px rgba(26, 29, 33, 0.05);
-  --shadow-md: 0 6px 24px rgba(26, 29, 33, 0.08);
+  --border: #d7d7d4;
+  --border-strong: #161b29;
+  --shadow-sm: none;
+  --shadow-md: 0 10px 30px -18px rgba(22, 27, 41, 0.35);
   /* P24 — landing elevations + scrims (were raw rgba in cinematic.css; tokenized here at
    * identical values, so no visual shift). Ink = the --ink channel; cta = a darker ink. */
-  --shadow-card: 0 12px 30px -18px rgba(26, 29, 33, 0.28);
-  --shadow-card-hover: 0 16px 34px -18px rgba(26, 29, 33, 0.24);
-  --shadow-float: 0 20px 48px -26px rgba(26, 29, 33, 0.3);
-  --shadow-hero: 0 20px 50px -20px rgba(26, 29, 33, 0.5);
-  --shadow-cta: 0 8px 22px -10px rgba(20, 22, 26, 0.6);
-  --shadow-cta-hover: 0 12px 28px -10px rgba(20, 22, 26, 0.66);
-  --shadow-ok-glow: 0 12px 26px -16px rgba(21, 128, 61, 0.45);
+  --shadow-card: none;
+  --shadow-card-hover: none;
+  --shadow-float: 0 18px 40px -24px rgba(22, 27, 41, 0.35);
+  --shadow-hero: none;
+  --shadow-cta: none;
+  --shadow-cta-hover: none;
+  --shadow-ok-glow: none;
   --shadow-on-dark: 0 12px 30px -14px rgba(0, 0, 0, 0.5);
-  --scrim-header: rgba(251, 251, 249, 0.82);
+  --scrim-header: rgba(255, 255, 255, 0.9);
 
   /* ── inverse: the one dark surface (landing close, wallet hero) ──── */
-  --ink-inverse: #f3f3f1;            /* primary light text on dark */
-  --ink-inverse-muted: #b3b5b9;      /* muted light text on dark */
-  --border-inverse: #2c3138;         /* hairline on dark */
-  --surface-inverse-raised: #26292e; /* elevated card on dark */
+  --ink-inverse: #ffffff;            /* primary light text on ink */
+  --ink-inverse-muted: #b9bcc4;      /* muted light text on ink */
+  --border-inverse: #2c3346;         /* hairline on ink */
+  --surface-inverse-raised: #232a3b; /* elevated card on ink */
 
   /* ── radii (6/10/16, + pill for status chips only) ──────────────── */
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 16px;
+  --r-sm: 2px;
+  --r-md: 2px;
+  --r-lg: 4px;
   --r-pill: 999px;
 
   /* ── spacing scale — 8pt rhythm (4 is the half-step) ────────────── */
@@ -148,7 +157,7 @@
   --dur-press: 120ms; /* a tap answering */
   --dur-move: 240ms;  /* a sheet arriving */
   --dur-stamp: 280ms; /* the Paid stamp landing: once per real payout */
-  --scrim-sheet: rgba(26, 29, 33, 0.28); /* the page behind an open sheet (the --ink channel) */
+  --scrim-sheet: rgba(22, 27, 41, 0.32); /* the page behind an open sheet (the --ink channel) */
 }
 
 /* prefers-reduced-motion COLLAPSES everything: every motion built on the vocabulary
@@ -202,4 +211,12 @@ body {
 ::selection {
   background: var(--ink);
   color: var(--bg);
+}
+
+/* Display lines (the one big sentence per screen, stamps, big numbers) speak in the condensed face. */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.005em;
 }

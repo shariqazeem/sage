@@ -62,7 +62,7 @@ export function Ticket({ handle, words, state, amount, reason, meta, href, land,
       </span>
       <span className="sg-ticket-stub">
         <span className="sg-ticket-amount">{amount}</span>
-        {state === "paid" ? <PaidStamp land={land} /> : null}
+        {state === "paid" ? <PaidStamp land={land} seed={href ?? handle} size={56} /> : null}
       </span>
     </>
   );
