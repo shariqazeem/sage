@@ -194,7 +194,7 @@
 .lend-adv-list { list-style: none; margin: 0.6rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .lend-adv-list li { display: flex; align-items: baseline; gap: 0.6rem; font-size: 0.875rem; }
 .lend-adv-status { font-family: var(--font-mono); font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.1rem 0.5rem; border-radius: 999px; border: 1px solid var(--border-strong); }
-.lend-adv-status.is-repaid { color: #15803d; border-color: #b5d7c0; }
+.lend-adv-status.is-repaid { color: var(--ok); border-color: var(--ok-border); }
 .lend-adv-status.is-active { color: var(--accent); border-color: var(--accent-border); }
 .lend-adv-what { flex: 1; }
 .lend-adv-list a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 0.2rem; }
@@ -211,7 +211,7 @@
 .lend-att > button:disabled { opacity: 0.55; cursor: default; }
 .lend-att-ok { border: 1px solid #b5d7c0; border-radius: 8px; padding: 0.7rem 0.85rem; display: flex; flex-direction: column; gap: 0.35rem; }
 .lend-att-line { margin: 0; font-size: 0.875rem; line-height: 1.55; }
-.lend-att-line b { color: #15803d; }
+.lend-att-line b { color: var(--ok); }
 .lend-att-arith { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-muted); }
 .lend-att-issuer { margin: 0; font-size: 0.75rem; color: var(--ink-faint); }
 .lend-rows-links { display: inline-flex; gap: 1rem; }

@@ -58,7 +58,7 @@
 .ws-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-muted); background: var(--surface); text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1; transition: border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
 a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(--accent); }
 .ws-chip.live { color: var(--pos, #15803d); border-color: var(--pos-border, #cfe6d3); background: var(--pos-soft, #f0f8f1); }
-.ws-chip.live::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15); }
+.ws-chip.live::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 3px rgba(22, 27, 41, 0.15); }
 .ws-chip.paid { color: var(--pos, #15803d); }
 .ws-chip.warn { color: var(--warn); border-color: var(--warn-border); background: var(--warn-soft); }
 .ws-chip.accent { color: var(--accent); border-color: var(--accent-border); background: var(--accent-soft); }
@@ -97,7 +97,7 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .ws-tl-side a { color: var(--accent); text-decoration: none; }
 .ws-tl-live { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--pos, #15803d); }
 .ws-tl-live::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; animation: ws-pulse 1.8s ease-in-out infinite; }
-@keyframes ws-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0.35); } 50% { box-shadow: 0 0 0 5px rgba(21, 128, 61, 0); } }
+@keyframes ws-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(22, 27, 41, 0.35); } 50% { box-shadow: 0 0 0 5px rgba(22, 27, 41, 0); } }
 
 /* ── the checklist (a new workspace's first three moves) ── */
 .ws-check { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
@@ -177,7 +177,7 @@ a.ws-chip:hover, button.ws-chip:hover { border-color: var(--accent); color: var(
 .ws-mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
 .ws-rowlink { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; margin: 0 -14px; border-radius: 10px; text-decoration: none; color: inherit; transition: background var(--dur-1) var(--ease-out); }
 .ws-rowlink:hover { background: var(--bg); }
-.ws-livedot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--pos, #15803d); box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.14); margin-right: 2px; }
+.ws-livedot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--pos, #15803d); box-shadow: 0 0 0 3px rgba(22, 27, 41, 0.14); margin-right: 2px; }
 
 /* THE LOCAL-CURRENCY MECHANIC, as a sequence. See capital-panel.tsx. */
 .cap-rail {

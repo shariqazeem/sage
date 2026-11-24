@@ -173,7 +173,7 @@
 .lx-recent-row:hover { background: var(--lx-bg); }
 .lx-recent-host { font-family: var(--font-mono), monospace; font-size: 12.5px; }
 .lx-recent-status { font-size: 11.5px; color: var(--lx-muted); border: 1px solid var(--lx-line); border-radius: 999px; padding: 1px 8px; }
-.lx-recent-status.ok { color: var(--ok); border-color: rgba(21, 128, 61, 0.35); }
+.lx-recent-status.ok { color: var(--ok); border-color: rgba(22, 27, 41, 0.35); }
 .lx-recent-when { margin-left: auto; font-size: 11.5px; color: var(--lx-muted); font-variant-numeric: tabular-nums; }
 
 /* THE ACTION LOG — the agent's own activity feed. Newest line on top with the live pulse;

@@ -58,6 +58,11 @@
   --ok-border: #d7d7d4;
   --err-border: #e6c3ca;
   --warn-border: #d7d7d4;
+  /* the older per-page aliases, resolved once here so no page falls back to a retired colour */
+  --pos: var(--ok);
+  --pos-soft: var(--ok-soft);
+  --pos-border: var(--ok-border);
+  --dan: var(--err);
 
   /* ── lines + elevation ──────────────────────────────────────────── */
   --border: #d7d7d4;

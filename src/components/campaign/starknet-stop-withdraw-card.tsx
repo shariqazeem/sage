@@ -138,7 +138,7 @@ export function StarknetStopWithdrawCard({
       )}
 
       {txHash ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 14, fontSize: 13.5, color: "#15803d", fontWeight: 500 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 14, fontSize: 13.5, color: "var(--ok)", fontWeight: 500 }}>
           <Check size={15} strokeWidth={2.6} /> Withdrawn to your wallet.
           {explorerUrl && (
             <a

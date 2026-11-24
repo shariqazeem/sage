@@ -24,10 +24,10 @@ export interface RingState {
 }
 
 const S = 300;
-const INK = "#1a1d21";
-const TRACK = "#ecebe6";
-const GREEN = "#15803d";
-const INDIGO = "#4f46e5";
+const INK = "#161b29";
+const TRACK = "#efefed";
+const GREEN = "#161b29"; // paid progress: ink (The Stop: green is retired)
+const INDIGO = "#75787b";
 
 export function TravelingRing({
   slotKey,

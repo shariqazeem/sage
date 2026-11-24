@@ -80,7 +80,7 @@ function StopViaAccountCard({ campaignId, chainId, explorerUrl }: { campaignId: 
         Your account launched this campaign, so it owns the vault. Sage stops the vault through the account and the remaining USDC returns to the account. This can&apos;t be undone, and any not-yet-approved submissions won&apos;t be paid.
       </p>
       {done ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 14, fontSize: 13.5, color: "#15803d", fontWeight: 500, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 14, fontSize: 13.5, color: "var(--ok)", fontWeight: 500, flexWrap: "wrap" }}>
           <Check size={15} strokeWidth={2.6} /> Stopped.{recovered && recovered !== "0.00" ? ` ${recovered} USDC returned to your account.` : " Nothing was left in the vault."}
           {tx && explorerUrl && (
             <a href={`${explorerUrl}/tx/${tx}`} target="_blank" rel="noopener noreferrer" className="cw-link mono" style={{ marginLeft: 4 }}>
@@ -241,7 +241,7 @@ function StopWithWalletCard({
       )}
 
       {doneTx ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 14, fontSize: 13.5, color: "#15803d", fontWeight: 500 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 14, fontSize: 13.5, color: "var(--ok)", fontWeight: 500 }}>
           <Check size={15} strokeWidth={2.6} /> Withdrawn to your wallet.
           {explorerUrl && (
             <a href={`${explorerUrl}/tx/${doneTx}`} target="_blank" rel="noopener noreferrer" className="cw-link mono" style={{ marginLeft: 4 }}>

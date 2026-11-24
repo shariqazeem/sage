@@ -44,7 +44,7 @@ export function SagePrivyProvider({ appId, children }: { appId: string | null; c
         // The email door is email (or Google), nothing else. A wallet signs in through the MetaMask door
         // (one signature, SIWE), so a wallet never has two ways in that could disagree (26 Oct 2026).
         loginMethods: LOGIN_WITH_X ? ["email", "google", "twitter"] : ["email", "google"],
-        appearance: { theme: "light", accentColor: "#c2410c", logo: "https://sagepays.xyz/icon.png", walletChainType: "ethereum-only" },
+        appearance: { theme: "light", accentColor: "#161b29", logo: "https://sagepays.xyz/icon.png", walletChainType: "ethereum-only" },
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
         // Metis is the network everything runs on, and where the embedded wallet starts. It signs what a
         // MetaMask signs (a plan payment, an advance's approval, a withdrawal), so it also knows the two

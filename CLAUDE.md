@@ -611,9 +611,14 @@ if you must touch them, that suite must stay green.
 
 ## 5. Design system
 
-**One system: "receipt minimalism."** Calm, premium-light, print-like. This is the
-standard all UI converges to; new UI must follow it. (Current reality is fragmented — see
-Known drift. Tokens live in `src/styles/tokens.css`, the single source of truth.)
+**One system: "The Stop" (the flagship identity, 24 Nov 2026; "receipt minimalism" and its terracotta are
+retired).** **Every try stops somewhere:** an ink line runs as far as a person got, and Sage's hand, in seal
+red, marks where it stopped. Chosen by the /flagship method (six directions, a blind panel on three models).
+The design files, the kit that draws every board, post and film, and the decision (`FLAGSHIP.md`) live
+outside this public repo, in `~/projects/sage-launch/design/`. In the app: tokens in `src/styles/tokens.css`
+(the single source of truth), the geometry and the stamp's angle in `src/lib/brand/stop.ts`, the character
+in `src/lib/brand/worker.ts`, the mark in `src/components/brand/sage-mark.tsx`, the PAID stamp in
+`src/components/sage/paid-stamp.tsx`, and Fira for share images in `src/lib/brand/og-fonts.ts`.
 
 **One bar, no rail (the relaunch, 20 Nov 2026).** The hover rail and the company header are gone. Every page
 wears ONE top bar (`src/components/sage/top-bar.tsx`: the mark, Tests `/`, Earn `/earn`, New test, and the
@@ -621,8 +626,8 @@ avatar or "Sign in"), mounted once in the root layout; `hasTopBar` in `src/compo
 the three pages that stay bare (`/proof/<tx>`, `/start`, `/join/<code>`), and `bar-routes.test.ts` holds the
 bar's list. The six screens below are all still pages, reached from the account sheet that opens from the
 avatar. New UI is built from the kit in `src/components/sage` and `src/styles/sage.css` (classes prefixed
-`sg-`): the paste box, the test card, the tester ticket with its green Paid stamp (it lands once per real
-payout and is never replayed), the frame, the sheet. `/` is the paste box (signed out) or your tests (signed
+`sg-`): the paste box, the test card, the tester ticket with its round seal PAID stamp (it lands once per
+real payout, at its transaction's own angle, and is never replayed), the frame, the sheet. `/` is the paste box (signed out) or your tests (signed
 in); `/pricing` is one screen with no tiers; `/marketplace` and `/missions` redirect to `/earn`; a test's
 address is `/t/<id>` (`testPath`).
 
@@ -650,17 +655,26 @@ address is `/t/<id>` (`testPath`).
   `src/lib/site/restored-pages.test.ts` holds both sides.
 - No inline `style=` in new code; classes only.
 
-- **Color.** Paper background `#fbfbf9`; ink text `#1a1d21`; **brand accent terracotta
-  `#c2410c` on ALL interactive/brand elements** (links, primary buttons, focus, the mark).
-  Green `#15803d` and red `#dc2626` are **reserved strictly for money-outcome semantics**
-  (paid/settled vs blocked/failed) — never as generic accents.
-- **Type.** Inter (`--font-sans`) for UI/body; JetBrains Mono (`--font-mono`) for data,
-  addresses, amounts, hashes. Both already wired via `next/font` in `layout.tsx`. Numeric
-  data uses **tabular numerals**.
-- **Radii.** `6` (inputs/small), `10` (cards/buttons), `16` (large surfaces). `999px`
-  pills **only** for status chips. No other radii.
-- **Elevation.** Two shadow tokens only (a subtle resting shadow + a raised one). Prefer
-  1px borders + spacing over shadow stacks.
+- **The mark ⊣.** On a 200 grid: an ink path 34 tall from its container's left edge to x 118, stopping at a
+  seal wall 38 × 150. Never on an ink ground (a no-entry sign), never a full-height wall (a half-disc), never
+  an arrowhead (the Tab key), never a red disc, never the letter S, never a rounded square. The avatar is the
+  mark on white. The wordmark is SAGE in Fira Sans Extra Condensed 800, letter-spaced.
+- **Color.** Paper `#ffffff`; ink `#161b29` for what people did, all type, **every button and link**;
+  **seal `#ba0c2f` is Sage's hand only**: the stop, the PAID stamp, the strike (`--seal`). Red is never a
+  button, a link, a field or a disc, and never brighter (Optimism owns `#ff0420`). Pencil `#75787b` is held;
+  copy `#efefed` is the quiet second surface (neutral: never blue, never cream). Green is retired (Sage Group
+  owns it). Paid, held and refused never rely on colour: a stamp, pencil brackets, a strike, each with its
+  word. `--ok` (paid/verified) is ink, `--err` (refused/failed) is the seal, `--warn` (held) is pencil.
+- **Type.** Fira Sans (`--font-sans`) for UI and reading; Fira Sans Extra Condensed 800 (`--font-display`)
+  for display lines, stamps and big numbers (`h1`, `h2` get it globally); Fira Mono (`--font-mono`) for
+  hashes, times, serials and amounts. All OFL, wired via `next/font` in `layout.tsx`. **Tabular numerals.**
+- **Radii.** Square: `2` (inputs, cards, buttons), `4` (large surfaces). `999px` pills **only** for status
+  chips.
+- **Elevation.** None at rest: a 1.5 px ink or a hairline edge is the elevation. One soft float shadow only
+  for sheets and popovers.
+- **The character.** Sage drawn as a working rubber stamp, no face and no hands, doing one of twelve verbs.
+  Films, posts and the X header only: never the avatar, and on a receipt, the ledger or the findings only its
+  print appears.
 - **No emoji** in UI — use lucide line icons.
 
 The dark `:root` system in `src/app/globals.css` is **legacy** (it belongs to the dead
