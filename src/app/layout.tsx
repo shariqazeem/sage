@@ -18,8 +18,11 @@ import { FeedbackWidget } from "@/components/shell/feedback-widget";
 // THE STOP (24 Nov 2026): one OFL superfamily. Fira Sans reads, Fira Sans Extra Condensed carries lines, stamps and
 // numbers, Fira Mono carries hashes, times and serials. Latin, Turkish, Vietnamese and Cyrillic are native; CJK falls to
 // the system's Noto/Hiragino/PingFang through the stacks in tokens.css.
+// ONLY the Latin files are preloaded: every preload is a `link:` response header, and four subsets × three
+// families made a 6 KB header that nginx refused (502 on every dynamic page, 24 Nov 2026). The other scripts'
+// files still load on demand through their unicode ranges.
 const firaSans = Fira_Sans({
-  subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
+  subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   style: ["normal", "italic"],
   variable: "--font-fira-sans",
@@ -27,14 +30,15 @@ const firaSans = Fira_Sans({
 });
 
 const firaDisplay = Fira_Sans_Extra_Condensed({
-  subsets: ["latin", "latin-ext", "cyrillic", "vietnamese"],
+  subsets: ["latin"],
   weight: ["600", "700", "800"],
   variable: "--font-fira-xc",
   display: "swap",
 });
 
 const firaMono = Fira_Mono({
-  subsets: ["latin", "latin-ext", "cyrillic"],
+  subsets: ["latin"],
+  preload: false, // hashes and serials: never on the first paint's critical path
   weight: ["400", "500"],
   variable: "--font-fira-mono",
   display: "swap",
