@@ -91,7 +91,7 @@ export default async function OG({ params }: { params: Promise<{ tx: string }> }
             {amount}
           </div>
           {proof && settled && !mismatch ? <div style={{ display: "flex", width: 300, height: 14, borderTop: `5px solid ${SEAL}`, borderBottom: `5px solid ${SEAL}` }} /> : null}
-          <div style={{ display: "flex", fontSize: 32, color: proof && !settled && !mismatch ? SEAL : INK }}>{label === "SAGE" ? sub : `${label === "SETTLED" ? "Paid" : label === "BLOCKED" ? "Refused" : "Held"} · ${sub}`}</div>
+          <div style={{ display: "flex", fontSize: 32, color: proof && !settled && !mismatch ? SEAL : INK }}>{label === "FLAGGED" ? `Held · ${sub}` : sub.charAt(0).toUpperCase() + sub.slice(1)}</div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "Fira Mono", fontSize: 24, color: PENCIL }}>

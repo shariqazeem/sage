@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { money, short } from "@/lib/format";
 import { NetworkChip } from "@/components/app/network-chip";
+import { PaidStamp } from "@/components/sage/paid-stamp";
 import { x402StatusLabel } from "@/lib/x402/x402-status";
 import type { FoundProof } from "@/lib/deputy/proof";
 
@@ -88,21 +89,22 @@ export function SageProofPage({ proof }: { proof: FoundProof }) {
 
       {/* SECTION 1 · the human result */}
       <div className="spp-col spp-fact-wrap">
-        <div className={`spp-medallion ${tone}`}>
-          {isMismatch ? (
-            <AlertTriangle size={38} strokeWidth={2.2} />
-          ) : settled ? (
-            <Check size={40} strokeWidth={2.4} />
-          ) : (
-            <X size={40} strokeWidth={2.4} />
-          )}
-        </div>
+        {settled && !isMismatch ? (
+          // The Stop: a settled receipt carries Sage's round PAID stamp, at its own transaction's angle.
+          <div className="spp-stamp">
+            <PaidStamp seed={proof.chain.txHash} size={128} />
+          </div>
+        ) : (
+          <div className={`spp-medallion ${tone}`}>
+            {isMismatch ? <AlertTriangle size={38} strokeWidth={2.2} /> : <X size={40} strokeWidth={2.4} />}
+          </div>
+        )}
         <div className="spp-reveal" style={{ animationDelay: "0.16s" }}>
           <span className={`spp-status ${tone}`}>
             <span className="dot" />
             {statusLabel}
           </span>
-          <div className="spp-amount mono">{money(proof.human.amountUsd, proof.chain.chainId)}</div>
+          <div className={`spp-amount mono${settled && !isMismatch ? " paid" : ""}`}>{money(proof.human.amountUsd, proof.chain.chainId)}</div>
           <div className="spp-fact">{proof.human.outcome}</div>
           {proof.human.campaignTitle && (
             <div className="spp-reward">for {proof.human.campaignTitle.toLowerCase()}</div>
