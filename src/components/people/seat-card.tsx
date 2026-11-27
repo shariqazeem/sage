@@ -44,7 +44,8 @@ export function SeatCard({ code, view, emailEnabled = false }: { code: string; v
       }
       setJoined({ campaignId: json.campaignId ?? null });
       // the test's own page (it sends a campaign from before missions to its old board), counted as the builder's link
-      if (json.campaignId) setTimeout(() => router.push(`${testPath(json.campaignId)}?via=link`), 700);
+      const joinedId = json.campaignId;
+      if (joinedId) setTimeout(() => router.push(`${testPath(joinedId)}?via=link`), 700);
     } catch {
       setErr("Network error. Try again.");
     } finally {
