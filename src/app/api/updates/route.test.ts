@@ -21,12 +21,12 @@ describe("/api/updates", () => {
 
   it("hands a signed-in builder a single-use Telegram link, and reads and stops the updates", async () => {
     h.me = ME;
-    expect(await (await GET()).json()).toEqual({ telegram: "off" });
+    expect(await (await GET()).json()).toMatchObject({ telegram: "off" });
     const { url } = (await (await POST()).json()) as { url: string };
     expect(url).toMatch(/^https:\/\/t\.me\/sagedeputybot\?start=bu_[A-Za-z0-9_-]{16}$/);
     expect(redeemUpdatesToken(url.split("start=")[1]!, "900")).toMatchObject({ ok: true });
-    expect(await (await GET()).json()).toEqual({ telegram: "connected" });
-    expect(await (await DELETE()).json()).toEqual({ telegram: "muted" });
-    expect(await (await GET()).json()).toEqual({ telegram: "muted" });
+    expect(await (await GET()).json()).toMatchObject({ telegram: "connected" });
+    expect(await (await DELETE()).json()).toMatchObject({ telegram: "muted" });
+    expect(await (await GET()).json()).toMatchObject({ telegram: "muted" });
   });
 });

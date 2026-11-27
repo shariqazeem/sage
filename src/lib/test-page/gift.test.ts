@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { campaigns, inspectionJobs } from "@/lib/db/schema";
+import { campaigns, inspectionJobs, type InspectionStatus } from "@/lib/db/schema";
 import { createInspectionJob, getInspectionJob } from "@/lib/db/inspection";
 import { claimGift, holdsGift, makeGift } from "./gift";
 
@@ -27,7 +27,7 @@ function plan(status = "ready", owner = GIVER): { id: string; publicCampaignId: 
     tokenDecimals: 6,
     planningRequestId: `req-gift-${n}`,
   });
-  db.update(inspectionJobs).set({ status }).where(eq(inspectionJobs.id, job.id)).run();
+  db.update(inspectionJobs).set({ status: status as InspectionStatus }).where(eq(inspectionJobs.id, job.id)).run();
   return { id: job.id, publicCampaignId: job.publicCampaignId };
 }
 

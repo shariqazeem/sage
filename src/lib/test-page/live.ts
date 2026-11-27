@@ -27,6 +27,8 @@ import type { ActivityItem } from "./activity";
 import type { SourceRow, TestFunnel } from "./funnel";
 import { activityFor, trackingFor, type TicketJourney } from "./tracking";
 import { builderUpdatesState, type UpdatesState } from "@/lib/builder-updates/store";
+import { builderEmailState } from "@/lib/builder-updates/email";
+import type { EmailState } from "@/lib/builder-updates/email-core";
 import { sharingFor, type Sharing } from "@/lib/sharing";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
 import { testUrl } from "@/lib/site/test-url";
@@ -107,7 +109,13 @@ export interface LiveOwner {
   /** what Sage did for this test, newest first, each line a recorded row */
   activity: ActivityItem[];
   /** whether this builder hears about their tests on Telegram */
-  updates: { telegram: UpdatesState };
+  updates: {
+    telegram: UpdatesState;
+    /** unavailable: email is not set up on this server, so the page offers nothing. on / off: this builder's own choice. */
+    email: EmailState;
+    /** the address updates go to, masked (`sh…@gmail.com`); null unless email is on */
+    emailTo: string | null;
+  };
 }
 
 export interface LiveView {
@@ -286,7 +294,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
       funnel: tracking.funnel,
       sources: tracking.sources,
       activity: activityFor(campaign, { subs, events, job: lookJob }),
-      updates: { telegram: builderUpdatesState(viewer) },
+      updates: { telegram: builderUpdatesState(viewer), ...builderEmailState(viewer) },
     };
   }
 

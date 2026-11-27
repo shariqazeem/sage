@@ -1,27 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { HandCoins, LogIn, PenLine, Receipt, ScanSearch, Send, Wallet } from "lucide-react";
+import { ClipboardList, HandCoins, Link2, LogIn, MousePointerClick, Receipt, ScanSearch, Send, UsersRound, Wallet } from "lucide-react";
 import { DOCS_PAGES } from "@/lib/site/docs-pages";
-import { PLANS } from "@/lib/plans/catalog";
 import { DocHead, DocSection } from "./parts";
+import { BUILDER_SIGN_IN, TEST, onePlaceLines } from "./facts";
 
 export const metadata: Metadata = {
   title: "Docs",
   description:
-    "How Sage works: describe the work and set a budget, Sage checks every submission and pays people in USDC from an on-chain vault it cannot overspend, with a public receipt for every payout. Start here.",
+    "How Sage works: paste your product's link, Sage tries it in a real browser, real people try it, and each is paid in USDC only for an honest try Sage checked. You see how far everyone got and what they found. Start here.",
   alternates: { canonical: "/docs" },
 };
 
 const TOC = {
   "what-sage-is": "What Sage is",
-  loop: "How a job runs",
-  start: "Start in three steps",
+  loop: "How a test runs",
+  start: "Start a test",
+  testers: "Try products and get paid",
   "read-on": "Read on",
 } as const;
-
-/** Free's limits, read from the catalog the server enforces, so this line can't go stale. */
-const free = PLANS.free;
-const FREE_LINE = `The Free plan runs ${free.liveJobs === 1 ? "one live job" : `${free.liveJobs} live jobs`} at a time and up to $${free.monthlyUsd.toLocaleString("en-US")} of work a month, with real money.`;
 
 export default function DocsOverview() {
   return (
@@ -29,58 +26,67 @@ export default function DocsOverview() {
       <DocHead
         eyebrow="Docs"
         title="Sage docs"
-        lead="Sage checks work and pays people for it in USDC, inside limits it can never exceed. Start here."
+        lead="Paste your product's link. Sage tries it, real people try it, and each is paid only for an honest try. Start here."
         toc={TOC}
       />
 
       <DocSection toc={TOC} id="what-sage-is">
         <p>
-          Sage is an AI agent that pays people for verified work. You say what you need and set a budget. Sage turns
-          that into clear tasks, each with a fixed reward. It checks every submission, pays for the work that holds up,
-          and refuses the rest with a written reason.
+          Sage tests your product with real people. You paste a link. Sage opens the product in a real browser and
+          tries it first. Then people try it, and each one is paid in USDC only for an honest try that Sage checked.
         </p>
         <p>
-          The AI never holds the money. Each job&apos;s budget sits in a vault on chain: a contract with the job&apos;s
-          limits written into it. The AI can recommend a payout. Only the vault can make one, and only inside those
-          limits.
+          You see how far everyone got: who saw the test, who opened your product, who answered and who was paid. You
+          read what they found, in their own words.
         </p>
-        <p>Use it for product testing, gigs and bounties, and milestone grants. The people who do the work never pay.</p>
+        <p>
+          The AI never holds the money. Each test&apos;s money sits in its own vault on Metis: a contract with the
+          test&apos;s limits written into it. Sage can ask the vault to pay. Only the vault can pay, and only inside
+          those limits. Every payout has a public receipt.
+        </p>
       </DocSection>
 
       <DocSection toc={TOC} id="loop">
         <ol className="doc-steps">
           <li className="doc-step">
             <span className="card-icon">
-              <PenLine size={18} strokeWidth={1.75} aria-hidden />
+              <Link2 size={18} strokeWidth={1.75} aria-hidden />
             </span>
-            <h3>Post</h3>
-            <p>Describe the work and set a budget. Sage drafts the tasks and a reward for each. You approve the plan and fund it.</p>
+            <h3>Paste</h3>
+            <p>Give Sage your product&apos;s link. That is the whole brief.</p>
           </li>
           <li className="doc-step">
             <span className="card-icon">
               <ScanSearch size={18} strokeWidth={1.75} aria-hidden />
             </span>
-            <h3>Verify</h3>
-            <p>People claim a task, do it and submit. Sage checks each submission against evidence it gathers itself.</p>
+            <h3>Sage tries it</h3>
+            <p>Sage uses the product the way a stranger would. It shows you what it hit, and writes the missions.</p>
+          </li>
+          <li className="doc-step">
+            <span className="card-icon">
+              <UsersRound size={18} strokeWidth={1.75} aria-hidden />
+            </span>
+            <h3>People try it</h3>
+            <p>You choose how many people and what each earns, and pay. Each person takes one place and answers.</p>
           </li>
           <li className="doc-step">
             <span className="card-icon">
               <HandCoins size={18} strokeWidth={1.75} aria-hidden />
             </span>
-            <h3>Pay</h3>
-            <p>Work that holds up is paid in USDC from the job&apos;s vault. Work that doesn&apos;t is refused, with the reason.</p>
+            <h3>Checked and paid</h3>
+            <p>Sage checks each answer against what it saw itself. An honest try is paid from the vault. The rest is not.</p>
           </li>
           <li className="doc-step">
             <span className="card-icon">
-              <Receipt size={18} strokeWidth={1.75} aria-hidden />
+              <ClipboardList size={18} strokeWidth={1.75} aria-hidden />
             </span>
-            <h3>Receipt</h3>
-            <p>Every payout gets a public page tied to its transaction on chain. Anyone can check it.</p>
+            <h3>What they found</h3>
+            <p>The paid answers are grouped into findings, each with the exact words people wrote.</p>
           </li>
         </ol>
         <p>
-          You decide twice: when you approve the plan, and when you fund it. Sage does the rest and shows you what it
-          did. <Link href="/docs/how-it-works">How it works</Link> goes through each step.
+          You decide twice: when you set the offer, and when you pay. Sage does the rest and shows you what it did.{" "}
+          <Link href="/docs/how-it-works">How it works</Link> goes through each step.
         </p>
       </DocSection>
 
@@ -88,41 +94,71 @@ export default function DocsOverview() {
         <ol className="doc-steps three">
           <li className="doc-step">
             <span className="card-icon">
+              <Send size={18} strokeWidth={1.75} aria-hidden />
+            </span>
+            <h3>Paste a link</h3>
+            <p>Sage&apos;s first look is free. Nothing is paid until you decide to bring people in.</p>
+            <Link href="/" className="more">
+              Start a test
+            </Link>
+          </li>
+          <li className="doc-step">
+            <span className="card-icon">
               <LogIn size={18} strokeWidth={1.75} aria-hidden />
             </span>
             <h3>Sign in</h3>
-            <p>Use an email or a wallet you already have. With an email, Sage keeps a wallet for you. Nothing to install.</p>
-            <Link href="/start" className="more">
-              Sign in
-            </Link>
+            <p>Use {BUILDER_SIGN_IN}. The test is then yours to come back to.</p>
           </li>
           <li className="doc-step">
             <span className="card-icon">
               <Wallet size={18} strokeWidth={1.75} aria-hidden />
             </span>
-            <h3>Fund your account</h3>
-            <p>Your account is a wallet Sage keeps for you. Send it USDC from any wallet or exchange. Withdraw any time.</p>
-            <Link href="/workspace/account" className="more">
-              Your account
-            </Link>
-          </li>
-          <li className="doc-step">
-            <span className="card-icon">
-              <Send size={18} strokeWidth={1.75} aria-hidden />
-            </span>
-            <h3>Post one sentence</h3>
-            <p>Write the job the way you&apos;d brief a person. Set the budget, check the plan, and launch.</p>
-            <Link href="/launch?do=pay" className="more">
-              Post work
+            <h3>Pay what testers earn</h3>
+            <p>
+              You pay from your own wallet, in USDC on Metis. A test starts at {TEST.people} people and {TEST.each}{" "}
+              each: {TEST.total}, all of it to them.
+            </p>
+            <Link href="/pricing" className="more">
+              Pricing
             </Link>
           </li>
         </ol>
         <p>
-          Testing a product? <Link href="/launch">Give Sage its address</Link> instead. Sage looks at the product
-          itself before it writes a single task.
+          Sage takes no fee. What is not paid to testers comes back to your wallet when you end the test.{" "}
+          <Link href="/docs/payments#account">Paying for a test</Link> has the details.
         </p>
+      </DocSection>
+
+      <DocSection toc={TOC} id="testers">
+        <ol className="doc-steps three">
+          <li className="doc-step">
+            <span className="card-icon">
+              <MousePointerClick size={18} strokeWidth={1.75} aria-hidden />
+            </span>
+            <h3>Pick a test</h3>
+            <p>Every open test is listed with what it pays. Each one was paid for before it was listed.</p>
+            <Link href="/earn" className="more">
+              Open tests
+            </Link>
+          </li>
+          <li className="doc-step">
+            <span className="card-icon">
+              <LogIn size={18} strokeWidth={1.75} aria-hidden />
+            </span>
+            <h3>Sign in and try it</h3>
+            <p>{onePlaceLines()[0]} Then you try the product and say what happened.</p>
+          </li>
+          <li className="doc-step">
+            <span className="card-icon">
+              <Receipt size={18} strokeWidth={1.75} aria-hidden />
+            </span>
+            <h3>Get paid</h3>
+            <p>An honest try is paid in USDC on Metis, to the wallet you signed in with. Getting stuck earns the same as finishing.</p>
+          </li>
+        </ol>
         <p>
-          {FREE_LINE} <Link href="/pricing">Pricing</Link> has the rest.
+          Testers never pay Sage anything. <Link href="/docs/how-it-works#testers">If you are the tester</Link> has the
+          rest.
         </p>
       </DocSection>
 

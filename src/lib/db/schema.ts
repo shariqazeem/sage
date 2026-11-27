@@ -2100,3 +2100,17 @@ export const testerNotices = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.submissionId, t.kind] })],
 );
+
+/**
+ * WHERE A BUILDER HEARS BY EMAIL (28 Nov 2026). One row per builder who turned email updates on: the address
+ * their own sign-in carries, read from Privy on the server. Shown on a page only masked, never logged, and
+ * never a tester's. `src/lib/builder-updates/email.ts`.
+ */
+export const builderEmails = sqliteTable("builder_emails", {
+  founderKey: text("founder_key").primaryKey(),
+  email: text("email").notNull(),
+  mutedAt: integer("muted_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+export type BuilderEmailRow = typeof builderEmails.$inferSelect;

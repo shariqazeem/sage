@@ -12,13 +12,13 @@ export const DOCS_PAGES = [
   {
     href: "/docs",
     title: "Overview",
-    summary: "What Sage is, how a job runs, and how to start.",
+    summary: "What Sage is, how a test runs, and how to start.",
     icon: BookOpen,
   },
   {
     href: "/docs/how-it-works",
     title: "How it works",
-    summary: "Jobs and missions, how work is checked, Autopilot, and what you see.",
+    summary: "A test step by step, for the builder and the tester: the plan, the offer, checking, and what people found.",
     icon: Workflow,
   },
   {
@@ -30,7 +30,7 @@ export const DOCS_PAGES = [
   {
     href: "/docs/payments",
     title: "Payments and networks",
-    summary: "How a payout settles, the networks, receipts, fees, and how plans are billed.",
+    summary: "How a payout settles, the network, paying for a test, receipts, fees, and what Sage costs.",
     icon: Coins,
   },
   {

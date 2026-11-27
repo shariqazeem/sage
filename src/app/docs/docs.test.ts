@@ -102,6 +102,28 @@ describe("the docs pages", () => {
     }
   });
 
+  it("describe product testing: the overview and how-it-works never promise users, say Deputy or shout", async () => {
+    for (const load of [() => import("./page"), () => import("./how-it-works/page")]) {
+      const { default: Page } = (await load()) as { default: ComponentType };
+      const html = renderToStaticMarkup(createElement(Page));
+      const words = html.replace(/<[^>]+>/g, " ");
+      expect(words).not.toMatch(/\busers?\b/i);
+      expect(words).not.toMatch(/Deputy|!/);
+      expect(words).not.toMatch(/\p{Extended_Pictographic}/u);
+      expect(words).toMatch(/real browser/);
+      expect(words).toMatch(/honest try/);
+    }
+  });
+
+  it("the overview walks the loop in order, and how-it-works has both journeys", async () => {
+    const home = renderToStaticMarkup(createElement((await import("./page")).default));
+    const steps = ["Paste", "Sage tries it", "People try it", "Checked and paid", "What they found"].map((h) => home.indexOf(`<h3>${h}</h3>`));
+    expect(steps.every((i) => i > 0)).toBe(true);
+    expect([...steps].sort((a, b) => a - b)).toEqual(steps);
+    const how = renderToStaticMarkup(createElement((await import("./how-it-works/page")).default));
+    for (const id of ["jobs", "offer", "what-you-see", "checking", "findings", "testers", "autopilot"]) expect(how, id).toContain(`id="${id}"`);
+  });
+
   it("are written in the house style: classes only, no em dashes", () => {
     const own = [
       ...pageFiles,

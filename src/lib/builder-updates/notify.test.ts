@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * BUILDER UPDATES ON REAL ROWS: the link binds one chat to one builder, each notice is one message, a
@@ -7,7 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { db } from "@/lib/db";
-import { agentWallets, builderChannels, builderNotices, campaigns, decisions, missions as missionsTable } from "@/lib/db/schema";
+import { agentWallets, builderChannels, builderEmails, builderNotices, campaigns, decisions, missions as missionsTable } from "@/lib/db/schema";
+import { muteBuilderEmail, setBuilderEmail } from "./email";
 import { createSubmission, getCampaign, updateSubmission } from "@/lib/db/campaigns";
 import { redeemAlertToken } from "@/lib/db/roster";
 import { builderUpdatesState, channelOf, mintUpdatesToken, muteChannel, noticesSent, redeemUpdatesToken } from "./store";
@@ -181,3 +182,97 @@ describe("the sweep's step", () => {
     expect(s.sent[0].text).toContain("is waiting for you");
   });
 });
+
+describe("the same notices by email", () => {
+  const mailer = () => {
+    const mail: { to: string; subject: string; text: string }[] = [];
+    return { mail, email: async (to: string, m: { subject: string; text: string }) => (mail.push({ to, ...m }), true) };
+  };
+  const configure = () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    vi.stubEnv("SAGE_EMAIL_FROM", "Sage <updates@sagepays.xyz>");
+    vi.stubEnv("SAGE_SESSION_SECRET", "a-test-secret-of-enough-length");
+  };
+  beforeEach(() => db.delete(builderEmails).run());
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("sends nothing by email until email is set up, even to a builder who turned it on", async () => {
+    const id = test();
+    answer(id, W(1));
+    setBuilderEmail(OWNER, "owner@example.com", NOW);
+    const m = mailer();
+    expect(await notifyBuilders(NOW, { ...sender(), ...m })).toEqual({ tests: 0, sent: 0, failed: 0 });
+    expect(m.mail).toEqual([]);
+  });
+
+  it("emails a builder who turned it on, once, with the way to stop, and never one who did not", async () => {
+    configure();
+    const id = test();
+    answer(id, W(1));
+    const m = mailer();
+    expect((await notifyBuilders(NOW, { ...sender(), ...m })).sent).toBe(0);
+    setBuilderEmail(OWNER, "owner@example.com", NOW);
+    expect(await notifyBuilders(NOW, { ...sender(), ...m })).toEqual({ tests: 1, sent: 1, failed: 0 });
+    expect(m.mail).toHaveLength(1);
+    expect(m.mail[0].to).toBe("owner@example.com");
+    expect(m.mail[0].subject).toBe("The first answer to your test of Builder test is in");
+    expect(m.mail[0].text).toMatch(new RegExp(`^The first answer to your test of Builder test is in\\.\\nhttp://localhost:3000/t/${id}#people\\n\\nYou get these because you turned on email updates for your tests on Sage\\. Stop them: http://localhost:3000/api/updates/email/stop\\?t=[A-Za-z0-9_-]+\\.[0-9a-f]{40}$`));
+    await notifyBuilders(NOW + 300, { ...sender(), ...m });
+    expect(m.mail).toHaveLength(1);
+    expect([...noticesSent(id)]).toEqual(["email:first-answer"]);
+  });
+
+  it("is its own channel: Telegram and email each say a thing once", async () => {
+    configure();
+    const id = test();
+    answer(id, W(1));
+    redeemUpdatesToken(mintUpdatesToken(OWNER, NOW), "555", NOW);
+    setBuilderEmail(OWNER, "owner@example.com", NOW);
+    const s = sender();
+    const m = mailer();
+    expect(await notifyBuilders(NOW, { ...s, ...m })).toEqual({ tests: 1, sent: 2, failed: 0 });
+    expect(s.sent).toHaveLength(1);
+    expect(m.mail).toHaveLength(1);
+    expect([...noticesSent(id)].sort()).toEqual(["email:first-answer", "first-answer"]);
+  });
+
+  it("stops when the builder mutes it, and tries again when the mail was not taken", async () => {
+    configure();
+    const id = test();
+    answer(id, W(1));
+    setBuilderEmail(OWNER, "owner@example.com", NOW);
+    expect(await notifyBuilders(NOW, { email: async () => false })).toEqual({ tests: 1, sent: 0, failed: 1 });
+    expect(noticesSent(id).size).toBe(0);
+    muteBuilderEmail(OWNER, NOW);
+    const m = mailer();
+    expect((await notifyBuilders(NOW + 300, m)).sent).toBe(0);
+    expect(m.mail).toEqual([]);
+  });
+
+  it("what was already true when email was turned on is not emailed", async () => {
+    configure();
+    const id = test();
+    answer(id, W(1));
+    setBuilderEmail(OWNER, "owner@example.com", NOW);
+    expect(settleBaseline(OWNER, NOW, "email")).toBe(1);
+    expect([...noticesSent(id)]).toEqual(["email:first-answer"]);
+    const m = mailer();
+    expect((await notifyBuilders(NOW, m)).sent).toBe(0);
+  });
+
+  it("never puts a tester's wallet or words in an email", async () => {
+    configure();
+    const id = test();
+    const a = answer(id, W(1));
+    db.insert(decisions).values({ id: `d-${a.id}`, submissionId: a.id, campaignId: id, engine: "heuristic", brief: { reasonCode: "needs_review" } as never, createdAt: NOW }).run();
+    setBuilderEmail(OWNER, "owner@example.com", NOW);
+    const m = mailer();
+    await notifyBuilders(NOW, m);
+    expect(m.mail).toHaveLength(2);
+    for (const mail of m.mail) {
+      expect(mail.text).not.toContain("my answer");
+      expect(mail.text).not.toMatch(/0x[0-9a-fA-F]{4}/);
+    }
+  });
+});
+

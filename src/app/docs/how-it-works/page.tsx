@@ -1,47 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Coins, Compass, FlaskConical, Landmark, ListChecks, MessagesSquare, Receipt, Wallet } from "lucide-react";
-import { DEFAULT_POLICY } from "@/lib/operator/policy";
-import { CURRENCIES } from "@/lib/money/currency";
-import { DEFAULT_FINALIZE_MINUTES } from "@/lib/deputy/finalization";
-import { MAX_ATTEMPTS } from "@/lib/campaigns/retry";
-import { MAX_COMPLETIONS, TANGIBLE_MIN_PER_REWARD_USD } from "@/lib/launch/budget";
+import { BellRing, ClipboardList, Eye, Footprints, ListChecks, MessagesSquare, Receipt, Route } from "lucide-react";
+import { RETRY_RESERVATION_MINUTES } from "@/lib/campaigns/slot-reservation";
+import { webTestsPerDay } from "@/lib/launch/daily-cap";
 import { DocHead, DocSection } from "../parts";
+import { ATTEMPTS, BUILDER_SIGN_IN, EMAIL_UPDATES, FLAG_ONE_IN, GIFT_DAYS, NEVER_A_SECRET_LINE, OFFER, PAY_FROM_EMAIL_WALLET, TEST, WINDOW_MINUTES, onePlaceLines } from "../facts";
 
 export const metadata: Metadata = {
   title: "How it works",
   description:
-    "How Sage turns a sentence and a budget into paid, verified work: jobs and missions, how every submission is checked before it pays, Autopilot, and what you see along the way.",
+    "A test on Sage, step by step, for the builder and for the tester: the free first look and the plan, the offer and paying, what you see while it runs, how each answer is checked and paid, and what people found.",
   alternates: { canonical: "/docs/how-it-works" },
 };
 
 const TOC = {
-  jobs: "Jobs and missions",
-  checking: "How work is checked",
-  autopilot: "Autopilot",
-  "what-you-see": "What you see",
+  jobs: "From a link to a plan",
+  offer: "The offer and paying",
+  "what-you-see": "While it runs",
+  checking: "How an answer is checked",
+  findings: "What people found",
+  testers: "If you are the tester",
+  autopilot: "Other work Sage runs",
 } as const;
 
-/** Every number below is read from the code that enforces it. */
-const usd = (base: number) => `$${(base / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-const p = DEFAULT_POLICY;
-const OTHER_CURRENCIES = CURRENCIES.filter((c) => c.code !== "USD").length;
-const FLOOR = `$${TANGIBLE_MIN_PER_REWARD_USD.toFixed(2)}`;
-const MAX_PEOPLE = Number(MAX_COMPLETIONS);
-const STALL_HOURS = p.stallAfterMinutes / 60;
-
-const LIMITS: { name: string; value: string }[] = [
-  { name: "First job on a product", value: usd(p.probeBase) },
-  { name: "Most for one job", value: usd(p.perCampaignCapBase) },
-  { name: "Most in any 7 days", value: usd(p.weeklyCapBase) },
-  { name: "Kept in reserve", value: p.reserveFloorBase === 0 ? "nothing, unless you set a floor" : usd(p.reserveFloorBase) },
-  { name: "Growth for work that gets done", value: `up to ${p.maxScale} times the first job` },
-  { name: "Unclaimed money on the board", value: `at most ${Math.round(p.maxExposure * 100)}% of your account` },
-  { name: "Jobs live at once", value: String(p.maxConcurrent) },
-  { name: "Time between moves", value: `${p.minSpacingMinutes} minutes` },
-  { name: "Time to stop a move", value: "20 minutes" },
-  { name: "A job nobody submits to", value: `stopped after ${STALL_HOURS} hours` },
-];
+const PER_DAY = webTestsPerDay();
 
 export default function HowItWorks() {
   return (
@@ -49,232 +31,397 @@ export default function HowItWorks() {
       <DocHead
         eyebrow="How it works"
         title="How Sage works"
-        lead="Sage turns a sentence and a budget into work people can claim. It checks what they submit, and pays only for what holds up."
+        lead="A test has two sides. A builder pastes a link and pays what testers earn. A tester tries the product and is paid for an honest try. This page follows both."
         toc={TOC}
       />
 
       <DocSection toc={TOC} id="jobs">
+        <h3>Paste a link</h3>
         <p>
-          A job is what you post. It holds the budget, and it is made of missions: the tasks people claim. Each mission
-          says what to do, what counts as proof, what it pays and how many people can earn it.
-        </p>
-        <h3>Three kinds of job</h3>
-        <ul className="doc-points">
-          <li>
-            <FlaskConical size={18} strokeWidth={1.75} aria-hidden />
-            <span>
-              <strong>Product testing.</strong> Give Sage your product&apos;s address. It opens the product in a real
-              browser, follows links, fills in forms with obvious test values and records what it can actually reach.
-              Then it designs missions from what it saw.
-            </span>
-          </li>
-          <li>
-            <Coins size={18} strokeWidth={1.75} aria-hidden />
-            <span>
-              <strong>Gigs and bounties.</strong> A task, a reward and proof of delivery: pay a designer when the new
-              page is live, or a supplier when the delivery note is public. A bounty is a gig more than one person can
-              earn.
-            </span>
-          </li>
-          <li>
-            <Landmark size={18} strokeWidth={1.75} aria-hidden />
-            <span>
-              <strong>Milestone grants.</strong> Funding released one milestone at a time, each one checked before it
-              pays.
-            </span>
-          </li>
-        </ul>
-        <p>
-          Gigs and grants can be priced in US dollars or {OTHER_CURRENCIES} other currencies, from the Jamaican dollar
-          to the euro. Sage converts once, at a rate it records on the plan, and pays in USDC. If it can&apos;t get a
-          rate, it won&apos;t guess.
+          Paste your product&apos;s link on the home page and sign in with {BUILDER_SIGN_IN}. Signing in costs nothing
+          and moves nothing. It makes the test yours, at one link you can come back to. Each person can start{" "}
+          {PER_DAY} new tests a day.
         </p>
 
-        <h3>How missions are written</h3>
+        <h3>Sage&apos;s first look is free</h3>
         <p>
-          For a gig or a grant, you write one sentence. Sage drafts the brief: the steps, what good work looks like and
-          what proof to send. The amounts and the number of people come from your own words, read by code rather than
-          by the AI. You edit the draft, then create the job.
+          Sage opens the product in a real browser and uses it the way a stranger would. It follows links, clicks what
+          can be clicked and fills in forms with obvious test values. It never pays, buys or signs anything. You can
+          close the page while it works.
+        </p>
+        <p>The first look shows you what Sage hit before any person does:</p>
+        <ul>
+          <li>the screens it reached, with the frames it kept</li>
+          <li>what the product says it is, and what its first screen shows a stranger</li>
+          <li>the problems a newcomer would hit first, each with a suggested fix</li>
+          <li>what Sage could not see, said plainly</li>
+        </ul>
+        <p>
+          Some products cannot be tried in a browser: a phone app, a browser extension, a Telegram bot, a code
+          repository. There Sage reads the product&apos;s own page and says so. It never says it tried something it
+          only read.
         </p>
         <p>
-          For product testing, one AI pass drafts missions from what Sage saw, a second pass reviews them, and then
-          fixed rules decide what ships. The rules discard a mission that:
+          Before anything else, Sage screens the product itself. A known phishing address, a page that asks for a
+          recovery phrase, or a lookalike of a well-known brand that asks for a wallet ends the run with the reason. A
+          product Sage is unsure about can still be tested, but only by people you invite, until a person at Sage has
+          looked.
+        </p>
+
+        <h3>The plan</h3>
+        <p>
+          From what it saw, Sage writes the missions: the things a person will be asked to try. One AI pass drafts
+          them, a second reviews them, and then fixed rules decide what stays. The rules drop a mission that:
         </p>
         <ul>
           <li>asks for proof Sage can&apos;t check afterwards, like a screenshot or a file upload</li>
           <li>names a page or a flow Sage never found</li>
-          <li>quotes something about your product that isn&apos;t in what Sage observed</li>
+          <li>quotes something that isn&apos;t in what Sage saw</li>
           <li>only checks that something is on the page, with nothing to actually do</li>
-          <li>asks someone to share a password, a key or a recovery phrase, or to sign with their wallet</li>
+          <li>asks for the tester&apos;s own email, password or phone number</li>
+          <li>asks anyone to share a password, a key or a recovery phrase, or to sign with their wallet</li>
         </ul>
         <p>
-          If no mission asks anyone to actually use your product, Sage sends the plan back for another round and keeps
-          the new one only if it&apos;s better. You see and approve the plan before anything is funded.
-        </p>
-
-        <h3>Test logins</h3>
-        <p>
-          Sage reads only public pages unless you give it a test login. Use a throwaway test account, never a real one.
-          Sage stores it encrypted, uses it only during the inspection, and strips any keys or email addresses it sees
-          before they reach a mission. If your product signs in with an emailed code, create the test account with
-          Sage&apos;s own address, and Sage reads the code from its own inbox. Signed in or not, it never pays, buys or
-          signs anything.
-        </p>
-
-        <h3>How rewards are set</h3>
-        <p>
-          Rewards come from arithmetic, never from the AI. Sage splits your budget across the missions so that every
-          possible payout adds up to exactly what you funded, to a millionth of a dollar. Missions that take longer pay
-          more, and no completion pays less than {FLOOR}.
+          Every test carries one first-try mission. It asks a stranger what they think the product is, how far they got
+          with the one thing it is for, and whether they would come back.
         </p>
         <p>
-          A plan can only use so much. Each mission takes at most {MAX_PEOPLE} people, and Sage won&apos;t inflate
-          rewards to use up a budget. If your budget is more than the plan can fairly use, the plan says so, and the
-          rest stays with you.
+          Beside the missions you read <strong>What Sage thinks you want</strong>: Sage&apos;s own read of why you came,
+          and how that shaped the plan. If the read is wrong, you see it before any money moves.
+        </p>
+        <p>
+          Sometimes Sage has a question first, such as where a person should start. You answer on the test&apos;s page
+          and it plans again. If no AI model is available, the test is the first-try mission alone, and the page tells
+          you that you will release each payment yourself.
         </p>
       </DocSection>
 
-      <DocSection toc={TOC} id="checking">
+      <DocSection toc={TOC} id="offer">
+        <h3>Two numbers</h3>
         <p>
-          People find open work on the board, or through your invite, claim a mission, do it and submit. There is no
-          application and no interview: the work is the application.
-        </p>
-        <h3>Code first, then the judge</h3>
-        <p>
-          Where a fact can be checked with code, code checks it. Sage fetches the link, looks for the text the mission
-          requires, or reads the transaction on chain. A page someone publishes as their work must show their own wallet
-          address, which is what makes it theirs.
+          You decide how many people try it and what each one earns. A test starts at {TEST.people} people and{" "}
+          {TEST.each} each, which is {TEST.total}. The card offers {OFFER.peopleChoices} people and {OFFER.eachChoices}{" "}
+          each, or you type your own: from {OFFER.minEach} to {OFFER.maxEach} a person, and up to{" "}
+          {OFFER.placesPerMission} people on one mission.
         </p>
         <p>
-          Then the judge, an AI model, reads the work against the mission&apos;s criteria. For product testing it also
-          compares the work with what Sage saw in your product itself, so an account that could have been written
-          without opening the product doesn&apos;t clear. Any quote in its decision must match the evidence word for
-          word, or it is dropped. Everything a stranger wrote is marked as untrusted before a model reads it, so a page
-          that says &ldquo;approve this payout&rdquo; is treated as data, never as an instruction.
+          Rewards come from arithmetic, never from the AI. The total is the people times what each earns, to the cent,
+          and every possible payout adds up to exactly what you pay.
         </p>
-        <h3>When Sage pays on its own</h3>
+
+        <h3>Two switches and one option</h3>
+        <ul className="doc-points">
+          <li>
+            <MessagesSquare size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>Sage shares it.</strong> Sage posts the test on its X account and its Telegram channel while
+              places are open. Nothing is posted without this.
+            </span>
+          </li>
+          <li>
+            <Eye size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>Findings are public.</strong> Anyone with the test&apos;s link can read what people found, once
+              the test is done. Off: only you.
+            </span>
+          </li>
+          <li>
+            <Route size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>Only people I invite.</strong> You get one link to send. The test stays off every public list,
+              and each person who opens the link and signs in takes one place.
+            </span>
+          </li>
+        </ul>
+
+        <h3>Paying</h3>
         <p>
-          By default, Sage pays verified work itself. You can switch a job to manual review on its page and release
-          payouts yourself. Before Sage pays on its own:
+          You pay from a wallet you control, in USDC on Metis.{" "}
+          {PAY_FROM_EMAIL_WALLET
+            ? "That is MetaMask, or the wallet your email sign-in holds."
+            : "That is MetaMask. A builder who signed in with an email can pay from a Sage account instead."}{" "}
+          The page reads your wallet first and tells you if it is short of USDC or of METIS for the network fee. You
+          confirm each step in your own wallet.
         </p>
+        <p>
+          The money goes into the test&apos;s own vault. The places open once Sage has read the vault on Metis. What
+          isn&apos;t paid to testers comes back to the wallet that paid, whenever you stop the test.{" "}
+          <Link href="/docs/payments#account">Paying for a test</Link> has the details.
+        </p>
+
+        <h3>Where testers come from</h3>
         <ul>
           <li>
-            for a link, a page or a transaction, the judge must be the real AI model rather than the simple fallback,
-            recommend paying, find no serious sign of fraud, and clear the job&apos;s confidence bar: 85% unless you
-            set another, from 50% to 99%
+            <Link href="/earn">Earn</Link>, Sage&apos;s list of open tests
           </li>
-          <li>for a product-testing report, it must match enough of what Sage itself saw in your product</li>
-          <li>
-            in every case, a slot must be open, the person under their limit, and the work not a copy or a duplicate
-          </li>
+          <li>Sage&apos;s post on X and its Telegram channel, if you left sharing on</li>
+          <li>people who asked Sage to tell them when a new test opens</li>
+          <li>your own link, sent wherever your people are</li>
         </ul>
-        <p>
-          Anything else waits for you. On public jobs, an approved payout also waits {DEFAULT_FINALIZE_MINUTES} minutes
-          before it settles. In that window Sage checks it again against everything that arrived since: copies,
-          near-duplicates, linked wallets. A hit cancels the payout and says why. Members-only work, and any payout you
-          release yourself, goes out at once.
-        </p>
-        <p>
-          Work that falls short but looks honest can be revised, up to {MAX_ATTEMPTS} attempts, with the slot held for
-          30 minutes while the person does. <Link href="/docs/trust#refusals">How Sage refuses</Link> has the rest.
-        </p>
-        <div className="doc-note">
-          <ListChecks size={18} strokeWidth={1.75} aria-hidden />
-          <p>
-            A job&apos;s page labels its automatic payouts setting Autopilot. That switch only decides whether verified
-            work is paid without your approval. The Autopilot below is different: it decides what work to buy.
-          </p>
-        </div>
-      </DocSection>
-
-      <DocSection toc={TOC} id="autopilot">
-        <p>
-          Autopilot lets you fund once and stop deciding. Sage chooses the next piece of work to buy, launches it from
-          your account and tells you why. In the app it&apos;s called &ldquo;Let Sage run it&rdquo;, and it comes with Pro and
-          above.
-        </p>
-        <h3>Where, never how much</h3>
-        <p>
-          The AI picks where to spend: which of your products to test next, and what to focus on. It never picks how
-          much. A move that names an amount is thrown out, and so is a product you didn&apos;t name. The size comes
-          from fixed rules and from your limits:
-        </p>
-        <div className="doc-table">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Limit</th>
-                <th scope="col">Default</th>
-              </tr>
-            </thead>
-            <tbody>
-              {LIMITS.map((l) => (
-                <tr key={l.name}>
-                  <td>{l.name}</td>
-                  <td>{l.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p>
-          You set the first job&apos;s size, the per-job and weekly limits, the reserve and the time to stop a move.
-          The others can be changed through the API. Separately, your account caps any single launch, by you or by
-          Autopilot (see <Link href="/docs/payments#account">your account</Link>).
-        </p>
-        <h3>Proposed first, then a window</h3>
-        <p>
-          Every move is written down before any money moves: the product, the goal, the reason and the price. Then it
-          waits 20 minutes. Stop it with one click, or send it now. When the window passes, Sage designs the missions,
-          then creates, funds and starts the job from your account. If the design fails, nothing is funded.
-        </p>
-        <h3>What it learns</h3>
-        <p>
-          Work that people pick up earns a bigger next job, up to {p.maxScale} times the first. A job nobody submits to
-          for {STALL_HOURS} hours is stopped, and its money goes back to your account. While unclaimed work already
-          fills the board, Sage waits instead of buying more, and says that&apos;s why. Before you fund anything, the
-          Autopilot page shows the move Sage would make, without recording it.
-        </p>
       </DocSection>
 
       <DocSection toc={TOC} id="what-you-see">
+        <p>The test&apos;s page updates by itself. As its builder you see:</p>
         <ul className="doc-points">
+          <li>
+            <Footprints size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>How far people got.</strong> How many saw the test, signed in, opened your product, answered and
+              were paid, and where the most people stopped.
+            </span>
+          </li>
+          <li>
+            <Route size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>Where they came from.</strong> Sage&apos;s post on X, its Telegram channel, Earn, an alert, your
+              own link, or somewhere else. Sage keeps a random id per visitor for this, never an IP address.
+            </span>
+          </li>
           <li>
             <ListChecks size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>The plan</strong>, before anything is funded: each mission, its reward, its proof and how many
-              people can earn it.
+              <strong>What Sage did.</strong> Each thing it did for the test, newest first: trying the product, writing
+              the missions, telling people, posting, checking and paying. Every line is a recorded event.
             </span>
           </li>
           <li>
             <MessagesSquare size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>Every submission</strong>, with its decision and the written reason, including work Sage held or
-              refused. The person who submitted sees their own result and reason on the job&apos;s board.
+              <strong>Each person&apos;s try.</strong> Open a person to read their answer in their own words, where they
+              came from, how far they said they got, and where their answer stands. Only you see this.
             </span>
           </li>
           <li>
             <Receipt size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>A receipt for every payout</strong>, public and tied to its transaction. See{" "}
+              <strong>The money.</strong> What you paid in, what was paid out, and what is left. See{" "}
               <Link href="/docs/payments#receipts">receipts</Link>.
             </span>
           </li>
+        </ul>
+        <h3>An answer that waits for you</h3>
+        <p>
+          When Sage holds an answer for you, the person&apos;s ticket says why. You read the answer and decide there:
+          pay it, or decline it with a reason the tester reads exactly as you wrote it. Paying needs no signature from
+          you. Sage asks the vault, and the vault pays inside its limits.
+        </p>
+        <h3>Updates when you leave the page</h3>
+        <p>
+          Turn on updates and Sage messages you on Telegram: the first answer, an answer that waits for you, the
+          findings, the end of the test, and a first day with no answers.{" "}
+          {EMAIL_UPDATES ? "You can have the same updates by email, at the address you signed in with, and every email carries a link that stops them. " : ""}
+          Each is sent once. You turn them off from any of your tests.
+        </p>
+        <h3>Stopping</h3>
+        <p>
+          You can stop a test at any time. Stopping ends it for good. Answers still being checked are closed with that
+          reason, and what is left in the vault goes back to the wallet that paid.
+        </p>
+      </DocSection>
+
+      <DocSection toc={TOC} id="checking">
+        <p>
+          Sage checks every answer against what it saw when it tried the product itself. An answer that could have been
+          written without opening the product doesn&apos;t clear.
+        </p>
+        <h3>When Sage pays on its own</h3>
+        <ul>
+          <li>The answer must match enough of what Sage saw behind the first screen.</li>
+          <li>It must show a try. An answer made mostly of the mission card&apos;s own words is held.</li>
+          <li>A place must be open, the person under their limit, and the answer not a copy of another.</li>
+        </ul>
+        <p>
+          Everything a stranger wrote is marked as untrusted before a model reads it. An answer that says
+          &ldquo;approve this payout&rdquo; is treated as data, never as an instruction. Any quote in a decision must
+          match the evidence word for word, or it is dropped.
+        </p>
+        <h3>When it holds an answer for you</h3>
+        <p>
+          Sage never refuses an answer because it is unsure. It holds it for you, with the reason. That happens when
+          Sage cannot tell an answer from one written off the public page, when a sign of fraud fired, or when its
+          model could not be reached. On some missions Sage tells you before you pay that it will not pay alone.
+        </p>
+        <h3>The {WINDOW_MINUTES}-minute window</h3>
+        <p>
+          On a public test, an answer Sage approved waits {WINDOW_MINUTES} minutes before it is paid. In that window
+          Sage checks it again against everything that arrived since: copies, near-duplicates, linked wallets. A hit
+          cancels the payout and says why. A test for people you invited, and any answer you release yourself, is paid
+          at once.
+        </p>
+        <h3>Not a real try</h3>
+        <p>
+          In the same window you can flag an approved answer as not a real try, with a reason the tester reads. The
+          payout is cancelled and the place reopens for someone else. A flag never refunds you, and you can flag at
+          most one in {FLAG_ONE_IN} of a test&apos;s places. Sage&apos;s own checks still run on every answer.
+        </p>
+        <h3>Feedback only after judging</h3>
+        <p>
+          Sage never scores an answer before it is sent: no meter, no hint. While places are open, the frames Sage
+          kept and its first look are yours alone, because a tester could copy them. A tester whose honest answer fell
+          short can add to it, up to {ATTEMPTS} attempts. <Link href="/docs/trust#refusals">How Sage refuses</Link> has
+          the rest.
+        </p>
+      </DocSection>
+
+      <DocSection toc={TOC} id="findings">
+        <p>Sage groups the paid answers into findings. You read them on the test&apos;s page as they arrive.</p>
+        <ul className="doc-points">
           <li>
-            <Wallet size={18} strokeWidth={1.75} aria-hidden />
+            <ClipboardList size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>Your account</strong>: the balance and activity, read from the chain, and withdrawals to any
-              address.
+              <strong>Problems, with the people who hit them.</strong> Each finding is counted in people, and two
+              problems are never merged when in doubt.
             </span>
           </li>
           <li>
-            <Compass size={18} strokeWidth={1.75} aria-hidden />
+            <MessagesSquare size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>Autopilot&apos;s moves</strong>, each with its reason and price, and a stop button while it
-              waits.
+              <strong>Exact quotes.</strong> Every quote is the tester&apos;s own words, checked letter for letter
+              against their answer. Sage never writes a quote.
+            </span>
+          </li>
+          <li>
+            <Footprints size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>The first try, counted.</strong> How many understood what the product is, how far each got with
+              its main action, and how many would use it again, from what each person tapped.
+            </span>
+          </li>
+          <li>
+            <Eye size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>What Sage saw itself.</strong> A finding that matches a problem from Sage&apos;s own run says so.
             </span>
           </li>
         </ul>
+        <p>
+          Findings are yours alone while places are open. Once the test is done, anyone with the link can read them if
+          you left them public. Sage&apos;s X account posts what people found only with your yes, and you see the exact
+          words first.
+        </p>
+        <h3>Test it again</h3>
+        <p>
+          Fixed what people found? Run the same product again from the finished test. Sage shows what changed since
+          your last test: who got further, and which problems people still hit. It never says a problem is fixed. It
+          says how many people hit it this time.
+        </p>
+        <h3>Posts in your own voice</h3>
+        <p>
+          The finished test also drafts posts you can send yourself, built from the counts and the quotes, with a link
+          to your product. Sage writes the drafts. You post them.
+        </p>
+        <h3>Give a test to its builder</h3>
+        <p>
+          You can run Sage on someone else&apos;s product and hand them the result. Before any money is paid, the
+          test&apos;s page makes a link for the product&apos;s builder. It shows what a stranger hits on a first visit,
+          and the first person to sign in with it takes the test. The link works once, for {GIFT_DAYS} days. You send
+          it yourself. Sage never sends it for you.
+        </p>
+      </DocSection>
+
+      <DocSection toc={TOC} id="testers">
+        <h3>Take a place</h3>
+        <p>
+          Open tests are listed on <Link href="/earn">Earn</Link>, each with what it pays and how many places are left.
+          Every test was paid for before it was listed.
+        </p>
+        {onePlaceLines().map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+        <p>
+          You sign in first, so Sage knows where to pay you. The wallet you sign in with is the one that gets paid. If
+          you sign in with an email or a social account, that sign-in holds a wallet for you.
+        </p>
+        <h3>Before you start</h3>
+        <p>
+          Every test says this before you take a place: {NEVER_A_SECRET_LINE} A test of an app that connects to a
+          wallet also tells you to use an empty wallet and to stop at the first request to confirm anything. Stopping
+          there earns the same.
+        </p>
+        <h3>Try it and answer</h3>
+        <p>
+          Try the product, then say what happened in your own words. The first-try mission asks four short questions
+          and two taps: how far you got, and whether you would use it again. An honest &ldquo;I got stuck&rdquo; earns
+          the same as &ldquo;I finished&rdquo;.
+        </p>
+        <p>
+          Sage checks your answer against what it saw when it tried the product itself. The page updates by itself, and
+          you can leave and come back.
+        </p>
+        <h3>What can happen to your answer</h3>
+        <ul>
+          <li>
+            <strong>Paid.</strong> USDC arrives in your wallet on Metis, with a public receipt. On a public test it is
+            paid once the {WINDOW_MINUTES}-minute window after Sage&apos;s approval has passed.
+          </li>
+          <li>
+            <strong>Needs more.</strong> If an honest answer fell short, you can add to it from the test&apos;s page, up
+            to {ATTEMPTS} attempts. Your place is held for {RETRY_RESERVATION_MINUTES} minutes while you do.
+          </li>
+          <li>
+            <strong>With the builder.</strong> Sage passed it to the builder to read. They pay it or decline it, and you
+            read their reason as they wrote it.
+          </li>
+          <li>
+            <strong>Not paid.</strong> You read the reason on the test&apos;s page. Some reasons are not about your
+            answer at all: the places filled, or the test was stopped.
+          </li>
+        </ul>
+        <h3>Hearing from Sage</h3>
+        <ul className="doc-points">
+          <li>
+            <BellRing size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>Alerts.</strong> Turn on alerts from a test you answered, or from your record, and Sage messages
+              you on Telegram when a new test opens
+              that you haven&apos;t tried, at most one a day. It also tells you what happened to your answers. One
+              word, &ldquo;stop&rdquo;, ends it.
+            </span>
+          </li>
+          <li>
+            <MessagesSquare size={18} strokeWidth={1.75} aria-hidden />
+            <span>
+              <strong>Keep me posted.</strong> After a test, you can let its builder reach you when the product
+              changes. Only they see the contact you chose, and only if you say so.
+            </span>
+          </li>
+        </ul>
+        <h3>Your record</h3>
+        <p>
+          Every payout lands on your record of verified work, at <code>/record/&lt;wallet&gt;</code>, each line linked
+          to its receipt. It is proof of work you did, checked and paid.
+        </p>
+        <h3>What it costs you</h3>
+        <p>
+          Nothing. Sage takes no fee to take a place and none from what you are paid. Moving your USDC on later costs
+          the network&apos;s own fee, paid in METIS. Sage does not send anyone network fees. Your wallet tells you how
+          much METIS a move needs and where to get it.
+        </p>
+      </DocSection>
+
+      <DocSection toc={TOC} id="autopilot">
+        <p>
+          Product testing is what Sage&apos;s front page offers. The same engine also pays for other verified work, and
+          those routes are still open to people who use them:
+        </p>
+        <ul>
+          <li>
+            <strong>Gigs and milestone grants.</strong> A task, a reward and proof of delivery, or funding released one
+            milestone at a time. You write them at <Link href="/launch">/launch</Link>.
+          </li>
+          <li>
+            <strong>A Sage account.</strong> A wallet Sage keeps for you under spending rules, which can fund work for
+            you. See <Link href="/docs/payments#account">paying for a test</Link>.
+          </li>
+          <li>
+            <strong>Teams, weekly rounds and Autopilot.</strong> A workspace for your own people, the same job every
+            week, and a standing instruction that lets Sage choose the next piece of work inside limits you set. The AI
+            chooses where to spend, never how much.
+          </li>
+        </ul>
+        <p>
+          Every one of them settles the same way: from a vault that works out the amount itself, with a public receipt.
+        </p>
       </DocSection>
     </article>
   );

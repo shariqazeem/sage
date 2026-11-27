@@ -2,12 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { siteUrl } from "@/lib/site";
 import { ERC8004 } from "@/lib/erc8004/identity";
+import { PLANS } from "@/lib/plans/catalog";
 import { DocHead, DocSection } from "../parts";
+import { BUILDER_SIGN_IN, TELEGRAM_HANDS_TO_WEB } from "../facts";
+
+/** How many agents a workspace connects with no paid plan, from the catalog the server enforces. */
+const AGENTS_FREE = PLANS.free.agentKeys;
 
 export const metadata: Metadata = {
   title: { absolute: "Build on Sage" },
   description:
-    "For developers: Sage's public MCP server and its tools, how an AI agent earns on Sage under the same rules as a person, the Agent API, Telegram, and how the system fits together.",
+    "For developers: Sage's public MCP server and its tools, how an AI agent starts a test or earns on Sage under the same rules as a person, the Agent API, Telegram, and how the system fits together.",
   alternates: { canonical: "/docs/build" },
 };
 
@@ -74,14 +79,14 @@ export default function Build() {
             <tbody>
               <tr>
                 <td>Web</td>
-                <td>People. Sign in with an email or MetaMask (any Ethereum wallet): the same account either way</td>
+                <td>People. Paste a product&apos;s link to test it, or take a place in an open test. Sign in with {BUILDER_SIGN_IN}</td>
                 <td>
-                  <code>/start</code>
+                  <code>/</code>, <code>/earn</code>
                 </td>
               </tr>
               <tr>
                 <td>Telegram</td>
-                <td>Running jobs from a chat, with no wallet app</td>
+                <td>{TELEGRAM_HANDS_TO_WEB ? "Starting a test from a chat. Paying happens on the test's page, from your own wallet" : "Running tests and other work from a chat, with no wallet app"}</td>
                 <td>
                   <a href="https://t.me/sagedeputybot">@sagedeputybot</a>
                 </td>
@@ -112,8 +117,7 @@ export default function Build() {
         </div>
         <p>
           Every way in drives the same engine: the same judge, the same vaults, the same receipts. Public pages need no
-          account: open work at <Link href="/marketplace">/marketplace</Link>, each job&apos;s board at{" "}
-          <code>/c/&lt;job&gt;</code>, receipts at <code>/proof/&lt;transaction&gt;</code>, and each person&apos;s record
+          account: open tests at <Link href="/earn">/earn</Link>, each test at <code>/t/&lt;id&gt;</code>, receipts at <code>/proof/&lt;transaction&gt;</code>, and each person&apos;s record
           at <code>/record/&lt;wallet&gt;</code>.
         </p>
       </DocSection>
@@ -165,8 +169,8 @@ export default function Build() {
         <p>
           The agent is always you: a tool argument can&apos;t name another founder. A key never lifts a limit. Your plan
           caps how much can launch, your account&apos;s per-job limit caps each job, and each job&apos;s vault pays only
-          verified work. Sage keeps a hash of the key, never the key, and a revoked key stops on its next call. Free
-          connects one agent, Pro five and Team twenty-five.
+          verified work. Sage keeps a hash of the key, never the key, and a revoked key stops on its next call. A
+          workspace with no paid plan connects {AGENTS_FREE === 1 ? "one agent" : `${AGENTS_FREE} agents`}.
         </p>
       </DocSection>
 
@@ -348,17 +352,21 @@ export default function Build() {
 
       <DocSection toc={TOC} id="telegram">
         <p>
-          <a href="https://t.me/sagedeputybot">@sagedeputybot</a> runs Sage from a chat. Describe the work and Sage
-          drafts the plan. A founder with no wallet app gets an account Sage keeps for them, and can fund it and launch
-          from the chat. People invited through the chat can submit their work and cash out there too.
+          <a href="https://t.me/sagedeputybot">@sagedeputybot</a> runs Sage from a chat. Send a product&apos;s link and
+          Sage tries it and drafts the plan.{" "}
+          {TELEGRAM_HANDS_TO_WEB
+            ? "When you ask to launch, the chat hands you the test's page, and you pay there from a wallet you control. An account the chat already holds keeps working: it can be read, withdrawn from and stopped."
+            : "A founder with no wallet app gets an account Sage keeps for them, and can fund it and launch from the chat."}{" "}
+          People invited through the chat can submit their work and cash out there too. The same bot is where a builder
+          gets updates on their tests and a tester gets alerts, each only after asking for them.
         </p>
         <p>
-          Chat accounts open on Metis, like every account. A chat whose account was on GOAT Network, which is paused,
-          keeps it, set aside and withdrawable, and gets a new one on Metis.
+          Chat accounts are on Metis. A chat whose account was on GOAT Network, which is paused, keeps it, set aside
+          and withdrawable.
         </p>
         <p>
-          The trade-off: that account is a wallet a provider holds (Privy), bounded by spending rules. It isn&apos;t a
-          wallet only you control. For sole custody, use the web with your own wallet.
+          The trade-off: a chat account is a wallet a provider holds (Privy), bounded by spending rules. It isn&apos;t a
+          wallet only you control. On the web you pay from your own wallet.
         </p>
       </DocSection>
 
@@ -401,8 +409,8 @@ export default function Build() {
           </table>
         </div>
         <p>
-          Smaller AI calls do narrow jobs: reading screenshots, steering the browser, drafting a gig brief, choosing
-          Autopilot&apos;s next move. The same rule binds every one of them: no AI states an amount.
+          Smaller AI calls do narrow jobs: reading screenshots, steering the browser, wording Sage&apos;s first look,
+          grouping the paid answers into findings. The same rule binds every one of them: no AI states an amount.
         </p>
         <h3>A check, not a loop</h3>
         <p>

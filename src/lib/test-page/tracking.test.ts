@@ -179,9 +179,9 @@ describe("the owner's view of a test", () => {
       { source: "earn", label: "Earn, Sage's list of open tests", saw: 1, answered: 1, paid: 1 },
       { source: "x", label: "Sage's post on X", saw: 1, answered: 0, paid: 0 },
     ]);
-    expect(o.updates).toEqual({ telegram: "off" });
+    expect(o.updates).toEqual({ telegram: "off", email: "unavailable", emailTo: null });
     bindChannel(OWNER, "777");
-    expect(liveView(getCampaign(id)!, OWNER).owner!.updates).toEqual({ telegram: "connected" });
+    expect(liveView(getCampaign(id)!, OWNER).owner!.updates).toMatchObject({ telegram: "connected" });
 
     const said = o.activity.map((a) => a.kind);
     expect(said).toContain("paid");

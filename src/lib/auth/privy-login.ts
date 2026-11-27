@@ -113,3 +113,23 @@ export async function resolvePrivyContacts(token: string): Promise<PrivyContacts
     return { ok: false, reason: "error" };
   }
 }
+
+/**
+ * The email a wallet's own sign-in carries (an email sign-in, or Google's), read from Privy by the wallet's
+ * address. Null for a wallet Privy does not know (a MetaMask-only sign-in), with no email, or when the
+ * login app is not configured. Never throws, and never logs the address it found.
+ */
+export async function signInEmailOfWallet(wallet: string): Promise<string | null> {
+  const c = client();
+  if (!c || !/^0x[0-9a-fA-F]{40}$/.test(wallet)) return null;
+  try {
+    const user = await c.getUserByWalletAddress(wallet);
+    if (!user) return null;
+    // only when this wallet is really one of that user's own
+    if (!ethereumAddressesOf(user).some((a) => a.toLowerCase() === wallet.toLowerCase())) return null;
+    return user.email?.address?.trim().toLowerCase() || user.google?.email?.trim().toLowerCase() || null;
+  } catch (e) {
+    console.warn("[privy-login] email lookup failed:", e instanceof Error ? e.name : "error");
+    return null;
+  }
+}

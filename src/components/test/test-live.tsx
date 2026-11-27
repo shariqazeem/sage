@@ -182,7 +182,7 @@ export function TestLive({ initial }: { initial: LiveView }) {
         {owner && view.owner ? (
           <Stage state={done ? "done" : "now"} title="How far people got" id="reach">
             <Funnel funnel={view.owner.funnel} sources={view.owner.sources} />
-            {!done && view.owner.updates.telegram !== "connected" ? <UpdatesLine state={view.owner.updates.telegram} /> : null}
+            {!done && view.owner.updates.telegram !== "connected" ? <UpdatesLine state={view.owner.updates.telegram} email={{ state: view.owner.updates.email, to: view.owner.updates.emailTo }} /> : null}
           </Stage>
         ) : null}
 
@@ -538,7 +538,7 @@ function OwnerEnd({ view, onChanged }: { view: LiveView; onChanged: () => void }
 
       {o.updates.telegram === "connected" ? (
         <Stage state="done" title="Updates">
-          <UpdatesLine state="connected" compact />
+          <UpdatesLine state="connected" compact email={{ state: o.updates.email, to: o.updates.emailTo }} />
         </Stage>
       ) : null}
 

@@ -530,9 +530,12 @@ function HeldDecision({
 export function UpdatesLine({
   state,
   compact,
+  email,
 }: {
   state: "connected" | "muted" | "off";
   compact?: boolean;
+  /** email updates for this builder; nothing is shown about email when the server has none set up */
+  email?: { state: "on" | "off" | "unavailable"; to: string | null };
 }) {
   const [now, setNow] = useState(state);
   const [waiting, setWaiting] = useState(false);
@@ -594,6 +597,7 @@ export function UpdatesLine({
           Turn off
         </Button>
         {error ? <p className="sg-small sg-note-problem">{error}</p> : null}
+        {email ? <EmailUpdates email={email} telegram /> : null}
       </div>
     );
   }
@@ -620,6 +624,69 @@ export function UpdatesLine({
               : "Get updates in Telegram"}
         </Button>
       </div>
+      {error ? (
+        <p className="sg-small sg-note-problem" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {email ? <EmailUpdates email={email} telegram={false} /> : null}
+    </div>
+  );
+}
+
+/**
+ * EMAIL UPDATES, beside Telegram's: the same news at the address the builder signed in with. Shown only
+ * when the server has email set up. The address is read on the server and comes back masked; this
+ * component never sends one.
+ */
+function EmailUpdates({
+  email,
+  telegram,
+}: {
+  email: { state: "on" | "off" | "unavailable"; to: string | null };
+  /** Telegram updates are already on, so email is "too" and not "instead" */
+  telegram: boolean;
+}) {
+  const [now, setNow] = useState(email);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (now.state === "unavailable") return null;
+
+  const set = async (on: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/updates/email", { method: on ? "POST" : "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as {
+        email?: "on" | "off" | "unavailable";
+        emailTo?: string | null;
+        error?: string;
+      };
+      if (res.ok && data.email) setNow({ state: data.email, to: data.emailTo ?? null });
+      else setError(data.error ?? "That wasn't saved. Try again.");
+    } catch {
+      setError("Sage couldn't be reached. Try again.");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="sg-t-notice-actions">
+      {now.state === "on" ? (
+        <>
+          <p className="sg-small">
+            Sage {telegram ? "also emails" : "emails"} {now.to ?? "you"} about
+            your tests.
+          </p>
+          <Button variant="plain" size="sm" disabled={busy} onClick={() => void set(false)}>
+            Stop emails
+          </Button>
+        </>
+      ) : (
+        <Button variant="plain" size="sm" disabled={busy} onClick={() => void set(true)}>
+          {telegram ? "Email me too" : "Email me instead"}
+        </Button>
+      )}
       {error ? (
         <p className="sg-small sg-note-problem" role="alert">
           {error}

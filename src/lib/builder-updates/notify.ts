@@ -16,13 +16,17 @@ import { sendTelegram } from "@/lib/telegram/bot";
 import { founderChatId } from "@/lib/telegram/founder-notify";
 import { heldForBuilder } from "@/lib/test-page/tracking";
 import { baselineKinds, dueNotices, type NoticeFacts } from "./due";
+import { builderEmailOf, sendEmail, stopUrlFor, type SendEmail } from "./email";
+import { dueByEmail, emailConfigured, emailFor, emailKind } from "./email-core";
 import { channelOf, claimNotice, noticesSent, releaseNotice } from "./store";
 
 /**
  * TELL THE BUILDER (27 Nov 2026). The sweep's step for builders who asked to hear about their tests on
  * Telegram: a first answer, an answer waiting for them, the findings, the end, a quiet first day.
  *
- * Opt-in (a builder bound their own chat), once per notice (`builder_notices`), never about a test whose
+ * The same notices go by email to a builder who turned email on, when email is set up (`email-core.ts`).
+ *
+ * Opt-in (a builder bound their own chat, or switched email on), once per notice and channel (`builder_notices`), never about a test whose
  * founder the Telegram-launch path already messages, and never more than a few messages a tick. Best
  * effort: it reads rows and sends text. It cannot touch a payout, and a failure here stops nothing.
  */
@@ -78,15 +82,18 @@ function inScope(campaign: Campaign, lastAt: number, now: number): boolean {
 }
 
 /**
- * What is already true when a builder connects is not news. Called once when the chat is bound: every
- * notice due on their tests right now, except an answer still waiting for them, is marked said.
+ * What is already true when a builder connects is not news. Called once when a channel is turned on (the
+ * chat is bound, or email is switched on): every notice due on their tests right now, except an answer still
+ * waiting for them, is marked said on THAT channel.
  */
-export function settleBaseline(founder: string, now = nowSeconds()): number {
+export function settleBaseline(founder: string, now = nowSeconds(), channel: "telegram" | "email" = "telegram"): number {
   const key = founderStorageKey(founder);
   let marked = 0;
   for (const c of listCampaigns()) {
     if (!isTest(c) || builderOf(c) !== key) continue;
-    for (const kind of baselineKinds(dueNotices(noticeFacts(c, now), noticesSent(c.id)))) if (claimNotice(c.id, kind, now)) marked += 1;
+    const sent = noticesSent(c.id);
+    const due = channel === "email" ? dueByEmail(dueNotices(noticeFacts(c, now)), sent) : dueNotices(noticeFacts(c, now), sent);
+    for (const kind of baselineKinds(due)) if (claimNotice(c.id, channel === "email" ? emailKind(kind) : kind, now)) marked += 1;
   }
   return marked;
 }
@@ -97,32 +104,46 @@ export interface BuilderNoticeSummary {
   failed: number;
 }
 
-export async function notifyBuilders(now = nowSeconds(), deps: { send?: Send } = {}): Promise<BuilderNoticeSummary> {
+export async function notifyBuilders(now = nowSeconds(), deps: { send?: Send; email?: SendEmail } = {}): Promise<BuilderNoticeSummary> {
   const send = deps.send ?? sendPlain;
+  const mail = deps.email ?? sendEmail;
+  const mailOn = emailConfigured();
   const summary: BuilderNoticeSummary = { tests: 0, sent: 0, failed: 0 };
+  const full = () => summary.sent + summary.failed >= MAX_NOTICES_PER_TICK;
   for (const c of listCampaigns()) {
-    if (summary.sent + summary.failed >= MAX_NOTICES_PER_TICK) break;
+    if (full()) break;
     if (!isTest(c)) continue;
-    const channel = channelOf(builderOf(c));
-    if (!channel || channel.mutedAt) continue;
+    const builder = builderOf(c);
+    const chat = channelOf(builder);
+    const telegram = chat && !chat.mutedAt ? chat : null;
+    const address = mailOn ? builderEmailOf(builder) : null;
+    const stop = address && !address.mutedAt ? stopUrlFor(address.founderKey) : null;
+    // email goes out only with a working stop link in it
+    const email = address && !address.mutedAt && stop ? { to: address.email, stop } : null;
+    if (!telegram && !email) continue;
     // a test launched from Telegram already messages its founder in that chat (founder-notify.ts)
     if (founderChatId(c)) continue;
     const facts = noticeFacts(c, now);
     if (!inScope(c, facts.lastAt, now)) continue;
-    const due = dueNotices(facts, noticesSent(c.id)).slice(0, MAX_NOTICES_PER_TEST_PER_TICK);
-    if (due.length === 0) continue;
+    const sent = noticesSent(c.id);
+    const everything = dueNotices(facts);
+    const byChat = telegram ? everything.filter((n) => !sent.has(n.kind)).slice(0, MAX_NOTICES_PER_TEST_PER_TICK) : [];
+    const byMail = email ? dueByEmail(everything, sent).slice(0, MAX_NOTICES_PER_TEST_PER_TICK) : [];
+    if (byChat.length === 0 && byMail.length === 0) continue;
     summary.tests += 1;
-    for (const notice of due) {
-      if (summary.sent + summary.failed >= MAX_NOTICES_PER_TICK) break;
+    const deliver = async (kind: string, go: () => Promise<boolean>) => {
+      if (full()) return;
       // written before it is sent: a crash can lose a message, never repeat one
-      if (!claimNotice(c.id, notice.kind, now)) continue;
-      const ok = await send(channel.target, notice.text).catch(() => false);
+      if (!claimNotice(c.id, kind, now)) return;
+      const ok = await go().catch(() => false);
       if (ok) summary.sent += 1;
       else {
-        releaseNotice(c.id, notice.kind);
+        releaseNotice(c.id, kind);
         summary.failed += 1;
       }
-    }
+    };
+    for (const n of byChat) await deliver(n.kind, () => send(telegram!.target, n.text));
+    for (const n of byMail) await deliver(emailKind(n.kind), () => mail(email!.to, emailFor(n.text, email!.stop)));
   }
   return summary;
 }

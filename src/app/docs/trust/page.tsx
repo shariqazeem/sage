@@ -18,6 +18,7 @@ import { OFAC_SDN_SNAPSHOT_DATE, SANCTIONS_LIST_SIZE } from "@/lib/deputy/sancti
 import { DEFAULT_FINALIZE_MINUTES } from "@/lib/deputy/finalization";
 import { MAX_ATTEMPTS } from "@/lib/campaigns/retry";
 import { DocHead, DocSection } from "../parts";
+import { FLAG_ONE_IN, onePlaceLines } from "../facts";
 
 export const metadata: Metadata = {
   title: "Safety and limits",
@@ -84,8 +85,7 @@ export default function Trust() {
           <li>
             <Undo2 size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              Stop the job and the vault closes. Everything left goes back to whoever funded it: your wallet, or your
-              Sage account.
+              Stop the test and the vault closes. Everything left goes back to the wallet that paid for it.
             </span>
           </li>
         </ul>
@@ -198,9 +198,8 @@ export default function Trust() {
           <li>
             <Fingerprint size={18} strokeWidth={1.75} aria-hidden />
             <span>
-              <strong>One person, one slot.</strong> On public work, claiming a slot can ask for a one-time World ID
-              proof that you&apos;re a unique person. Sage keeps a number tied to that proof, never a name or a document.
-              Every wallet that shares it, and every wallet linked on chain or declared as yours, counts as one person.
+              <strong>One person, one place.</strong> {onePlaceLines().join(" ")} Every wallet that shares a sign-in or
+              a proof, and every wallet linked on chain or declared as yours, counts as one person.
             </span>
           </li>
           <li>
@@ -266,10 +265,16 @@ export default function Trust() {
             payout, with the reason.
           </li>
           <li>
+            <strong>By the builder:</strong> in that same window a test&apos;s builder can flag an approved answer as
+            not a real try, and can decline an answer Sage held for them. Either way the tester reads the builder&apos;s
+            reason as written. A flag never refunds the builder, and at most one in {FLAG_ONE_IN} of a test&apos;s places
+            can be flagged.
+          </li>
+          <li>
             <strong>When a job is stopped:</strong> its open submissions are closed, and the reason says so.
           </li>
         </ul>
-        <p>You can also approve or reject submissions by hand, from the job&apos;s page.</p>
+        <p>A builder decides the answers Sage held for them on the test&apos;s own page.</p>
         <h3>Feedback only after judging</h3>
         <p>
           Sage never scores work before it&apos;s submitted: no meter, no &ldquo;you matched three of five&rdquo; hint. A
@@ -390,11 +395,12 @@ export default function Trust() {
         </p>
         <h3>Who holds what</h3>
         <p>
-          Your Sage account is a wallet held by Privy, a wallet provider, under spending rules that limit what Sage can
-          do with it: launch your jobs, within your per-job cap. It&apos;s convenient and bounded, but it isn&apos;t
-          self-custody. You can withdraw to any address at any time, and if you want sole control of your keys, sign in
-          with your own wallet and fund jobs from it. People invited through Telegram are paid into a wallet Sage keeps
-          for them, and can cash out from the chat to any address, with Sage paying the fee.
+          A test is paid for from a wallet its builder controls, and its money sits in the test&apos;s own vault, which
+          only its owner can take money out of. A wallet that an email or social sign-in holds is kept by Privy, a
+          wallet provider, for that person. A Sage account is different: a wallet Privy holds under spending rules that
+          limit what Sage can do with it. It&apos;s convenient and bounded, but it isn&apos;t self-custody, and you can
+          withdraw from it to any address at any time. People invited through Telegram are paid into a wallet Sage
+          keeps for them, and can cash out from the chat to any address.
         </p>
         <h3>An audit trail by default</h3>
         <p>
@@ -406,7 +412,11 @@ export default function Trust() {
       <DocSection toc={TOC} id="limits">
         <ul>
           <li>
-            A founder who funds work on a product built to harm people is a policy problem, not a contract problem.
+            A product built to harm people is a policy problem, not a contract problem. Sage screens every product
+            before a test of it can be paid for: known phishing addresses, pages that ask for a recovery phrase or a
+            private key, lookalikes of well-known brands, and downloads kept somewhere unrelated. Certain harm is
+            refused. A product Sage is unsure about is tested only by people its builder invites, until a person at
+            Sage has looked. The screen is a set of fixed checks, and it will miss things.
           </li>
           <li>Honest work that Sage can&apos;t verify gets refused. That is a real cost, and honest people bear it.</li>
           <li>
