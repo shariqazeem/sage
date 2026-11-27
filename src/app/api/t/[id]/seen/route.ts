@@ -25,7 +25,9 @@ export const dynamic = "force-dynamic";
  * unknown test, the test's own builder and a bot write nothing.
  */
 const COOKIE = "sg_v";
-const COOKIE_MAX_AGE = 400 * 24 * 3600;
+// first-party, one site, counts for one builder's test only: kept under 13 months, the usual bound for a
+// visit-counting cookie that needs no banner (no IP, no user agent, never shared, never another site)
+const COOKIE_MAX_AGE = 390 * 24 * 3600;
 const COOKIE_SHAPE = /^[A-Za-z0-9_-]{16,64}$/;
 
 const nothing = () => new NextResponse(null, { status: 204, headers: { "cache-control": "no-store" } });
