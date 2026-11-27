@@ -12,6 +12,7 @@ vi.mock("@/lib/telegram/bot", async (orig) => {
 import { POST } from "./route";
 import { buildReply } from "@/lib/telegram/bot";
 import { createCampaign, recordEvent } from "@/lib/db/campaigns";
+import { builderUpdatesState, channelOf, mintUpdatesToken } from "@/lib/builder-updates/store";
 
 /**
  * Webhook secret rejection + command dispatch. The DB is the isolated in-memory
@@ -86,6 +87,29 @@ describe("POST /api/telegram/webhook — secret rejection", () => {
     expect(h.sent[0]!.text).toMatch(/^I can't chat right now: the model I think with is not switched on here\./);
     expect(h.sent[0]!.text).toContain("Test a product: paste its link at ");
     expect(h.sent[0]!.text).toContain("/status and /help still work here.");
+  });
+
+  it("/start bu_<token> binds this chat to the builder who minted the link, once", async () => {
+    process.env.TELEGRAM_WEBHOOK_SECRET = SECRET;
+    const builder = `0x${"d".repeat(40)}`;
+    const token = mintUpdatesToken(builder);
+    expect((await post(update(`/start ${token}`, 7301), { [HEADER]: SECRET })).status).toBe(200);
+    for (const job of h.deferred) await job();
+    expect(builderUpdatesState(builder)).toBe("connected");
+    expect(channelOf(builder)?.target).toBe("7301");
+    expect(h.sent).toEqual([
+      {
+        chatId: "7301",
+        text: "Updates for your tests on Sage will come here: a first answer, an answer waiting for you, what people found, and when a test ends. To stop them, turn them off on any of your tests.",
+      },
+    ]);
+    // the same link in another chat binds nothing and says why
+    h.deferred.length = 0;
+    h.sent.length = 0;
+    await post(update(`/start ${token}`, 7302), { [HEADER]: SECRET });
+    for (const job of h.deferred) await job();
+    expect(channelOf(builder)?.target).toBe("7301");
+    expect(h.sent[0]!.text).toMatch(/already used/);
   });
 });
 

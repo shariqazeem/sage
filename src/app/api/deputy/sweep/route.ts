@@ -1,4 +1,5 @@
 import { announceNewWork } from "@/lib/roster/notify";
+import { notifyBuilders } from "@/lib/builder-updates/notify";
 import { runOperatorTick } from "@/lib/operator/tick";
 import { NextResponse, after, type NextRequest } from "next/server";
 import {
@@ -100,6 +101,8 @@ async function runSweep() {
     operator: { founders: 0, reclaimed: 0, reclaimedBase: 0, launched: 0, committed: 0, proposed: 0, held: [] as string[] },
     /** new work the roster was told about, and how many people were reached. */
     roster: { campaigns: 0, sent: 0 },
+    /** builders told about their own tests on Telegram (they asked): tests with news, messages sent. */
+    builders: { tests: 0, sent: 0, failed: 0 },
     /** plans that renew like a card: reminded, renewed from the Sage balance, failed, recovered. */
     billing: { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 },
     programmes: { due: 0, opened: 0, waiting: 0, failed: 0, skipped: 0, closed: 0 },
@@ -315,6 +318,13 @@ async function runSweep() {
   summary.roster = await announceNewWork().catch((e) => {
     console.error("[sweep] roster announce failed:", e instanceof Error ? e.message : e);
     return { campaigns: 0, sent: 0 };
+  });
+
+  // THE BUILDER HEARS TOO (27 Nov 2026). A builder who asked for updates on Telegram is told about a first
+  // answer, an answer waiting for them, the findings and the end: once each (src/lib/builder-updates/).
+  summary.builders = await notifyBuilders(nowSeconds()).catch((e) => {
+    console.error("[sweep] builder updates failed:", e instanceof Error ? e.message : e);
+    return { tests: 0, sent: 0, failed: 0 };
   });
 
   // PROGRAMMES (6 Nov 2026): each season's next round, from the founder's account, with the same approved

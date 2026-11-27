@@ -12,6 +12,8 @@ import { PlacesRail } from "@/components/sage/test-card";
 import { Ticket } from "@/components/sage/ticket";
 import { count, howLong } from "@/lib/site/when";
 import type { LiveView } from "@/lib/test-page/live";
+import { tellSage } from "./beacon";
+import { Activity, Funnel, PersonSheet, SectionJumps, UpdatesLine } from "./cockpit";
 import { FirstLook, lookMeta } from "./first-look";
 import { FirstUsers } from "./first-users";
 import { MissionItem, Stage, TestHead } from "./parts";
@@ -66,14 +68,64 @@ export function TestLive({ initial }: { initial: LiveView }) {
     return () => clearInterval(t);
   }, [live, read]);
 
+  // someone saw this test: counted once per visitor for its builder's "how far people got" (never the builder)
+  useEffect(() => {
+    if (initial.viewer !== "owner") tellSage(initial.id, "view");
+  }, [initial.id, initial.viewer]);
+
+  // the person whose try the builder opened; read from the newest view, so their sheet moves with the page
+  const [personKey, setPersonKey] = useState<string | null>(null);
+  const person = personKey ? (view.tickets.find((t) => t.key === personKey) ?? null) : null;
+
   const owner = view.viewer === "owner";
   const done = view.phase === "done";
+  // what waits for the builder: answers Sage read and held for them (with no model, every answer: the builder reads them all)
+  const waiting = view.withoutModel ? (view.owner?.held ?? 0) : view.tickets.filter((t) => t.held).length;
   const { places } = view;
   const host = view.host ?? view.title;
   const paidPeople = view.findings?.paid.people ?? places.paid;
 
   let pill: { label: string; tone: PillTone } = { label: "Live", tone: "ink" };
   if (done) pill = { label: view.status === "cancelled" ? "Stopped" : "Done", tone: "neutral" };
+
+  const sageRun = (
+    <>
+      {/* a test Sage never ran in its browser (a job written by hand) has no frames: no empty heading */}
+      {view.frames.length > 0 || owner || done ? (
+      <Stage
+        state="done"
+        title={view.frames.length > 0 ? (view.sageReads ? `Sage read ${view.sageReads} first` : "Sage tried it first") : "The missions"}
+        meta={view.frames.length > 0 && view.run ? [count(view.run.steps, "step", "steps"), view.run.seconds ? howLong(view.run.seconds) : ""].filter(Boolean).join(" · ") : null}
+      >
+        {view.frames.length > 0 ? (
+          <div className="sg-shots">
+            {view.frames.map((f, i) => (
+              <Frame key={f.n} n={f.n} url={f.url} src={f.src} note={f.note} saw={f.saw} priority={i === 0 && owner} />
+            ))}
+          </div>
+        ) : null}
+        {owner || done ? (
+          <div className="sg-t-missions">
+            {view.missions.map((m, i) => (
+              <MissionItem
+                key={m.missionKey}
+                n={i + 1}
+                mission={{ missionKey: m.missionKey, title: m.title, objective: m.objective, instructions: m.instructions, criteria: m.criteria, each: usd(m.rewardBase), places: done ? `${m.paid} of ${m.maxCompletions} paid` : `${m.remainingSlots} of ${m.maxCompletions} left` }}
+              />
+            ))}
+          </div>
+        ) : null}
+      </Stage>
+      ) : null}
+
+      {/* Sage's own notes are the builder's: a tester must not read what Sage saw before answering */}
+      {view.firstLook ? (
+        <Stage state="done" title="What Sage noticed" meta={lookMeta(view.firstLook)}>
+          <FirstLook look={view.firstLook} />
+        </Stage>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="sg-col sg-t">
@@ -123,7 +175,17 @@ export function TestLive({ initial }: { initial: LiveView }) {
         )}
       </TestHead>
 
+      {owner && view.owner ? <SectionJumps findings={!!view.findings} sage={view.owner.activity.length > 0} /> : null}
+
       <div className="sg-t-stages">
+        {/* the builder's first question on a live test: how far did people get, and from where */}
+        {owner && view.owner ? (
+          <Stage state={done ? "done" : "now"} title="How far people got" id="reach">
+            <Funnel funnel={view.owner.funnel} sources={view.owner.sources} />
+            {!done && view.owner.updates.telegram !== "connected" ? <UpdatesLine state={view.owner.updates.telegram} /> : null}
+          </Stage>
+        ) : null}
+
         {/* the tester's door comes first for everyone who is not the owner */}
         {!owner && !done ? (
           <Stage state="now" title="Take a place" meta={`${places.left} of ${places.total} left`} id="place">
@@ -142,40 +204,8 @@ export function TestLive({ initial }: { initial: LiveView }) {
           </Stage>
         ) : null}
 
-        {/* a test Sage never ran in its browser (a job written by hand) has no frames: no empty heading */}
-        {view.frames.length > 0 || owner || done ? (
-        <Stage
-          state="done"
-          title={view.frames.length > 0 ? (view.sageReads ? `Sage read ${view.sageReads} first` : "Sage tried it first") : "The missions"}
-          meta={view.frames.length > 0 && view.run ? [count(view.run.steps, "step", "steps"), view.run.seconds ? howLong(view.run.seconds) : ""].filter(Boolean).join(" · ") : null}
-        >
-          {view.frames.length > 0 ? (
-            <div className="sg-shots">
-              {view.frames.map((f, i) => (
-                <Frame key={f.n} n={f.n} url={f.url} src={f.src} note={f.note} saw={f.saw} priority={i === 0 && owner} />
-              ))}
-            </div>
-          ) : null}
-          {owner || done ? (
-            <div className="sg-t-missions">
-              {view.missions.map((m, i) => (
-                <MissionItem
-                  key={m.missionKey}
-                  n={i + 1}
-                  mission={{ missionKey: m.missionKey, title: m.title, objective: m.objective, instructions: m.instructions, criteria: m.criteria, each: usd(m.rewardBase), places: done ? `${m.paid} of ${m.maxCompletions} paid` : `${m.remainingSlots} of ${m.maxCompletions} left` }}
-                />
-              ))}
-            </div>
-          ) : null}
-        </Stage>
-        ) : null}
-
-        {/* Sage's own notes are the builder's: a tester must not read what Sage saw before answering */}
-        {view.firstLook ? (
-          <Stage state="done" title="What Sage noticed" meta={lookMeta(view.firstLook)}>
-            <FirstLook look={view.firstLook} />
-          </Stage>
-        ) : null}
+        {/* the builder reads Sage's own run after the people; everyone else reads it here, in order */}
+        {!owner ? sageRun : null}
 
         <Stage state={done || !owner ? "done" : "now"} title="People" meta={done ? `${places.paid} paid` : null} id="people">
           <div className="sg-t-places">
@@ -197,7 +227,19 @@ export function TestLive({ initial }: { initial: LiveView }) {
             <div className="sg-t-tickets">
               {view.tickets.map((t) => (
                 <div key={t.key} data-new={arrived.has(t.key) || undefined} className={t.mine ? "sg-t-mine" : undefined}>
-                  <Ticket handle={t.handle} state={t.state} byBuilder={!!view.withoutModel} amount={t.amount} reason={t.reason} href={t.receipt ?? undefined} land={landed.has(t.key)} meta={t.flag ? "Approved. Paid when the 30 minutes are up" : undefined} />
+                  <Ticket
+                    handle={t.handle}
+                    state={t.state}
+                    byBuilder={!!view.withoutModel}
+                    amount={t.amount}
+                    reason={t.reason}
+                    // the builder opens a person's whole try (the receipt is inside); everyone else opens the receipt
+                    href={owner ? undefined : (t.receipt ?? undefined)}
+                    onOpen={owner ? () => setPersonKey(t.key) : undefined}
+                    heldForYou={!!t.held}
+                    land={landed.has(t.key)}
+                    meta={t.flag ? "Approved. Paid when the 30 minutes are up" : t.held ? "Tap to read it and decide" : undefined}
+                  />
                   {t.flag ? <FlagAnswer flag={t.flag} handle={t.handle} onDone={read} /> : null}
                 </div>
               ))}
@@ -205,22 +247,28 @@ export function TestLive({ initial }: { initial: LiveView }) {
           ) : (
             <p className="sg-small">{done ? "Nobody took a place." : owner ? "Nobody has taken a place yet. Each person appears here the moment they do." : "Nobody has taken a place yet. You could be the first."}</p>
           )}
-          {owner && !done && view.withoutModel && !(view.owner && view.owner.held > 0) ? (
+          {owner && !done && view.withoutModel && !(waiting > 0) ? (
             <div className="sg-t-notice">
               <p>{view.withoutModel.line}</p>
             </div>
           ) : null}
-          {owner && view.owner && view.owner.held > 0 ? (
+          {owner && view.owner && waiting > 0 ? (
             <div className="sg-t-notice">
               <p>
                 {view.withoutModel
-                  ? `${count(view.owner.held, "answer is", "answers are")} waiting for you. Sage designed this test without its model, so it pays none of them on its own: read each one, then release the payment or say no.`
-                  : `${count(view.owner.held, "answer is", "answers are")} not decided yet. Sage pays what it is sure of by itself; anything it holds is yours to read and decide.`}
+                  ? `${count(waiting, "answer is", "answers are")} waiting for you. Sage designed this test without its model, so it pays none of them on its own: read each one, then release the payment or say no.`
+                  : `${count(waiting, "answer waits", "answers wait")} for you. Sage pays what it is sure of by itself, and held ${waiting === 1 ? "this one" : "these"} for you to read and decide.`}
               </p>
               <div className="sg-t-notice-actions">
-                <ButtonLink href={`/campaign/${view.id}`} size="sm">
-                  Read {view.owner.held === 1 ? "it" : "them"}
-                </ButtonLink>
+                {view.tickets.some((t) => t.held) ? (
+                  <Button size="sm" onClick={() => setPersonKey(view.tickets.find((t) => t.held)!.key)}>
+                    Read {waiting === 1 ? "it" : "the first one"}
+                  </Button>
+                ) : (
+                  <ButtonLink href={`/campaign/${view.id}`} size="sm">
+                    Read {waiting === 1 ? "it" : "them"}
+                  </ButtonLink>
+                )}
               </div>
             </div>
           ) : null}
@@ -256,6 +304,27 @@ export function TestLive({ initial }: { initial: LiveView }) {
           )}
         </Stage>
 
+        {/* THE LOOP CLOSES HERE: fix what people found, then the same test again, and Sage shows what changed */}
+        {owner && done && view.productUrl ? (
+          <Stage state="next" title="Test it again" id="again">
+            <p className="sg-small">Fixed what people found? Run the same test again and Sage shows what changed: who got further, and which problems are gone.</p>
+            <div>
+              <ButtonLink href={`/?test=${encodeURIComponent(view.productUrl)}`} size="sm">
+                Test {host} again
+              </ButtonLink>
+            </div>
+          </Stage>
+        ) : null}
+
+        {owner && view.owner ? (
+          <>
+            <Stage state="done" title="What Sage did" meta={view.owner.activity.length > 0 ? count(view.owner.activity.length, "thing", "things") : null} id="sage">
+              <Activity items={view.owner.activity} />
+            </Stage>
+            {sageRun}
+          </>
+        ) : null}
+
         {owner && view.owner && view.findings ? <OwnerEnd view={view} onChanged={read} /> : null}
 
         {!owner && done ? (
@@ -266,6 +335,8 @@ export function TestLive({ initial }: { initial: LiveView }) {
           </Stage>
         ) : null}
       </div>
+
+      {owner && person ? <PersonSheet testId={view.id} ticket={person} onClose={() => setPersonKey(null)} onChanged={read} /> : null}
     </div>
   );
 }
@@ -465,7 +536,13 @@ function OwnerEnd({ view, onChanged }: { view: LiveView; onChanged: () => void }
         </div>
       </FirstUsers>
 
-      <Stage state="done" title="The money">
+      {o.updates.telegram === "connected" ? (
+        <Stage state="done" title="Updates">
+          <UpdatesLine state="connected" compact />
+        </Stage>
+      ) : null}
+
+      <Stage state="done" title="The money" id="money">
         <div className="sg-sum">
           <div className="sg-sum-row">
             <span>You paid in</span>

@@ -2031,3 +2031,52 @@ export const productScreens = sqliteTable("product_screens", {
   decisionNote: text("decision_note"),
 });
 export type ProductScreenRow = typeof productScreens.$inferSelect;
+
+/**
+ * WHO CAME TO A TEST (27 Nov 2026, "see everything"). One row per test and visitor: where they first came
+ * from, and the first time they signed in and opened the product from the test's page. `visitor` is the
+ * first 32 hex characters of the sha256 of a random first-party cookie; no IP address and no user agent is
+ * ever stored. `source` is the FIRST touch and is never overwritten. `wallet` is `founderStorageKey` form,
+ * set once the visitor is signed in. Read by the test's owner only. `src/lib/db/test-visits.ts`.
+ */
+export const testVisits = sqliteTable(
+  "test_visits",
+  {
+    campaignId: text("campaign_id").notNull(),
+    visitor: text("visitor").notNull(),
+    source: text("source").notNull(),
+    wallet: text("wallet"),
+    firstAt: integer("first_at").notNull(),
+    lastAt: integer("last_at").notNull(),
+    views: integer("views").notNull().default(1),
+    signedInAt: integer("signed_in_at"),
+    openedAt: integer("opened_at"),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.visitor] }), index("test_visits_campaign_idx").on(t.campaignId)],
+);
+export type TestVisitRow = typeof testVisits.$inferSelect;
+
+/**
+ * WHERE A BUILDER HEARS ABOUT THEIR TESTS. One row per builder (`founderStorageKey`): the Telegram chat
+ * they bound by opening a single-use link. Muting keeps the row. `src/lib/builder-updates/`.
+ */
+export const builderChannels = sqliteTable("builder_channels", {
+  founderKey: text("founder_key").primaryKey(),
+  channel: text("channel").$type<"telegram">().notNull(),
+  target: text("target").notNull(),
+  mutedAt: integer("muted_at"),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+export type BuilderChannelRow = typeof builderChannels.$inferSelect;
+
+/** Every message a builder was sent about a test, once: `(campaign, kind)` is the whole dedupe. */
+export const builderNotices = sqliteTable(
+  "builder_notices",
+  {
+    campaignId: text("campaign_id").notNull(),
+    kind: text("kind").notNull(),
+    sentAt: integer("sent_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.campaignId, t.kind] })],
+);

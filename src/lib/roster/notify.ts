@@ -2,6 +2,8 @@ import "server-only";
 import type { Campaign } from "@/lib/db/schema";
 import { listCampaignEvents, listLiveCampaigns, listMissions, listSubmissions, recordEvent } from "@/lib/db/campaigns";
 import { activeRoster, markNotified } from "@/lib/db/roster";
+import { productUrlForCampaign } from "@/lib/db/inspection";
+import { hostOf } from "@/lib/site/when";
 import { sendTelegram } from "@/lib/telegram/bot";
 import { alertText, recipientsFor, type AlertableWork } from "./alerts";
 
@@ -26,10 +28,16 @@ export function alertableWork(c: Campaign): AlertableWork {
   return {
     campaignId: c.id,
     title: c.title,
+    product: productHost(c.id),
     openSlots,
     rewardBase: c.rewardAmount,
     participants: subs.map((s) => s.wallet),
   };
+}
+
+function productHost(campaignId: string): string | null {
+  const url = productUrlForCampaign(campaignId);
+  return url ? hostOf(url) : null;
 }
 
 function origin(): string {

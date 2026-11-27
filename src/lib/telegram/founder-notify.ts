@@ -38,7 +38,7 @@ function appUrl(): string {
  * walletless path launches on GOAT. This makes the lookup correct for when one does, rather than
  * fixing a founder who is currently missing messages.
  */
-function founderChatId(campaign: Campaign): string | null {
+export function founderChatId(campaign: Campaign): string | null {
   const key = getAgentWalletByAddress(founderStorageKey(campaign.posterWallet))?.chatId ?? null;
   // A web account (`web:<founder>`) has no chat to message, and a chat wallet set aside when its
   // network paused is keyed `<chat>@<chainId>` (chat-wallets.ts): the chat is the part before the @.

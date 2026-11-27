@@ -121,7 +121,7 @@ export async function postMissionsToChannel(
     } else {
       db.insert(channelPosts).values({ subjectKey, chatId, status: "drafted", createdAt: nowSec }).run();
     }
-    const res = await send(chatId, html, { text: "Take a place", url: testUrl(c.id) }).catch(
+    const res = await send(chatId, html, { text: "Take a place", url: testUrl(c.id, "tg") }).catch(
       (e: unknown) => ({ ok: false as const, detail: e instanceof Error ? e.message.slice(0, 200) : "send failed" }),
     );
     if (res.ok) {

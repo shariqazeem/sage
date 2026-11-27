@@ -72,7 +72,7 @@ describe("postMissionsToChannel", () => {
     const { sent, send } = fakeSend();
     const first = await postMissionsToChannel(NOW, { chatId: "@sagetests", send });
     const again = await postMissionsToChannel(NOW + 300, { chatId: "@sagetests", send });
-    const mine = sent.filter((s) => s.url.endsWith(`/t/${id}`));
+    const mine = sent.filter((s) => s.url.endsWith(`/t/${id}?via=tg`));
     expect(mine).toHaveLength(1);
     expect(first.posted).toBeGreaterThanOrEqual(1);
     expect(again.posted).toBe(0);
@@ -84,7 +84,7 @@ describe("postMissionsToChannel", () => {
     const unlisted = seedTest({ visibility: "unlisted" });
     const { sent, send } = fakeSend();
     await postMissionsToChannel(NOW, { chatId: "@sagetests", send });
-    expect(sent.some((s) => s.url.endsWith(`/t/${quiet}`) || s.url.endsWith(`/t/${unlisted}`))).toBe(false);
+    expect(sent.some((s) => s.url.includes(`/t/${quiet}`) || s.url.includes(`/t/${unlisted}`))).toBe(false);
   });
 
   it("records a failure and tries it again on a later tick", async () => {
@@ -95,7 +95,7 @@ describe("postMissionsToChannel", () => {
     expect(r1.failed).toBeGreaterThanOrEqual(1);
     fail = false;
     await postMissionsToChannel(NOW + 300, { chatId: "@sagetests", send });
-    expect(sent.filter((s) => s.url.endsWith(`/t/${id}`))).toHaveLength(2);
+    expect(sent.filter((s) => s.url.endsWith(`/t/${id}?via=tg`))).toHaveLength(2);
   });
 
   it("never resends a row that may already have reached Telegram", async () => {
@@ -103,7 +103,7 @@ describe("postMissionsToChannel", () => {
     db.insert(channelPosts).values({ subjectKey: `mission:${id}`, chatId: "@sagetests", status: "drafted", createdAt: NOW }).run();
     const { sent, send } = fakeSend();
     await postMissionsToChannel(NOW, { chatId: "@sagetests", send });
-    expect(sent.some((s) => s.url.endsWith(`/t/${id}`))).toBe(false);
+    expect(sent.some((s) => s.url.endsWith(`/t/${id}?via=tg`))).toBe(false);
   });
 
   it("posts at most three a tick", async () => {

@@ -4,6 +4,8 @@ import "@/styles/test-core.css";
 // the sign-in doors, the World ID step and the stop control are the product's own, with their own styles
 import "@/styles/wallet-connect.css";
 import "@/styles/live.css";
+// the builder's view of a live test: how far people got, what Sage did, each person's try
+import "@/styles/cockpit.css";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site/site-footer";

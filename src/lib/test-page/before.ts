@@ -13,6 +13,7 @@ import { hostOf } from "@/lib/site/when";
 import { handedOverOwner } from "@/lib/telegram/handover-claim";
 import { xDraftFor } from "@/lib/x/drafts";
 import type { JobView } from "@/components/launch/types";
+import { plainLimit } from "./plain-limit";
 import { firstLookView, type FirstLookView } from "./first-look";
 import { ensureDefaultOffer, offerLockedWhy } from "./offer-apply";
 
@@ -88,7 +89,8 @@ export function factsOf(map: StoredMap | null, steps: number | null): { facts: T
   const facts: TestFact[] = [];
   const name = str(map.productName);
   const category = str(map.category);
-  if (name || category) facts.push({ label: "What it is", value: [name, category].filter(Boolean).join(", ") });
+  // "Crypto giving, on camera." and "web3 / crypto" read as one line, not "on camera., web3 / crypto"
+  if (name || category) facts.push({ label: "What it is", value: [name.replace(/[\s.;:,]+$/, ""), category].filter(Boolean).join(" · ") });
   // the kind, when it is not an ordinary site, and what Sage read of it (product-kind.ts)
   const kind = kindOfMap(map);
   if (kind !== "website") facts.push({ label: "What kind of product", value: `${playbookOf(kind).label}. Sage read ${playbookOf(kind).sageRead}.` });
@@ -99,7 +101,7 @@ export function factsOf(map: StoredMap | null, steps: number | null): { facts: T
   const pages = typeof map.pagesInspected === "number" ? map.pagesInspected : 0;
   const tried = [steps ? `${steps} ${steps === 1 ? "step" : "steps"}` : "", pages > 0 ? `${pages} ${pages === 1 ? "page" : "pages"}` : ""].filter(Boolean).join(" across ");
   if (tried) facts.push({ label: "What Sage did", value: tried });
-  const couldNotSee = (Array.isArray(map.limitations) ? map.limitations : []).map(str).filter(Boolean).slice(0, 3);
+  const couldNotSee = (Array.isArray(map.limitations) ? map.limitations : []).map(str).map(plainLimit).filter(Boolean).slice(0, 3);
   return { facts, couldNotSee };
 }
 

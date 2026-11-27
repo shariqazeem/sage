@@ -27,7 +27,7 @@ describe("telling the roster about new work", () => {
     const first = await announceNewWork();
     expect(first.sent).toBeGreaterThan(0);
     expect(vi.mocked(sendTelegram).mock.calls[0][0]).toBe("chat-1");
-    expect(String(vi.mocked(sendTelegram).mock.calls[0][1])).toMatch(/New paid work/);
+    expect(String(vi.mocked(sendTelegram).mock.calls[0][1])).toMatch(/New test on Sage/);
     vi.clearAllMocks();
     const second = await announceNewWork();
     expect(second.campaigns).toBe(0);

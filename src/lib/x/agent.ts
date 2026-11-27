@@ -296,7 +296,7 @@ export async function runXAgent(nowSec: number = nowSeconds(), deps: XAgentDeps 
       rewardMinBase: open.rewardMinBase,
       rewardMaxBase: open.rewardMaxBase,
       onMetis: c.chainId === METIS,
-      url: testUrl(c.id),
+      url: testUrl(c.id, "x"),
     });
     if (!composed) {
       close("mission", subjectKey, "the text broke a writing rule");
@@ -329,7 +329,7 @@ export async function runXAgent(nowSec: number = nowSeconds(), deps: XAgentDeps 
       continue;
     }
     const found = facts(c.id);
-    const composed = resultText({ product, people, finding: found.finding, quote: found.quote, onMetis: c.chainId === METIS, url: testUrl(c.id) });
+    const composed = resultText({ product, people, finding: found.finding, quote: found.quote, onMetis: c.chainId === METIS, url: testUrl(c.id, "x") });
     if (!composed) {
       close("result", subjectKey, "the text broke a writing rule");
       continue;

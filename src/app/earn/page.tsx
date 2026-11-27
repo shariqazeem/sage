@@ -111,7 +111,7 @@ export default async function EarnPage() {
               {rows.map((r) => (
                 <EarnCard
                   key={r.key}
-                  href={testPath(r.campaignId)}
+                  href={`${testPath(r.campaignId)}?via=earn`}
                   product={r.productHost ?? r.campaignTitle}
                   title={r.title}
                   objective={r.objective}

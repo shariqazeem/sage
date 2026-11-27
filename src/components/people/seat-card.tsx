@@ -6,6 +6,7 @@ import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { FounderSignIn } from "@/components/wallet/founder-sign-in";
 import { useFounderSession } from "@/lib/auth/use-founder-session";
 import { short } from "@/lib/format";
+import { testPath } from "@/lib/site/test-path";
 import { SageMark } from "@/components/brand/sage-mark";
 
 export interface SeatView {
@@ -42,7 +43,8 @@ export function SeatCard({ code, view, emailEnabled = false }: { code: string; v
         return;
       }
       setJoined({ campaignId: json.campaignId ?? null });
-      if (json.campaignId) setTimeout(() => router.push(`/c/${json.campaignId}`), 700);
+      // the test's own page (it sends a campaign from before missions to its old board), counted as the builder's link
+      if (json.campaignId) setTimeout(() => router.push(`${testPath(json.campaignId)}?via=link`), 700);
     } catch {
       setErr("Network error. Try again.");
     } finally {

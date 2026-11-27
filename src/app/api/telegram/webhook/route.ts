@@ -10,6 +10,8 @@ import { buildWalletStatus } from "@/lib/telegram/wallet-status";
 import { runConcierge, conciergeEnabled } from "@/lib/telegram/concierge";
 import { noModelReply } from "@/lib/telegram/no-model-reply";
 import { mintTelegramRequestId } from "@/lib/launch/planning-request";
+import { redeemUpdatesToken, UPDATES_TOKEN_PREFIX } from "@/lib/builder-updates/store";
+import { settleBaseline } from "@/lib/builder-updates/notify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,6 +89,25 @@ export async function POST(req: Request): Promise<Response> {
         chatId,
         r.ok
           ? `Done. When new paid work opens that you haven't already done, Sage will message you here — at most one message a day, and only work that can actually pay.\n\nSend "stop" any time to stop them.`
+          : r.reason,
+        { html: false },
+      );
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  // BUILDER UPDATES: /start bu_<token> — a builder who is signed in on the web asks to hear about their
+  // tests here. Single-use and short-lived, minted only for a signed-in session (src/lib/builder-updates/).
+  if (cmd.kind === "start" && cmd.payload?.startsWith(UPDATES_TOKEN_PREFIX)) {
+    const token = cmd.payload;
+    after(async () => {
+      const r = redeemUpdatesToken(token, chatId);
+      // what is already true on their tests is not news: only what happens from here is sent
+      if (r.ok) settleBaseline(r.founderKey);
+      await sendTelegram(
+        chatId,
+        r.ok
+          ? "Updates for your tests on Sage will come here: a first answer, an answer waiting for you, what people found, and when a test ends. To stop them, turn them off on any of your tests."
           : r.reason,
         { html: false },
       );

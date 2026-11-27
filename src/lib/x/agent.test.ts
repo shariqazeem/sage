@@ -202,7 +202,7 @@ describe("a mission post", () => {
     setSharing(t.id, { postMission: true });
     const { sent, client } = fakeClient();
     await runXAgent(NOW, live(client));
-    expect(sent[0].text).toBe(`New test on Sage: try Acme Notes and tell us where you get stuck. 4 places, $2.50 each in USDC on Metis. http://localhost:3000/t/${t.id}`);
+    expect(sent[0].text).toBe(`New test on Sage: try Acme Notes and tell us where you get stuck. 4 places, $2.50 each in USDC on Metis. http://localhost:3000/t/${t.id}?via=x`);
     expect(sent[0].replyTo).toBeUndefined();
   });
 
@@ -376,7 +376,7 @@ describe("a result post", () => {
     const { sent, client } = fakeClient();
     await runXAgent(NOW, live(client));
     expect(sent[0].text).toBe(
-      `2 people tried Acme Notes. One said: “I got stuck on the pricing page because the button did nothing.” Each one checked and paid on Metis. http://localhost:3000/t/${t.id}`,
+      `2 people tried Acme Notes. One said: “I got stuck on the pricing page because the button did nothing.” Each one checked and paid on Metis. http://localhost:3000/t/${t.id}?via=x`,
     );
   });
 

@@ -35,9 +35,13 @@ export interface TicketProps {
   land?: boolean;
   /** the builder, not Sage, reads this test's answers (a test Sage designed with no model): said on a waiting ticket */
   byBuilder?: boolean;
+  /** the whole ticket opens something on the page (the builder opens a person's try); takes the place of `href` */
+  onOpen?: () => void;
+  /** Sage read this answer and held it for the builder, who is the one reading this ticket */
+  heldForYou?: boolean;
 }
 
-export function Ticket({ handle, words, state, amount, reason, meta, href, land, byBuilder }: TicketProps) {
+export function Ticket({ handle, words, state, amount, reason, meta, href, land, byBuilder, onOpen, heldForYou }: TicketProps) {
   const inner = (
     <>
       <span className="sg-ticket-body">
@@ -50,6 +54,8 @@ export function Ticket({ handle, words, state, amount, reason, meta, href, land,
               <b>Not paid</b>
               {reason ? `: ${reason}` : ""}
             </>
+          ) : heldForYou && state === "checking" ? (
+            "Held for you to read"
           ) : byBuilder && state === "checking" ? (
             "Waiting for the builder to read the answer"
           ) : byBuilder && state === "paid" ? (
@@ -66,6 +72,13 @@ export function Ticket({ handle, words, state, amount, reason, meta, href, land,
       </span>
     </>
   );
+  if (onOpen) {
+    return (
+      <button type="button" className="sg-ticket" data-state={state} onClick={onOpen} aria-label={`${handle}, ${STATE_WORDS[state].toLowerCase()}, ${amount}. Open their try.`}>
+        {inner}
+      </button>
+    );
+  }
   if (href) {
     return (
       <Link href={href} className="sg-ticket" data-state={state} aria-label={`${handle}, ${STATE_WORDS[state].toLowerCase()}, ${amount}. Open the receipt.`}>

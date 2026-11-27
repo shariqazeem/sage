@@ -9,6 +9,8 @@ import { listInspectionJobs } from "@/lib/db/inspection";
 import type { Campaign, InspectionJob, Submission } from "@/lib/db/schema";
 import { short } from "@/lib/format";
 import { cardOfCampaign, cardOfInspection, type HomeTest } from "./home-test-card";
+import { funnelLine } from "@/lib/test-page/funnel";
+import { funnelFor, heldForBuilder } from "@/lib/test-page/tracking";
 import { testPath } from "./test-path";
 import { hostOf } from "./when";
 
@@ -55,7 +57,7 @@ function ofCampaign(c: Campaign): HomeTest {
   const total = econ ? econ.totalCompletions : c.maxRecipients;
   const surface = econ?.missions[0]?.targetSurface ?? "";
   const { event, at } = lastEvent(subs, c.rewardAmount / 1_000_000);
-  return cardOfCampaign({
+  const card = cardOfCampaign({
     id: c.id,
     href: testPath(c.id),
     host: (c.kind === "testing" ? hostOf(surface) : null) ?? c.title,
@@ -66,6 +68,13 @@ function ofCampaign(c: Campaign): HomeTest {
     event,
     at: at ?? c.createdAt,
   });
+  // a live test whose visits are counted reads as its funnel: "12 saw it · 5 answered · 4 paid"
+  const seen = c.status === "live" && econ ? funnelLine(funnelFor(c)) : null;
+  const read = seen ? { ...card, line: seen } : card;
+  // an answer Sage held for the builder is the one thing on Home that waits for them: it says so, and leads
+  const waiting = c.status === "live" && econ ? heldForBuilder(c, subs).size : 0;
+  if (waiting === 0) return read;
+  return { ...read, state: "question", event: `${waiting} ${waiting === 1 ? "answer waits" : "answers wait"} for you` };
 }
 
 function ofInspection(job: InspectionJob): HomeTest | null {

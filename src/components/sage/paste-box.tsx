@@ -36,6 +36,15 @@ export function PasteBox({ compact = false, note, autoFocus = false }: { compact
   // corrected link is a new request (the server refuses an id reused with a different payload).
   const requestIds = useRef(new Map<string, string>());
 
+  // "Test it again" on a finished test lands here with its product's address: the box is filled and ready
+  useEffect(() => {
+    const again = new URLSearchParams(window.location.search).get("test");
+    if (again && /^https?:\/\//i.test(again) && again.length < 2048) {
+      setValue(again);
+      input.current?.focus({ preventScroll: true });
+    }
+  }, []);
+
   useEffect(() => {
     const take = () => {
       input.current?.scrollIntoView({ block: "center", behavior: "auto" });

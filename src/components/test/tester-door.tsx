@@ -7,6 +7,7 @@ import { ArrowUpRight, Loader2 } from "lucide-react";
 
 import { EmbeddedWalletBridge, type EmbeddedWallet } from "@/components/campaigns/embedded-wallet-bridge";
 import { MissionVerify } from "@/components/live/mission-verify";
+import { WorkAlerts } from "@/components/live/work-alerts";
 import { Button, ButtonLink } from "@/components/sage/button";
 import { SignInSheet } from "@/components/sage/sign-in-sheet";
 import { Ticket, type TicketState } from "@/components/sage/ticket";
@@ -19,6 +20,7 @@ import { buildEvidenceClaim, postEvidence, signEvmEvidenceClaim, type EvidenceIn
 import { chainConfig } from "@/lib/deputy/networks";
 import { short } from "@/lib/format";
 import type { LiveMission, LiveView } from "@/lib/test-page/live";
+import { tellSage } from "./beacon";
 import { useWallet } from "@/lib/wallet/use-wallet";
 
 const emailDoor = (): boolean => !!process.env.NEXT_PUBLIC_PRIVY_LOGIN_APP_ID?.trim();
@@ -102,6 +104,12 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
   const [embedded, setEmbedded] = useState<EmbeddedWallet | null>(null);
   const address = session.address && session.chain === "evm" ? session.address : (siwe.authedAddress ?? null);
   const signedIn = !!address;
+  // someone who signs in HERE is ready to take part: counted for the builder's "how far people got". Someone
+  // signed in on arrival was already counted by the page's own beacon (test-live.tsx), so only a change counts.
+  const arrivedAs = useRef(address);
+  useEffect(() => {
+    if (address && address !== arrivedAs.current) tellSage(view.id, "view");
+  }, [address, view.id]);
   const same = (a?: string | null, b?: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
   const signerIsEmbedded = same(address, embedded?.address);
   const signerIsInjected = same(address, wallet.address);
@@ -335,6 +343,10 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
 
       {mine && !revising ? <KeepPosted submissionId={mine.id} /> : null}
 
+      {/* THE CROWD IS THE ASSET: someone who just tried a test is the person most likely to try the next one, so
+          the alert is offered here, once they have answered, and only ever by their own tap (opt-in, a cooldown) */}
+      {mine && !revising && address && (state === "paid" || state === "checking") ? <WorkAlerts wallet={address} /> : null}
+
       {!mine && !closed && !showForm ? (
         <div className="sg-t-door-part">
           <Button
@@ -375,7 +387,7 @@ function MissionDoor({ view, mission, onChanged }: { view: LiveView; mission: Li
             <span className="sg-label">What to do</span>
             <p>{mission.instructions}</p>
             {view.productUrl ? (
-              <ButtonLink href={mission.targetSurface?.startsWith("http") ? mission.targetSurface : view.productUrl} variant="quiet" size="sm">
+              <ButtonLink href={mission.targetSurface?.startsWith("http") ? mission.targetSurface : view.productUrl} variant="quiet" size="sm" onClick={() => tellSage(view.id, "opened")}>
                 Open {view.host ?? "the product"} <ArrowUpRight size={14} aria-hidden />
               </ButtonLink>
             ) : null}

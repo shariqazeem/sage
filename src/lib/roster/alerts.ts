@@ -11,6 +11,7 @@
  * 4. **Only work that can actually pay.** An alert about a campaign with no open slots is a lie with
  *    a link on it.
  */
+import { testPath } from "@/lib/site/test-path";
 
 export interface RosterMember {
   walletKey: string;
@@ -23,6 +24,8 @@ export interface RosterMember {
 export interface AlertableWork {
   campaignId: string;
   title: string;
+  /** the product's host, when the test has one: what the message asks the reader to try */
+  product?: string | null;
   /** slots that can still be claimed and paid. */
   openSlots: number;
   rewardBase: number;
@@ -47,15 +50,17 @@ export function recipientsFor(work: AlertableWork, roster: RosterMember[], nowSe
   });
 }
 
-/** What the message says. Plain, specific, and never more than the ledger supports. */
+/**
+ * What the message says. Plain, specific, and never more than the ledger supports. It speaks about a test
+ * (since the relaunch, 20 Nov 2026) and its link says where the reader came from (`?via=alert`), so the
+ * builder's page can count the people Sage told.
+ */
 export function alertText(work: AlertableWork, origin: string): string {
   const each = `$${(work.rewardBase / 1e6).toFixed(2)}`;
-  const slots = work.openSlots === 1 ? "1 slot" : `${work.openSlots} slots`;
+  const places = work.openSlots === 1 ? "1 place" : `${work.openSlots} places`;
   return [
-    `New paid work: ${work.title}`,
-    ``,
-    `${each} each · ${slots} open · paid in USDC when Sage verifies it.`,
-    `${origin}/c/${work.campaignId}`,
+    `New test on Sage: try ${work.product ?? work.title}. ${each} each, ${places} open, paid in USDC when Sage checks your answer.`,
+    `${origin}${testPath(work.campaignId)}?via=alert`,
     ``,
     `Reply "stop" to stop these.`,
   ].join("\n");

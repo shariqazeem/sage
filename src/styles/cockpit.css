@@ -1,0 +1,359 @@
+/* THE BUILDER'S VIEW OF A LIVE TEST (27 Nov 2026): how far people got, where they came from, what Sage
+   did, and each person's try. Tokens only (tokens.css). Red is Sage's hand alone: the seal at the stop. */
+
+.sg-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── the section jumps: one quiet line under the head, held under the bar while the page scrolls ── */
+.sg-t-jumps {
+  position: sticky;
+  top: var(--bar-h);
+  z-index: 5;
+  display: flex;
+  gap: var(--s-5);
+  margin: 0 calc(-1 * var(--s-2));
+  padding: 10px var(--s-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* solid paper: a see-through bar lets the words beneath bleed into the links */
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.sg-t-jumps::-webkit-scrollbar {
+  display: none;
+}
+.sg-t-jumps a {
+  flex: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.sg-t-jumps a:hover,
+.sg-t-jumps a:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+/* a jump lands below the bar and the jumps, not under them */
+.sg-t [id] {
+  scroll-margin-top: calc(var(--bar-h) + 56px);
+}
+
+/* ── how far people got: The Stop, one line per stage ── */
+.sg-t-funnel {
+  display: grid;
+  gap: 6px;
+}
+.sg-t-funnel-row {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 12.5rem) minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: var(--s-4);
+  min-height: 30px;
+}
+.sg-t-funnel-label {
+  font-size: 0.9375rem;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.sg-t-funnel-n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-align: right;
+  color: var(--ink);
+}
+/* a <progress> carries the length with no inline style: the unreached part is a hairline, the reached
+   part an ink line, and the stop row ends in the seal wall (the mark, ⊣, at row size) */
+.sg-t-funnel-bar {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 16px;
+  border: 0;
+  background: linear-gradient(var(--border), var(--border)) left center / 100%
+    1px no-repeat;
+  color: var(--ink);
+}
+.sg-t-funnel-bar::-webkit-progress-bar {
+  background: linear-gradient(var(--border), var(--border)) left center / 100%
+    1px no-repeat;
+}
+.sg-t-funnel-bar::-webkit-progress-value {
+  background: linear-gradient(var(--ink), var(--ink)) left center / 100% 4px
+    no-repeat;
+  transition: width var(--dur-3) var(--ease-out);
+}
+.sg-t-funnel-bar::-moz-progress-bar {
+  background: linear-gradient(var(--ink), var(--ink)) left center / 100% 4px
+    no-repeat;
+}
+.sg-t-funnel-bar[data-stop]::-webkit-progress-value {
+  box-shadow: inset -4px 0 0 var(--seal);
+}
+.sg-t-funnel-bar[data-stop]::-moz-progress-bar {
+  box-shadow: inset -4px 0 0 var(--seal);
+}
+.sg-t-funnel-row[data-stop] .sg-t-funnel-label {
+  font-weight: 600;
+}
+.sg-t-funnel-stop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+/* the same seal wall, standing beside the words that name the stop */
+.sg-t-funnel-seal {
+  flex: none;
+  display: inline-block;
+  width: 4px;
+  height: 14px;
+  background: var(--seal);
+  transform: translateY(2px);
+}
+
+/* ── where they came from ── */
+.sg-t-sources-wrap {
+  overflow-x: auto;
+}
+.sg-t-sources {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.sg-t-sources caption {
+  text-align: left;
+  padding-bottom: var(--s-2);
+}
+.sg-t-sources th,
+.sg-t-sources td {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  font-weight: 400;
+}
+.sg-t-sources thead th {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  border-bottom-color: var(--border-strong);
+}
+.sg-t-sources th[scope="row"],
+.sg-t-sources thead th:first-child {
+  text-align: left;
+  padding-right: var(--s-4);
+}
+.sg-t-sources td,
+.sg-t-sources thead th:not(:first-child) {
+  padding-left: 8px;
+}
+.sg-t-sources td {
+  width: 5.5rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── what Sage did ── */
+.sg-t-activity {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+.sg-t-activity li {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: var(--s-4);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+.sg-t-activity-when {
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+  padding-top: 2px;
+}
+.sg-t-activity-text {
+  color: var(--ink);
+}
+.sg-t-activity li[data-kind="held"] .sg-t-activity-text,
+.sg-t-activity li[data-kind="not-paid"] .sg-t-activity-text {
+  color: var(--ink-muted);
+}
+.sg-t-activity-link {
+  font-size: 0.875rem;
+  gap: 2px;
+}
+
+/* ── one person's try ── */
+button.sg-ticket {
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.sg-ticket:hover {
+  border-color: var(--ink);
+}
+button.sg-ticket:active {
+  transform: scale(0.985);
+}
+button.sg-ticket:hover .sg-ticket-stub::before,
+button.sg-ticket:hover .sg-ticket-stub::after {
+  border-color: var(--ink);
+}
+.sg-t-journey {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+.sg-t-journey li {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: 0 0 18px 22px;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+/* the line a person ran: ink where they got, pencil where they didn't */
+.sg-t-journey li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--ink-faint);
+  background: var(--bg);
+}
+.sg-t-journey li::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 15px;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--border);
+}
+.sg-t-journey li:last-child {
+  padding-bottom: 0;
+}
+.sg-t-journey li:last-child::after {
+  display: none;
+}
+.sg-t-journey li[data-done] {
+  color: var(--ink);
+}
+.sg-t-journey li[data-done]::before {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.sg-t-journey li[data-done]::after {
+  background: var(--ink);
+}
+/* where Sage's hand stopped the try: the seal wall */
+.sg-t-journey li[data-tone="stop"]::before {
+  left: 5px;
+  width: 4px;
+  height: 14px;
+  top: 3px;
+  border: 0;
+  background: var(--seal);
+}
+.sg-t-journey-when {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.sg-t-answer {
+  margin: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.sg-t-answer blockquote {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--copy);
+  border-radius: var(--r-md);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sg-t-decline {
+  width: 100%;
+}
+
+/* ── updates ── */
+.sg-t-updates[data-compact] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+}
+
+@media (max-width: 560px) {
+  .sg-t-funnel-row {
+    grid-template-columns: minmax(0, 1fr) 2.5rem;
+    grid-template-areas: "label n" "bar bar";
+    gap: 2px var(--s-3);
+    padding-bottom: 4px;
+  }
+  .sg-t-funnel-label {
+    grid-area: label;
+  }
+  .sg-t-funnel-n {
+    grid-area: n;
+  }
+  .sg-t-funnel-bar {
+    grid-area: bar;
+  }
+  .sg-t-activity li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  /* the source's words get the width; three short numbers need little */
+  .sg-t-sources td {
+    width: 3.25rem;
+  }
+  .sg-t-sources thead th {
+    font-size: 0.625rem;
+    letter-spacing: 0.02em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-t-funnel-bar::-webkit-progress-value {
+    transition: none;
+  }
+}

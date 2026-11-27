@@ -23,6 +23,10 @@ import { kindOfMap, sageReadsOnly, testerCautions } from "@/lib/launch/product-k
 import { isHeldForReview } from "@/lib/campaigns/visibility";
 import { safetyView } from "@/lib/safety";
 import { firstLookView, type FirstLookView } from "./first-look";
+import type { ActivityItem } from "./activity";
+import type { SourceRow, TestFunnel } from "./funnel";
+import { activityFor, trackingFor, type TicketJourney } from "./tracking";
+import { builderUpdatesState, type UpdatesState } from "@/lib/builder-updates/store";
 import { sharingFor, type Sharing } from "@/lib/sharing";
 import { framesOf, type RealFrame } from "@/lib/site/real-test-frames";
 import { testUrl } from "@/lib/site/test-url";
@@ -61,6 +65,15 @@ export interface LiveTicket {
    * "not a real try" (POST /api/submissions/<id>/flag). `until` is when the window closes, unix seconds.
    */
   flag?: { submissionId: string; until: number };
+  /**
+   * THE OWNER'S ALONE (27 Nov 2026): where this person came from and when each thing happened, read from
+   * the visit rows, the answer and its payout. `stoppedAt` and `wouldReturn` are the tester's own taps.
+   */
+  journey?: TicketJourney;
+  /** THE OWNER'S ALONE: the tester's words exactly as they sent them. Never on the public view. */
+  answer?: string;
+  /** THE OWNER'S ALONE: this answer waits for the builder's own yes or no, with the recorded reason. */
+  held?: { submissionId: string; why: string };
 }
 
 export type LiveMission = V2MissionView;
@@ -87,6 +100,14 @@ export interface LiveOwner {
    * them. Null when the test has no product address. Written by code on every read; never a model here.
    */
   users: FirstUsersView | null;
+  /** how far people got, by person: saw the test, signed in, opened the product, answered, paid */
+  funnel: TestFunnel;
+  /** where people came from, most first */
+  sources: SourceRow[];
+  /** what Sage did for this test, newest first, each line a recorded row */
+  activity: ActivityItem[];
+  /** whether this builder hears about their tests on Telegram */
+  updates: { telegram: UpdatesState };
 }
 
 export interface LiveView {
@@ -172,6 +193,8 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   const now = nowSeconds();
   const builderSaid = (s: Submission): string | null => (s.rejectReason?.startsWith("The builder said:") ? s.rejectReason.slice(0, 240) : null);
   const ordered = [...subs].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  // NO CORPUS ORACLE: journeys, answers and holds are read for the owner and for nobody else.
+  const tracking = owner ? trackingFor(campaign, subs, events) : null;
   const tickets: LiveTicket[] = ordered.map((s, i) => {
     const state = stateOf(s);
     const mine = !!viewer && sameFounder(s.wallet, viewer);
@@ -180,8 +203,12 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
       const fin = finalizationFor(s, campaign.visibility, now);
       if (fin.state === "waiting") flag = { submissionId: s.id, until: fin.finalizesAt };
     }
+    const why = tracking?.held.get(s.id);
     return {
       ...(flag ? { flag } : {}),
+      ...(tracking ? { journey: tracking.journeyOf({ submissionId: s.id }) } : {}),
+      ...(tracking && typeof s.note === "string" && s.note.trim() ? { answer: s.note } : {}),
+      ...(why ? { held: { submissionId: s.id, why } } : {}),
       key: s.id,
       handle: owner || state === "paid" ? short(s.wallet) : mine ? "You" : `Tester ${i + 1}`,
       state,
@@ -199,7 +226,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   seatHolders(campaign.id).forEach((wallet, i) => {
     if (answered.has(wallet.toLowerCase())) return;
     const mine = !!viewer && sameFounder(wallet, viewer);
-    tickets.push({ key: `seat:${i}`, handle: owner ? short(wallet) : mine ? "You" : "An invited tester", state: "took-a-place", amount: usd(each), reason: null, receipt: null, at: 0, mine });
+    tickets.push({ ...(tracking ? { journey: tracking.journeyOf({ seatWallet: wallet }) } : {}), key: `seat:${i}`, handle: owner ? short(wallet) : mine ? "You" : "An invited tester", state: "took-a-place", amount: usd(each), reason: null, receipt: null, at: 0, mine });
   });
   tickets.sort((a, b) => b.at - a.at);
 
@@ -227,7 +254,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
   const builderChecks = campaign.autonomy === "manual" && planWithoutModel(paidPlan as { modelVersion?: unknown } | null | undefined);
 
   let ownerView: LiveOwner | null = null;
-  if (owner && viewer) {
+  if (owner && viewer && tracking) {
     const inviteOnly = !isPublicWork(campaign);
     let seatLink: LiveOwner["seatLink"] = null;
     if (inviteOnly && (campaign.status === "live" || campaign.status === "draft")) {
@@ -243,7 +270,7 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
     const people = new Set(subs.filter((s) => s.status === "paid").map((s) => s.wallet.toLowerCase())).size;
     const product = productName(campaign);
     const found = people > 0 ? resultFactsFor(campaign.id) : null;
-    const post = product && found ? resultText({ product, people, finding: found.finding, quote: found.quote, onMetis: campaign.chainId === 1088, url: testUrl(campaign.id) }) : null;
+    const post = product && found ? resultText({ product, people, finding: found.finding, quote: found.quote, onMetis: campaign.chainId === 1088, url: testUrl(campaign.id, "x") }) : null;
     ownerView = {
       sharing,
       ownVault: sameFounder(campaign.posterWallet, viewer),
@@ -256,6 +283,10 @@ export function liveView(campaign: Campaign, viewer: string | null): LiveView {
       seatLink,
       resultPost: post ? post.text : null,
       users: firstUsersView(campaign, findings, { done: phase === "done", now }),
+      funnel: tracking.funnel,
+      sources: tracking.sources,
+      activity: activityFor(campaign, { subs, events, job: lookJob }),
+      updates: { telegram: builderUpdatesState(viewer) },
     };
   }
 

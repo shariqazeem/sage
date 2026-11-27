@@ -39,8 +39,10 @@ describe("who gets told about new work", () => {
 
   it("says only what the ledger supports, and how to leave", () => {
     const t = alertText(work({ openSlots: 1 }), "https://sagepays.xyz");
-    expect(t).toContain("$1.10 each · 1 slot open");
-    expect(t).toContain("https://sagepays.xyz/c/camp1");
+    expect(t).toContain("New test on Sage: try Test the quickstart. $1.10 each, 1 place open, paid in USDC when Sage checks your answer.");
+    expect(t).toContain("https://sagepays.xyz/t/camp1?via=alert");
+    // the product's host is what the reader is asked to try, when the test has one
+    expect(alertText(work({ product: "umanity.gives" }), "https://sagepays.xyz")).toContain("try umanity.gives. $1.10 each, 5 places open");
     expect(t).toMatch(/Reply "stop"/);
   });
 });
