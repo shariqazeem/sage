@@ -11,6 +11,7 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { getFounderAddress } from "@/lib/auth/founder";
 import { marketplace, type MarketplaceRow } from "@/lib/campaigns/marketplace";
 import { openTests } from "@/lib/campaigns/open-tests";
+import { openTriesOf, type OpenTry } from "@/lib/campaigns/open-tries";
 import { buildWalletRecord } from "@/lib/campaigns/record";
 import { short } from "@/lib/format";
 import { testPath } from "@/lib/site/test-path";
@@ -24,6 +25,14 @@ export const metadata: Metadata = {
   description:
     "Every test open on Sage right now. Try a product, answer honestly, and Sage checks your answer and pays you in USDC on Metis, to a wallet you control, with a public receipt. Never a fee.",
   alternates: { canonical: "/earn" },
+};
+
+/** A waiting answer's state, in the words its ticket on the test page uses. */
+const WAITING_WORDS: Record<OpenTry["state"], string> = {
+  answered: "Sage reads it in a few minutes",
+  checking: "Sage is checking it",
+  approved: "Approved, paid within 30 minutes",
+  held: "Held for a second look",
 };
 
 /** About how long, from what the test asks for. Coarse on purpose: it is never a promise. */
@@ -43,6 +52,8 @@ export default async function EarnPage() {
   const { rows: all, speed } = marketplace();
   const { rows } = openTests(all);
   const record = me ? buildWalletRecord(me) : null;
+  // what this person answered and is still waiting on: the way back to each test, and its state in the ticket's words
+  const waiting = me ? openTriesOf(me) : [];
   const tries = record?.completions ?? 0;
 
   return (
@@ -91,6 +102,22 @@ export default async function EarnPage() {
                   ))}
                 </div>
               ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {waiting.length > 0 ? (
+          <section className="sg-wrap sg-section sg-section-near" aria-labelledby="your-answers">
+            <div className="sg-row-head sg-row-head-list">
+              <h2 className="sg-label" id="your-answers">
+                Your answers being checked
+              </h2>
+              <p className="sg-label">{waiting.length}</p>
+            </div>
+            <div className="sg-stack sg-gap-3">
+              {waiting.map((w) => (
+                <Ticket key={w.submissionId} handle={w.title} words state={w.state === "answered" ? "answered" : "checking"} amount={dollars(w.rewardBase / 1_000_000)} meta={`${WAITING_WORDS[w.state]} · ${whenAgo(w.at)}`} href={`${testPath(w.campaignId)}#place`} />
+              ))}
             </div>
           </section>
         ) : null}

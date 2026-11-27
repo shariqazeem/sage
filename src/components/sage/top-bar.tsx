@@ -3,11 +3,12 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { Plus } from "lucide-react";
 import { SageMark } from "@/components/brand/sage-mark";
 import { BAR_NAV, NEW_TEST_HREF, barPlace } from "@/components/shell/routes";
 import { refreshFounderSession, useFounderSession } from "@/lib/auth/use-founder-session";
+import { rememberVia } from "@/lib/site/via";
 import { Button, ButtonLink } from "./button";
 import { NEW_TEST_EVENT } from "./paste-box";
 
@@ -28,6 +29,9 @@ export function TopBar() {
   const founder = useFounderSession();
   const [sheet, setSheet] = useState<"account" | "signin" | null>(null);
   const place = barPlace(pathname);
+
+  // where this person first came from (`?via=tiktok`), kept for the test they may start (src/lib/site/via.ts)
+  useEffect(() => rememberVia(), []);
 
   const newTest = (e: MouseEvent<HTMLAnchorElement>) => {
     // Already on Home: the box is on this page, so take the cursor there instead of navigating.

@@ -37,8 +37,8 @@ export function WorkAlerts({ wallet }: { wallet: string }) {
         <p className="wa-t"><BellRing size={14} /> Get told when a new test opens</p>
         <p className="wa-s">
           {state === "opened"
-            ? "Telegram is open. Press Start there and you're on: at most one message a day, only tests you haven't tried, and “stop” ends it."
-            : "Sage messages you on Telegram when a new paid test opens that you haven't tried. At most one a day, and “stop” ends it."}
+            ? "Telegram is open. Press Start there and you're on: at most one message a day about new tests, only ones you haven't tried, plus what happens to your answers. “stop” ends it."
+            : "Sage messages you on Telegram when a new paid test opens that you haven't tried, and what happens to your answers. At most one new test a day, and “stop” ends it."}
         </p>
         {err && <p className="wa-e">{err}</p>}
       </div>

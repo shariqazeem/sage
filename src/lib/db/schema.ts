@@ -1048,6 +1048,12 @@ export const inspectionJobs = sqliteTable(
      *  authority — kept so "same content, different turn" occurrences are observable. */
     contentFingerprint: text("content_fingerprint"),
     status: text("status").$type<InspectionStatus>().notNull().default("queued"),
+    /**
+     * WHERE THIS BUILDER CAME FROM (28 Nov 2026): the first-touch tag their browser arrived with
+     * (`?via=tiktok`, kept 30 days, `src/lib/site/via.ts`), or `x` / `telegram` when the test was started
+     * from a tag on X or from the chat. Null when there was none. Read by `scripts/vm/growth.mjs` only.
+     */
+    via: text("via"),
     /** the public campaign id frozen for this plan (the DB id + slug on approval). */
     publicCampaignId: text("public_campaign_id").notNull(),
     /** normalized product URL. */
@@ -2079,4 +2085,18 @@ export const builderNotices = sqliteTable(
     sentAt: integer("sent_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.campaignId, t.kind] })],
+);
+
+/**
+ * Every message a tester was sent about their OWN answer, once: paid, not paid, held for the builder, or
+ * asked for more. Only testers on the alerts roster are ever messaged. `src/lib/tester-updates/`.
+ */
+export const testerNotices = sqliteTable(
+  "tester_notices",
+  {
+    submissionId: text("submission_id").notNull(),
+    kind: text("kind").notNull(),
+    sentAt: integer("sent_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.submissionId, t.kind] })],
 );

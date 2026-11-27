@@ -1,5 +1,6 @@
 import { announceNewWork } from "@/lib/roster/notify";
 import { notifyBuilders } from "@/lib/builder-updates/notify";
+import { notifyTesters } from "@/lib/tester-updates/notify";
 import { runOperatorTick } from "@/lib/operator/tick";
 import { NextResponse, after, type NextRequest } from "next/server";
 import {
@@ -103,6 +104,8 @@ async function runSweep() {
     roster: { campaigns: 0, sent: 0 },
     /** builders told about their own tests on Telegram (they asked): tests with news, messages sent. */
     builders: { tests: 0, sent: 0, failed: 0 },
+    /** testers on the alerts roster told what happened to their own answer. */
+    testers: { sent: 0, failed: 0, baselined: 0 },
     /** plans that renew like a card: reminded, renewed from the Sage balance, failed, recovered. */
     billing: { candidates: 0, reminded: 0, charged: 0, failed: 0, recovered: 0 },
     programmes: { due: 0, opened: 0, waiting: 0, failed: 0, skipped: 0, closed: 0 },
@@ -325,6 +328,13 @@ async function runSweep() {
   summary.builders = await notifyBuilders(nowSeconds()).catch((e) => {
     console.error("[sweep] builder updates failed:", e instanceof Error ? e.message : e);
     return { tests: 0, sent: 0, failed: 0 };
+  });
+
+  // AND THE TESTER (28 Nov 2026). A tester who asked Sage to message them hears what happened to their own
+  // answer: paid, not paid, passed to the builder, or needs more. Once each (src/lib/tester-updates/).
+  summary.testers = await notifyTesters(nowSeconds()).catch((e) => {
+    console.error("[sweep] tester updates failed:", e instanceof Error ? e.message : e);
+    return { sent: 0, failed: 0, baselined: 0 };
   });
 
   // PROGRAMMES (6 Nov 2026): each season's next round, from the founder's account, with the same approved

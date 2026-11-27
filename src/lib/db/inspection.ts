@@ -1,3 +1,4 @@
+import { cleanVia } from "@/lib/site/via";
 import "server-only";
 
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
@@ -163,6 +164,8 @@ export interface CreateInspectionInput {
   actor?: string;
   /** AES-256-GCM sealed test-account credentials (sealed at the door in start.ts). Never plaintext. */
   testAccountSealed?: string | null;
+  /** where the builder came from (`cleanVia`); when absent, the door itself answers (X, Telegram) */
+  via?: string | null;
 }
 
 /**
@@ -171,6 +174,12 @@ export interface CreateInspectionInput {
  * job, even when url+goal+budget are byte-for-byte identical. Reusing an id with a DIFFERENT
  * payload fails closed (`RequestIdentityMismatchError`). Returns {job, created}.
  */
+/** A test started by a tag on X or from the Telegram chat says so itself; every other door says nothing. */
+function doorVia(founder: string, surface: string): string | null {
+  if (founder.toLowerCase().startsWith("x:")) return "x";
+  return surface === "telegram" ? "telegram" : null;
+}
+
 export function createInspectionJob(input: CreateInspectionInput): { job: InspectionJob; created: boolean } {
   const key = input.planningRequestId;
   const goalDigest = founderGoalDigest(input.goal);
@@ -231,6 +240,8 @@ export function createInspectionJob(input: CreateInspectionInput): { job: Inspec
     tokenDecimals: input.tokenDecimals,
     inputDigest,
     testAccountSealed: input.testAccountSealed ?? null,
+    // not part of the request commitment: where someone came from never changes what they asked for
+    via: cleanVia(input.via) ?? doorVia(input.founderWallet, surface),
     createdAt: now,
     updatedAt: now,
   };

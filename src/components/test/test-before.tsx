@@ -16,6 +16,7 @@ import { count, howLong } from "@/lib/site/when";
 import type { BeforeView, Whose } from "@/lib/test-page/before";
 import { baseToUsd, offerOf } from "@/lib/test-page/offer-shape";
 import { FirstLook, lookMeta } from "./first-look";
+import { GiveAway } from "./give-away";
 import { OfferCard } from "./offer-card";
 import { PurposeLine } from "./purpose-line";
 import { ReleaseLine, missionsToRelease } from "./release-line";
@@ -172,7 +173,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
   const reads = initial.sageReads;
   const isWriting = WRITING.has(status);
   const ready = status === "ready" && !!plan && plan.missions.length > 0;
-  const mine = whose === "yours" || whose === "nobody" || whose === "handover";
+  const mine = whose === "yours" || whose === "nobody" || whose === "handover" || whose === "gift";
   const look = isTrying ? null : initial.firstLook;
   const who = initial.xDraft?.username ? `@${initial.xDraft.username}` : null;
 
@@ -199,6 +200,8 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
               : "It opens the product in a real browser and uses it the way a stranger would. You can close this page: Sage keeps going, and this link is the test."
           ) : isWriting ? (
             "From what it saw, it is working out what to ask people to try, and checking each mission can be judged fairly. This part usually takes two to five minutes."
+          ) : ready && whose === "gift" ? (
+            "Someone ran Sage on your product for you. Below is what a stranger hits on a first visit, and the test Sage wrote from it. Sign in to keep it; when you want real people to try it, you pay only what they earn."
           ) : ready && mine ? (
             reads
               ? `Sage read ${reads}, wrote the missions below, and will check every answer against what it read. It could not use the product itself: people do. You pay only what testers earn.`
@@ -223,7 +226,7 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
             {shape.people} people can try <span className="sg-mono">{host}</span> for {baseToUsd(shape.totalBase)}.
           </>
         ) : ready ? (
-          <>Sage {reads ? "read" : "tried"} <span className="sg-mono">{host}</span>{who && whose === "x" ? ` for ${who}` : ""}. The test is ready.</>
+          <>Sage {reads ? "read" : "tried"} <span className="sg-mono">{host}</span>{who && whose === "x" ? ` for ${who}` : whose === "gift" ? " for you" : ""}. The test is ready.</>
         ) : status === "needs_input" ? (
           <>Sage has a question before it writes the missions.</>
         ) : status === "superseded" ? (
@@ -383,6 +386,9 @@ export function TestBefore({ initial }: { initial: BeforeView }) {
             />
           ) : null}
         </Stage>
+
+        {/* made for someone else: its owner can give it to the product's builder (gift.ts) */}
+        {ready && whose === "yours" ? <GiveAway jobId={job.id} host={host} /> : null}
 
         {/* 4, 5 ── what comes after the money ──────────────────────────────── */}
         <Stage state="next" title="People try it, and each one is checked and paid" />

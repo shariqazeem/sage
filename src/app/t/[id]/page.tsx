@@ -46,8 +46,11 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: host ? `Sage tries ${host}` : "A test", robots: { index: false } };
 }
 
-export default async function TestPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TestPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params;
+  // a plan given to its builder carries its gift code here (gift.ts); a hand-over's code rides the same field
+  const claim = (await searchParams).claim;
+  const giftCode = typeof claim === "string" ? claim : null;
   if (!ID.test(id)) notFound();
   const viewer = await getFounderAddress();
 
@@ -73,7 +76,7 @@ export default async function TestPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="sg">
       <main className="sg-main">
-        <TestBefore initial={beforeView(job, viewer)} />
+        <TestBefore initial={beforeView(job, viewer, giftCode)} />
       </main>
       <SiteFooter />
     </div>

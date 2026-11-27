@@ -61,7 +61,7 @@ export function OfferCard({
   const shape = offerOf(plan.missions);
   // a test handed over from Telegram is priced by its owner once it is theirs
   const mayChange = (whose === "yours" || whose === "nobody") && !locked;
-  const builder = whose === "yours" || whose === "nobody" || whose === "handover";
+  const builder = whose === "yours" || whose === "nobody" || whose === "handover" || whose === "gift";
 
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);

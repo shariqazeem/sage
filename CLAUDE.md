@@ -133,6 +133,19 @@
 >   fills the paste box). A tester who has answered is offered alerts for the next test: the crowd is the asset.
 > - **Local preview:** `node scripts/dev/seed-cockpit.mjs`, then `SAGE_DB_PATH=var/preview.db` and the dev
 >   session route. It builds an invented test with seven invented people.
+> - **Second round (27 Nov):**
+>   - **Every test link unfurls as a share card** (`src/app/t/[id]/opengraph-image.tsx`), drawn from the page's
+>     own PUBLIC view, so it never says more than a stranger may read.
+>   - **A plan can be GIVEN to its product's builder** (`src/lib/test-page/gift.ts`, `POST /api/t/<id>/gift`,
+>     `?claim=` on the claim door). This is the founder's value-first outreach. The code is signed over the plan
+>     and its current owner, so it works once, for 7 days, and never once the plan is paid for. The holder reads
+>     Sage's first look as the owner would until then.
+>   - **Testers on the roster hear what happened to their own answer** (`src/lib/tester-updates/`).
+>   - **The roster takes anyone signed in, for their own wallet only** (`/api/roster`). It no longer needs a
+>     first payout, and it no longer mints for any address.
+>   - **Earn lists a tester's answers still being checked** (`openTriesOf`).
+>   - **Pastes carry first-touch `?via=`** (`inspection_jobs.via`, migration 0079), and `scripts/vm/growth.mjs`
+>     prints the daily numbers.
 
 ---
 
@@ -921,7 +934,7 @@ key the API ignores, and several rounds of "defects" turned out to be the harnes
 read tool before acting, and self-corrects once when a turn claims an action it did not take.
 A one-shot battery scores both as failures a founder never experiences.
 
-Scripts in `scripts/`: `review.mjs` (held work, and a product the safety screen held or refused), `recount.mjs` (PUBLIC: recounts Sage's numbers from the chain; dependency-free), `lane-audit.mjs` (prints the provider each LLM lane resolves to — partial
+Scripts in `scripts/`: `review.mjs` (held work, and a product the safety screen held or refused), `recount.mjs` (PUBLIC: recounts Sage's numbers from the chain; dependency-free), `vm/growth.mjs` (the founder's daily numbers, read-only: pastes outside or ours and by `via`, first looks, paid tests, testers, visits by source, posts, today's model spend), `lane-audit.mjs` (prints the provider each LLM lane resolves to — partial
 lane config is silently ignored, which is how two lanes sat on a metered key for weeks),
 `redteam-brain.mjs` (LIVE, non-CI red-team — the semantic attacks
 the regex layer can't catch), `deputy-watch.mjs` (sweep watcher), `mcp-conformance.mjs`,

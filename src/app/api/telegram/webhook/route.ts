@@ -88,7 +88,7 @@ export async function POST(req: Request): Promise<Response> {
       await sendTelegram(
         chatId,
         r.ok
-          ? `Done. When new paid work opens that you haven't already done, Sage will message you here — at most one message a day, and only work that can actually pay.\n\nSend "stop" any time to stop them.`
+          ? `Done. When a new paid test opens that you haven't tried, Sage will message you here: at most one a day, and only tests that can still pay. Sage also tells you here what happens to your answers.\n\nSend "stop" any time to stop them.`
           : r.reason,
         { html: false },
       );

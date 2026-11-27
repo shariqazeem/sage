@@ -7,6 +7,7 @@ import { refreshFounderSession, useFounderSession } from "@/lib/auth/use-founder
 import { rememberInspection } from "@/lib/launch/recent-inspections";
 import { DEFAULT_TEST, pastedLink } from "@/lib/site/paste-link";
 import { testPath } from "@/lib/site/test-path";
+import { storedVia } from "@/lib/site/via";
 import { Button } from "./button";
 import { SignInSheet } from "./sign-in-sheet";
 
@@ -74,7 +75,7 @@ export function PasteBox({ compact = false, note, autoFocus = false }: { compact
       const res = await fetch("/api/launch", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ productUrl: link, repoUrl: "", goal: "", targetUsers: "", budgetUsd: String(DEFAULT_TEST.budgetUsd), requestId: id, testAccount: null }),
+        body: JSON.stringify({ productUrl: link, repoUrl: "", goal: "", targetUsers: "", budgetUsd: String(DEFAULT_TEST.budgetUsd), requestId: id, testAccount: null, via: storedVia() }),
       });
       if (res.status === 401) {
         setBusy(false);

@@ -32,6 +32,8 @@ export interface StartInspectionInput {
   /** OPTIONAL test-account credentials for the founder's OWN product, so Sage can sign in during the
    *  field test and gain ground truth behind the login wall. Sealed immediately; never logged. */
   testAccount?: unknown;
+  /** where the builder came from: the first-touch tag their browser kept (`src/lib/site/via.ts`). Untrusted; cleaned at the row. */
+  via?: unknown;
 }
 
 export type StartInspectionResult =
@@ -128,6 +130,7 @@ export function startInspection(input: StartInspectionInput): StartInspectionRes
       surface: input.surface,
       actor: input.actor ?? input.founder,
       testAccountSealed,
+      via: typeof input.via === "string" ? input.via : null,
     });
     return { ok: true, job, created };
   } catch (e) {

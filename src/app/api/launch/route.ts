@@ -66,6 +66,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     planningRequestId,
     surface: "web",
     actor: session,
+    // where this builder first came from (`?via=tiktok`), as their browser kept it; a short word or nothing
+    via: body.via,
   });
   if (!result.ok) {
     const status = result.error === "request_identity_mismatch" ? 409 : 400;

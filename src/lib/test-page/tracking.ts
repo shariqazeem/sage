@@ -44,7 +44,8 @@ export interface TicketJourney {
   wouldReturn: string | null;
 }
 
-const RETRY = /observation_retry|for the tester to refine/i;
+/** A hold that only asks the tester to add to their answer (reason-copy.ts `observationRetryLine`). */
+export const RETRY = /observation_retry|for the tester to refine/i;
 const capital = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 /**

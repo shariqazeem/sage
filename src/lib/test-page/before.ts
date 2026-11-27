@@ -13,6 +13,7 @@ import { hostOf } from "@/lib/site/when";
 import { handedOverOwner } from "@/lib/telegram/handover-claim";
 import { xDraftFor } from "@/lib/x/drafts";
 import type { JobView } from "@/components/launch/types";
+import { holdsGift } from "./gift";
 import { plainLimit } from "./plain-limit";
 import { firstLookView, type FirstLookView } from "./first-look";
 import { ensureDefaultOffer, offerLockedWhy } from "./offer-apply";
@@ -24,7 +25,8 @@ import { ensureDefaultOffer, offerLockedWhy } from "./offer-apply";
  * understood, what it could not see. `whose` is relative to the visitor and never an address.
  */
 /** `handover`: planned in a Telegram chat; its link's code lets the signed-in person take it. */
-export type Whose = "yours" | "nobody" | "handover" | "x" | "other";
+/** "gift": its owner gave it away and this visitor holds the live gift link (gift.ts), so they read it as its owner would */
+export type Whose = "yours" | "nobody" | "handover" | "x" | "gift" | "other";
 
 export interface TestFact {
   label: string;
@@ -75,11 +77,12 @@ function onDisk(inspectionId: string, n: number): boolean {
   return existsSync(path.join(process.cwd(), "public", "field-tests", inspectionId, `${n}.png`));
 }
 
-export function whoseIs(job: Pick<InspectionJob, "id" | "founderWallet">, viewer: string | null): Whose {
+export function whoseIs(job: Pick<InspectionJob, "id" | "founderWallet" | "status" | "publicCampaignId">, viewer: string | null, giftCode?: string | null): Whose {
   if (viewer && sameFounder(job.founderWallet, viewer)) return "yours";
   if (job.founderWallet === "anonymous") return "nobody";
   if (handedOverOwner(job.founderWallet)) return "handover";
   if (xDraftFor(job.id)?.unclaimed) return "x";
+  if (giftCode && holdsGift(job, giftCode)) return "gift";
   return "other";
 }
 
@@ -105,13 +108,14 @@ export function factsOf(map: StoredMap | null, steps: number | null): { facts: T
   return { facts, couldNotSee };
 }
 
-export function beforeView(job: InspectionJob, viewer: string | null): BeforeView {
-  const whose = whoseIs(job, viewer);
+export function beforeView(job: InspectionJob, viewer: string | null, giftCode?: string | null): BeforeView {
+  const whose = whoseIs(job, viewer, giftCode);
   // the owner's first look at a fresh default-budget plan sets it to the default offer, once
   if (whose === "yours" && viewer) ensureDefaultOffer(job, viewer);
   // what the safety screen noticed is the builder's to read; somebody else's view leaves the reason out
   const full = jobToView(job);
-  const view = (whose === "other" || whose === "x" ? withoutSafetyDetail(full) : full) as unknown as JobView;
+  // ...and a gift link's holder until they have taken the plan: a forwarded link must not carry what Sage noticed
+  const view = (whose === "other" || whose === "x" || whose === "gift" ? withoutSafetyDetail(full) : full) as unknown as JobView;
   const host = hostOf(job.productUrl) ?? job.productUrl;
   const map = ((job.result as { map?: StoredMap } | null)?.map ?? null) as StoredMap | null;
 
@@ -120,7 +124,9 @@ export function beforeView(job: InspectionJob, viewer: string | null): BeforeVie
   // NO CORPUS ORACLE (CLAUDE.md): before anyone is paid, this page becomes the live test's page, and Sage's
   // frames and first look carry what the judge will check answers against. Only the owner sees them now;
   // the public sees them once the test is done (live.ts).
-  const mayShowFrames = whose === "yours";
+  // ...and the person a plan was GIVEN to (gift.ts): the first look is the gift. A gift link works only while the
+  // plan is unpaid and unclaimed, so no place exists yet whose answers these frames could hand over.
+  const mayShowFrames = whose === "yours" || whose === "gift";
   let run: BeforeView["run"] = null;
   if (map?.fieldTest && mayShowFrames) {
     const picked = framesOf(map.fieldTest, host, MAX_FRAMES);
