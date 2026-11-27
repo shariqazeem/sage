@@ -110,6 +110,30 @@
 >
 > Plan, workstreams and dates: `docs/relaunch/plan.md` (internal).
 
+> **27 Nov 2026 (the founder's ask): a builder sees everything.** "Users get everything what's being done:
+> tracking if someone approached, someone tried or someone failed." The plan behind it, with the case for the
+> product and the dated proofs, is `docs/relaunch/complete.md` (internal).
+> - **How far people got** (`src/lib/test-page/funnel.ts`, `tracking.ts`): saw the test, signed in, opened the
+>   product, answered, paid. Each person is counted once at their furthest stage, so the rows never grow downward,
+>   and the page draws it as The Stop, with the seal where most people stopped.
+> - **Visits** (`test_visits`, migration 0078) are a beacon from the page (`POST /api/t/<id>/seen`). A visitor is
+>   the hash of a random first-party cookie with a first-touch source, never an IP address or a user agent, and
+>   never the builder.
+> - **Where they came from:** Sage's own links carry `?via=` (X `x`, the channel `tg`, Earn `earn`, alerts
+>   `alert`, the builder's seat link `link`; `testUrl(id, via)`).
+> - **What Sage did** (`activity.ts`): a timeline read only from recorded rows, each with its proof link. It is
+>   the owner's, like each person's journey and answer on their ticket. The public view is unchanged (tested).
+> - **A held answer is decided in place:** `POST /api/t/<id>/answers/<sid>`, with `{decision: "pay"}` or
+>   `{decision: "decline", reason}`. It is owner-gated and calls only `releaseSubmission` and `rejectSubmission`;
+>   no wallet signature is needed.
+> - **Web builders hear about their tests on Telegram** (`src/lib/builder-updates/`; `/start bu_<token>`; the
+>   sweep's `builders` step): a first answer, an answer waiting, findings, done, and quiet after 24 h. Each is sent
+>   once (`builder_notices`), and tests the Telegram-launch path already reports are skipped.
+> - **Home leads with a test that waits for its builder.** A finished test offers "Test it again" (`/?test=<url>`
+>   fills the paste box). A tester who has answered is offered alerts for the next test: the crowd is the asset.
+> - **Local preview:** `node scripts/dev/seed-cockpit.mjs`, then `SAGE_DB_PATH=var/preview.db` and the dev
+>   session route. It builds an invented test with seven invented people.
+
 ---
 
 ## 1. Product
@@ -711,16 +735,17 @@ shows the vision models a red square, so a model that thinks past its budget, or
 any battery and after any route change: on 20-21 Nov `status` looked right while every `anthropic/*` model on
 CommonStack, and DeepSeek V4 Flash, answered 500.
 
-**Prod (21 Nov) runs on CommonStack:**
+**Prod (27 Nov) runs on Claude, on the founder's monthly $100 of Claude credit:** every lane is Claude Sonnet 5.5
+on Anthropic's own endpoint (`llm-route.mjs anthropic`), with Claude Haiku 5.5 as the backup eye. The fallback stays
+on CommonStack's GPT-5.4 mini, a different account. `LLM_DAILY_BUDGET_USD=3` keeps a month inside the credit.
+Its payout judge is an approved identity (`docs/deputy-promotions/2026-11-05-anthropic-claude-sonnet-5-5.md`).
+`llm-route.mjs commonstack` restores the 21 Nov CommonStack routing:
 
-| Lane | Model |
+| Lane (21 Nov, CommonStack) | Model |
 |---|---|
 | Mission design, the payout judge, the concierge, the observation judge | MiniMax M3 |
 | The shared chain (drafts, findings, the first look) and the fallback | GPT-5.4 mini |
 | Vision | Qwen3-VL, with Gemini 3.5 Flash as the backup eye |
-
-The Claude-direct route (5-11 Nov, on the founder's credit) is still one `anthropic` away. Its payout judge is
-an approved identity (`docs/deputy-promotions/2026-11-05-anthropic-claude-sonnet-5-5.md`).
 
 **Every model call goes through ONE wire** (`src/lib/llm/wire.ts`, 5 Nov 2026; a structural test refuses a
 direct `chat/completions` fetch anywhere else). It:
